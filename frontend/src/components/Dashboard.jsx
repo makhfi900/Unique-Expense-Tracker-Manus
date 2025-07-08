@@ -13,6 +13,7 @@ import {
   Settings,
   FileText,
   Upload,
+  Shield,
   Download
 } from 'lucide-react';
 import ExpenseList from './ExpenseList';
@@ -21,6 +22,7 @@ import CategoryManager from './CategoryManager';
 import UserManager from './UserManager';
 import Analytics from './Analytics';
 import CSVImportExport from './CSVImportExport';
+import LoginActivityTracker from './LoginActivityTracker';
 
 const Dashboard = () => {
   const { user, logout, isAdmin, isAccountOfficer } = useAuth();
@@ -66,7 +68,7 @@ const Dashboard = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-7">
             <TabsTrigger value="expenses" className="flex items-center">
               <FileText className="h-4 w-4 mr-2" />
               Expenses
@@ -95,6 +97,12 @@ const Dashboard = () => {
               <TabsTrigger value="users" className="flex items-center">
                 <Users className="h-4 w-4 mr-2" />
                 Users
+              </TabsTrigger>
+            )}
+            {isAdmin && (
+              <TabsTrigger value="login-activity" className="flex items-center">
+                <Shield className="h-4 w-4 mr-2" />
+                Login Activity
               </TabsTrigger>
             )}
           </TabsList>
@@ -189,6 +197,12 @@ const Dashboard = () => {
                   <UserManager />
                 </CardContent>
               </Card>
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="login-activity" className="space-y-6">
+              <LoginActivityTracker />
             </TabsContent>
           )}
         </Tabs>

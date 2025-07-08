@@ -142,3 +142,58 @@ CREATE POLICY "Users can delete expenses based on role" ON expenses
         (created_by = auth.uid())
     );
 
+
+
+-- Login Activities Table for tracking user login events
+CREATE TABLE login_activities (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    login_time TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    ip_address INET,
+    user_agent TEXT,
+    device_type VARCHAR(50),
+    browser VARCHAR(100),
+    operating_system VARCHAR(100),
+    location_country VARCHAR(100),
+    location_city VARCHAR(100),
+    location_region VARCHAR(100),
+    success BOOLEAN DEFAULT TRUE,
+    failure_reason TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index for efficient querying by user and time
+CREATE INDEX idx_login_activities_user_time ON login_activities(user_id, login_time DESC);
+CREATE INDEX idx_login_activities_time ON login_activities(login_time DESC);
+
+-- RLS Policy for login_activities table
+ALTER TABLE login_activities ENABLE ROW LEVEL SECURITY;
+
+-- Policy: Users can only see their own login activities, Admins can see all
+CREATE POLICY "Users can view own login activities" ON login_activities
+    FOR SELECT USING (
+        auth.uid() = user_id OR 
+        EXISTS (
+            SELECT 1 FROM users 
+            WHERE users.id = auth.uid() 
+            AND users.role = 'admin'
+        )
+    );
+
+-- Policy: Only the system can insert login activities (via service role)
+CREATE POLICY "System can insert login activities" ON login_activities
+    FOR INSERT WITH CHECK (true);
+
+-- Function to clean up old login activities (older than 2 weeks)
+CREATE OR REPLACE FUNCTION cleanup_old_login_activities()
+RETURNS void AS $$
+BEGIN
+    DELETE FROM login_activities 
+    WHERE login_time < NOW() - INTERVAL '14 days';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create a scheduled job to run cleanup daily (if pg_cron extension is available)
+-- Note: This requires the pg_cron extension to be enabled in Supabase
+-- SELECT cron.schedule('cleanup-login-activities', '0 2 * * *', 'SELECT cleanup_old_login_activities();');
+

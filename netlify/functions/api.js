@@ -49,31 +49,47 @@ const authenticateToken = async (authHeader) => {
 // Route handlers
 const routes = {
   // Authentication routes
-  'POST /auth/login': async (body) => {
+  'POST /auth/login': async (body, user, event) => {
     const { email, password } = body;
 
     if (!email || !password) {
       return { statusCode: 400, body: { error: 'Email and password are required' } };
     }
 
-    const { data: user, error } = await supabase
+    const { data: userRecord, error } = await supabase
       .from('users')
       .select('*')
       .eq('email', email.toLowerCase())
       .eq('is_active', true)
       .single();
 
-    if (error || !user) {
+    // Extract request information for login activity tracking
+    const clientIP = event.headers['x-forwarded-for'] || event.headers['x-real-ip'] || 'unknown';
+    const userAgent = event.headers['user-agent'] || 'unknown';
+    
+    // Parse user agent for device and browser info
+    const deviceInfo = parseUserAgent(userAgent);
+
+    if (error || !userRecord) {
+      // Record failed login attempt
+      if (userRecord) {
+        await recordLoginActivity(userRecord.id, clientIP, userAgent, deviceInfo, false, 'Invalid password');
+      }
       return { statusCode: 401, body: { error: 'Invalid credentials' } };
     }
 
-    const isValidPassword = await bcrypt.compare(password, user.password_hash);
+    const isValidPassword = await bcrypt.compare(password, userRecord.password_hash);
     if (!isValidPassword) {
+      // Record failed login attempt
+      await recordLoginActivity(userRecord.id, clientIP, userAgent, deviceInfo, false, 'Invalid password');
       return { statusCode: 401, body: { error: 'Invalid credentials' } };
     }
+
+    // Record successful login activity
+    await recordLoginActivity(userRecord.id, clientIP, userAgent, deviceInfo, true);
 
     const token = jwt.sign(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: userRecord.id, email: userRecord.email, role: userRecord.role },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
@@ -83,10 +99,10 @@ const routes = {
       body: {
         token,
         user: {
-          id: user.id,
-          email: user.email,
-          full_name: user.full_name,
-          role: user.role,
+          id: userRecord.id,
+          email: userRecord.email,
+          full_name: userRecord.full_name,
+          role: userRecord.role,
         },
       },
     };
@@ -177,6 +193,58 @@ const routes = {
     }
 
     return { statusCode: 200, body: { user: updatedUser } };
+  },
+
+  // Login activity routes
+  'GET /login-activities': async (body, user, params, query) => {
+    if (!user || user.role !== 'admin') {
+      return { statusCode: 403, body: { error: 'Admin access required' } };
+    }
+
+    const { user_id, limit = 100, offset = 0 } = query;
+
+    let queryBuilder = supabase
+      .from('login_activities')
+      .select(`
+        *,
+        users!inner(email, full_name)
+      `)
+      .order('login_time', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    // Filter by specific user if requested
+    if (user_id) {
+      queryBuilder = queryBuilder.eq('user_id', user_id);
+    }
+
+    const { data: activities, error } = await queryBuilder;
+
+    if (error) {
+      return { statusCode: 500, body: { error: 'Failed to fetch login activities' } };
+    }
+
+    return { statusCode: 200, body: { activities } };
+  },
+
+  'DELETE /login-activities/cleanup': async (body, user) => {
+    if (!user || user.role !== 'admin') {
+      return { statusCode: 403, body: { error: 'Admin access required' } };
+    }
+
+    // Clean up login activities older than 2 weeks
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    const { error } = await supabase
+      .from('login_activities')
+      .delete()
+      .lt('login_time', twoWeeksAgo.toISOString());
+
+    if (error) {
+      return { statusCode: 500, body: { error: 'Failed to cleanup old login activities' } };
+    }
+
+    return { statusCode: 200, body: { message: 'Old login activities cleaned up successfully' } };
   },
 
   // Category routes
@@ -583,6 +651,108 @@ const routes = {
   },
 };
 
+// Helper function to parse user agent
+const parseUserAgent = (userAgent) => {
+  const ua = userAgent.toLowerCase();
+  
+  // Detect device type
+  let deviceType = 'desktop';
+  if (ua.includes('mobile') || ua.includes('android') || ua.includes('iphone')) {
+    deviceType = 'mobile';
+  } else if (ua.includes('tablet') || ua.includes('ipad')) {
+    deviceType = 'tablet';
+  }
+
+  // Detect browser
+  let browser = 'unknown';
+  if (ua.includes('chrome') && !ua.includes('edg')) {
+    browser = 'Chrome';
+  } else if (ua.includes('firefox')) {
+    browser = 'Firefox';
+  } else if (ua.includes('safari') && !ua.includes('chrome')) {
+    browser = 'Safari';
+  } else if (ua.includes('edg')) {
+    browser = 'Edge';
+  } else if (ua.includes('opera') || ua.includes('opr')) {
+    browser = 'Opera';
+  }
+
+  // Detect operating system
+  let os = 'unknown';
+  if (ua.includes('windows')) {
+    os = 'Windows';
+  } else if (ua.includes('mac os') || ua.includes('macos')) {
+    os = 'macOS';
+  } else if (ua.includes('linux')) {
+    os = 'Linux';
+  } else if (ua.includes('android')) {
+    os = 'Android';
+  } else if (ua.includes('ios') || ua.includes('iphone') || ua.includes('ipad')) {
+    os = 'iOS';
+  }
+
+  return { deviceType, browser, os };
+};
+
+// Helper function to get location from IP (simplified - in production, use a proper IP geolocation service)
+const getLocationFromIP = async (ip) => {
+  try {
+    // For demo purposes, return mock data
+    // In production, integrate with services like ipapi.co, ipgeolocation.io, etc.
+    if (ip === 'unknown' || ip.includes('127.0.0.1') || ip.includes('localhost')) {
+      return {
+        country: 'Local',
+        city: 'Local',
+        region: 'Local'
+      };
+    }
+    
+    // Mock location data - replace with actual API call
+    return {
+      country: 'Unknown',
+      city: 'Unknown', 
+      region: 'Unknown'
+    };
+  } catch (error) {
+    return {
+      country: 'Unknown',
+      city: 'Unknown',
+      region: 'Unknown'
+    };
+  }
+};
+
+// Helper function to record login activity
+const recordLoginActivity = async (userId, ipAddress, userAgent, deviceInfo, success, failureReason = null) => {
+  try {
+    const location = await getLocationFromIP(ipAddress);
+    
+    const { error } = await supabase
+      .from('login_activities')
+      .insert([
+        {
+          user_id: userId,
+          ip_address: ipAddress,
+          user_agent: userAgent,
+          device_type: deviceInfo.deviceType,
+          browser: deviceInfo.browser,
+          operating_system: deviceInfo.os,
+          location_country: location.country,
+          location_city: location.city,
+          location_region: location.region,
+          success: success,
+          failure_reason: failureReason
+        }
+      ]);
+
+    if (error) {
+      console.error('Failed to record login activity:', error);
+    }
+  } catch (error) {
+    console.error('Error recording login activity:', error);
+  }
+};
+
 // Main handler function
 exports.handler = async (event, context) => {
   // Handle CORS preflight requests
@@ -671,7 +841,7 @@ exports.handler = async (event, context) => {
     }
 
     // Execute route handler
-    const result = await routes[matchedRoute](body, user, params, query);
+    const result = await routes[matchedRoute](body, user, params, query, event);
 
     return {
       statusCode: result.statusCode,
