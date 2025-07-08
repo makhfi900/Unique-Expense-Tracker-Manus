@@ -1,0 +1,35 @@
+{
+  "name": "unique-expense-tracker",
+  "version": "1.0.0",
+  "description": "A full-stack expense tracking application with role-based access control",
+  "main": "index.js",
+  "scripts": {
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd frontend && npm start",
+    "install-all": "npm install && cd frontend && npm install",
+    "test": "cd frontend && npm test"
+  },
+  "keywords": [
+    "expense-tracker",
+    "react",
+    "netlify",
+    "supabase",
+    "jwt",
+    "full-stack"
+  ],
+  "author": "Manus AI",
+  "license": "MIT",
+  "devDependencies": {
+    "@netlify/functions": "^2.4.1"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "@supabase/supabase-js": "^2.38.4",
+    "csv-parser": "^3.0.0",
+    "csv-writer": "^1.6.0",
+    "multer": "^1.4.5-lts.1"
+  }
+}
+
