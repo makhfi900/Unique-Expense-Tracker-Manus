@@ -20,7 +20,7 @@ import ExpenseList from './ExpenseList';
 import ExpenseForm from './ExpenseForm';
 import CategoryManager from './CategoryManager';
 import UserManager from './UserManager';
-import Analytics from './Analytics';
+import EnhancedAnalytics from './EnhancedAnalytics';
 import CSVImportExport from './CSVImportExport';
 import LoginActivityTracker from './LoginActivityTracker';
 
@@ -87,7 +87,7 @@ const Dashboard = () => {
               <Upload className="h-4 w-4 mr-2" />
               Import/Export
             </TabsTrigger>
-            {isAdmin && (
+            {(isAdmin || isAccountOfficer) && (
               <TabsTrigger value="categories" className="flex items-center">
                 <Settings className="h-4 w-4 mr-2" />
                 Categories
@@ -140,17 +140,7 @@ const Dashboard = () => {
 
           {isAdmin && (
             <TabsContent value="analytics" className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Analytics & Reports</CardTitle>
-                  <CardDescription>
-                    View spending trends and category breakdowns.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Analytics />
-                </CardContent>
-              </Card>
+              <EnhancedAnalytics />
             </TabsContent>
           )}
 
@@ -168,7 +158,7 @@ const Dashboard = () => {
             </Card>
           </TabsContent>
 
-          {isAdmin && (
+          {(isAdmin || isAccountOfficer) && (
             <TabsContent value="categories" className="space-y-6">
               <Card>
                 <CardHeader>

@@ -33,13 +33,15 @@ import {
 } from 'lucide-react';
 
 const CategoryManager = () => {
-  const { apiCall } = useAuth();
+  const { apiCall, user } = useAuth();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [editingCategory, setEditingCategory] = useState(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
+
+  const isAdmin = user?.role === 'admin';
 
   // Form state
   const [formData, setFormData] = useState({
@@ -349,20 +351,27 @@ const CategoryManager = () => {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center space-x-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEdit(category)}
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleDelete(category.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
+                          {isAdmin && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEdit(category)}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {isAdmin && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDelete(category.id)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {!isAdmin && (
+                            <span className="text-sm text-muted-foreground">View Only</span>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

@@ -267,8 +267,8 @@ const routes = {
   },
 
   'POST /categories': async (body, user) => {
-    if (!user || user.role !== 'admin') {
-      return { statusCode: 403, body: { error: 'Admin access required' } };
+    if (!user) {
+      return { statusCode: 401, body: { error: 'Authentication required' } };
     }
 
     const { name, description, color } = body;
