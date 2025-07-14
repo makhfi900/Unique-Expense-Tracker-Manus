@@ -1,6 +1,27 @@
 -- Unique Expense Tracker Database Schema
 -- Supabase PostgreSQL Schema
 
+-- =====================================================
+-- CLEANUP SECTION - Remove existing objects if they exist
+-- =====================================================
+
+-- Drop existing functions first
+DROP FUNCTION IF EXISTS update_updated_at_column();
+DROP FUNCTION IF EXISTS cleanup_old_login_activities();
+
+-- Drop existing tables (CASCADE will automatically drop policies, triggers, and indexes)
+DROP TABLE IF EXISTS login_activities CASCADE;
+DROP TABLE IF EXISTS expenses CASCADE;
+DROP TABLE IF EXISTS categories CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+-- Remove scheduled job if it exists (uncomment if pg_cron is enabled)
+-- SELECT cron.unschedule('cleanup-login-activities');
+
+-- =====================================================
+-- CREATION SECTION - Create fresh objects
+-- =====================================================
+
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
