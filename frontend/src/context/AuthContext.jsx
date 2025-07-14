@@ -12,7 +12,7 @@ export const useAuth = () => {
 
 const API_BASE_URL = process.env.NODE_ENV === 'production' 
   ? '/.netlify/functions/api' 
-  : 'http://localhost:8888/.netlify/functions/api';
+  : 'http://localhost:3001/api';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);

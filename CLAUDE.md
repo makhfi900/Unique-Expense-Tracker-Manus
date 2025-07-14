@@ -15,15 +15,16 @@ cd frontend && pnpm install
 
 ### Development
 ```bash
-# Start frontend development server
-cd frontend && pnpm run dev
+# Quick start - both API and frontend
+npm run dev:full
 
-# Start Netlify functions for local API development
+# Or start separately:
+npm run api              # Start Express API server (port 3001)
+npm run dev:api          # Start API server with auto-reload
+npm run dev              # Start frontend only (port 5173)
+
+# Legacy Netlify development (for production testing)
 netlify dev
-
-# Recommended: Run both concurrently for full local development
-# Terminal 1: cd frontend && pnpm run dev
-# Terminal 2: netlify dev
 ```
 
 ### Build and Deploy
@@ -46,6 +47,11 @@ cd frontend && pnpm run preview
 
 ## Project Architecture
 
+### Dual-Environment Setup
+- **Development**: Express.js server for fast local development
+- **Production**: Netlify Functions for serverless deployment
+- **Environment Detection**: Automatic switching based on NODE_ENV
+
 ### Frontend Structure
 - **React 19** with Vite build tool
 - **shadcn/ui** components with Radix UI primitives
@@ -55,10 +61,10 @@ cd frontend && pnpm run preview
 - **Recharts** for data visualization
 
 ### Backend Architecture
-- **Netlify Serverless Functions** (`netlify/functions/api.js`)
-- **Single API endpoint** with route-based handling
-- **Supabase PostgreSQL** database with Row Level Security
-- **JWT authentication** with bcryptjs password hashing
+- **Development**: Express.js server (`api-server.js`) on port 3001
+- **Production**: Netlify Serverless Functions (`netlify/functions/api.js`)
+- **Database**: Supabase PostgreSQL with Row Level Security
+- **Authentication**: JWT with bcryptjs password hashing
 
 ### Key Components
 - `frontend/src/App.jsx` - Main app component with conditional rendering

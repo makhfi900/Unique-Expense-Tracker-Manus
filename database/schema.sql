@@ -5,15 +5,15 @@
 -- CLEANUP SECTION - Remove existing objects if they exist
 -- =====================================================
 
--- Drop existing functions first
-DROP FUNCTION IF EXISTS update_updated_at_column();
-DROP FUNCTION IF EXISTS cleanup_old_login_activities();
-
--- Drop existing tables (CASCADE will automatically drop policies, triggers, and indexes)
+-- Drop existing tables first (CASCADE will automatically drop policies, triggers, and indexes)
 DROP TABLE IF EXISTS login_activities CASCADE;
 DROP TABLE IF EXISTS expenses CASCADE;
 DROP TABLE IF EXISTS categories CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
+
+-- Drop existing functions after tables (now safe since triggers are gone)
+DROP FUNCTION IF EXISTS update_updated_at_column() CASCADE;
+DROP FUNCTION IF EXISTS cleanup_old_login_activities() CASCADE;
 
 -- Remove scheduled job if it exists (uncomment if pg_cron is enabled)
 -- SELECT cron.unschedule('cleanup-login-activities');
@@ -87,11 +87,11 @@ INSERT INTO categories (name, description, color) VALUES
 -- Insert default admin user (password: admin123)
 -- Note: In production, this should be changed immediately
 INSERT INTO users (email, password_hash, full_name, role) VALUES
-    ('admin@expensetracker.com', '$2b$10$rQZ8kHWKQVz7mXGqGqGqGOqGqGqGqGqGqGqGqGqGqGqGqGqGqGqGq', 'System Administrator', 'admin');
+    ('admin@expensetracker.com', '$2a$10$apL1ZfMyaFCkWX29f/b5sOilw1poam0L73QhGuridGlpf38xA3iSK', 'System Administrator', 'admin');
 
 -- Insert default account officer (password: officer123)
 INSERT INTO users (email, password_hash, full_name, role) VALUES
-    ('officer@expensetracker.com', '$2b$10$rQZ8kHWKQVz7mXGqGqGqGOqGqGqGqGqGqGqGqGqGqGqGqGqGqGqGq', 'Account Officer', 'account_officer');
+    ('officer@expensetracker.com', '$2a$10$O6pm6FdhZQnFRzxxHgt1YuaolCV69q301p4AuHICo8h1eCScSIK82', 'Account Officer', 'account_officer');
 
 -- Function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()

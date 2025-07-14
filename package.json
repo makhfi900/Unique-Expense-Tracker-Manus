@@ -8,7 +8,10 @@
     "build": "cd frontend && npm run build",
     "start": "cd frontend && npm start",
     "install-all": "npm install && cd frontend && npm install",
-    "test": "cd frontend && npm test"
+    "test": "cd frontend && npm test",
+    "api": "node api-server.js",
+    "dev:api": "nodemon api-server.js",
+    "dev:full": "concurrently \"npm run dev:api\" \"npm run dev\""
   },
   "keywords": [
     "expense-tracker",
@@ -21,15 +24,19 @@
   "author": "Manus AI",
   "license": "MIT",
   "devDependencies": {
-    "@netlify/functions": "^2.4.1"
+    "@netlify/functions": "^2.4.1",
+    "concurrently": "^9.2.0",
+    "nodemon": "^3.1.10"
   },
   "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "jsonwebtoken": "^9.0.2",
     "@supabase/supabase-js": "^2.38.4",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
     "csv-parser": "^3.0.0",
     "csv-writer": "^1.6.0",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
     "multer": "^1.4.5-lts.1"
   }
 }
-
