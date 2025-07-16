@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, Suspense, lazy, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
@@ -16,21 +16,50 @@ import {
   Shield,
   Download
 } from 'lucide-react';
-import ExpenseList from './ExpenseList';
-import ExpenseForm from './ExpenseForm';
-import CategoryManager from './CategoryManager';
-import UserManager from './UserManager';
-import EnhancedAnalytics from './EnhancedAnalytics';
-import CSVImportExport from './CSVImportExport';
-import LoginActivityTracker from './LoginActivityTracker';
 
-const Dashboard = () => {
+// Lazy load components to improve initial load time
+const ExpenseList = lazy(() => import('./OptimizedExpenseList'));
+const ExpenseForm = lazy(() => import('./ExpenseForm'));
+const CategoryManager = lazy(() => import('./CategoryManager'));
+const UserManager = lazy(() => import('./UserManager'));
+const EnhancedAnalytics = lazy(() => import('./EnhancedAnalytics'));
+const CSVImportExport = lazy(() => import('./OptimizedCSVImportExport'));
+const LoginActivityTracker = lazy(() => import('./LoginActivityTracker'));
+
+// Loading component for suspense
+const LoadingSpinner = () => (
+  <div className="flex items-center justify-center p-8">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+    <span className="ml-2 text-gray-600">Loading...</span>
+  </div>
+);
+
+const Dashboard = React.memo(() => {
   const { user, logout, isAdmin, isAccountOfficer } = useAuth();
   const [activeTab, setActiveTab] = useState('expenses');
 
   const handleLogout = () => {
     logout();
   };
+
+  // Memoize user info to prevent unnecessary re-renders
+  const userInfo = useMemo(() => ({
+    name: user?.full_name,
+    role: user?.role,
+    isAdmin,
+    isAccountOfficer
+  }), [user?.full_name, user?.role, isAdmin, isAccountOfficer]);
+
+  // Memoize tab configuration to prevent recalculation
+  const tabConfig = useMemo(() => [
+    { id: 'expenses', label: 'Expenses', icon: FileText, show: true },
+    { id: 'add-expense', label: 'Add Expense', icon: PlusCircle, show: true },
+    { id: 'analytics', label: 'Analytics', icon: BarChart3, show: isAdmin },
+    { id: 'import-export', label: 'Import/Export', icon: Upload, show: true },
+    { id: 'categories', label: 'Categories', icon: Settings, show: isAdmin || isAccountOfficer },
+    { id: 'users', label: 'Users', icon: Users, show: isAdmin },
+    { id: 'login-activity', label: 'Login Activity', icon: Shield, show: isAdmin }
+  ], [isAdmin, isAccountOfficer]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -47,14 +76,14 @@ const Dashboard = () => {
                   Unique Expense Tracker
                 </h1>
                 <p className="text-sm text-gray-500">
-                  Welcome back, {user?.full_name}
+                  Welcome back, {userInfo.name}
                 </p>
               </div>
             </div>
             
             <div className="flex items-center space-x-4">
-              <Badge variant={isAdmin ? "default" : "secondary"}>
-                {user?.role === 'admin' ? 'Administrator' : 'Account Officer'}
+              <Badge variant={userInfo.isAdmin ? "default" : "secondary"}>
+                {userInfo.role === 'admin' ? 'Administrator' : 'Account Officer'}
               </Badge>
               <Button variant="outline" onClick={handleLogout}>
                 <LogOut className="h-4 w-4 mr-2" />
@@ -68,43 +97,17 @@ const Dashboard = () => {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-7">
-            <TabsTrigger value="expenses" className="flex items-center">
-              <FileText className="h-4 w-4 mr-2" />
-              Expenses
-            </TabsTrigger>
-            <TabsTrigger value="add-expense" className="flex items-center">
-              <PlusCircle className="h-4 w-4 mr-2" />
-              Add Expense
-            </TabsTrigger>
-            {isAdmin && (
-              <TabsTrigger value="analytics" className="flex items-center">
-                <BarChart3 className="h-4 w-4 mr-2" />
-                Analytics
-              </TabsTrigger>
-            )}
-            <TabsTrigger value="import-export" className="flex items-center">
-              <Upload className="h-4 w-4 mr-2" />
-              Import/Export
-            </TabsTrigger>
-            {(isAdmin || isAccountOfficer) && (
-              <TabsTrigger value="categories" className="flex items-center">
-                <Settings className="h-4 w-4 mr-2" />
-                Categories
-              </TabsTrigger>
-            )}
-            {isAdmin && (
-              <TabsTrigger value="users" className="flex items-center">
-                <Users className="h-4 w-4 mr-2" />
-                Users
-              </TabsTrigger>
-            )}
-            {isAdmin && (
-              <TabsTrigger value="login-activity" className="flex items-center">
-                <Shield className="h-4 w-4 mr-2" />
-                Login Activity
-              </TabsTrigger>
-            )}
+          <TabsList className={`grid w-full grid-cols-2 lg:grid-cols-${tabConfig.filter(tab => tab.show).length}`}>
+            {tabConfig.map(tab => {
+              if (!tab.show) return null;
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger key={tab.id} value={tab.id} className="flex items-center">
+                  <Icon className="h-4 w-4 mr-2" />
+                  {tab.label}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
 
           <TabsContent value="expenses" className="space-y-6">
@@ -112,14 +115,16 @@ const Dashboard = () => {
               <CardHeader>
                 <CardTitle>Expense Management</CardTitle>
                 <CardDescription>
-                  {isAccountOfficer 
+                  {userInfo.isAccountOfficer 
                     ? "View and manage your expenses. Use the date filter to view expenses for a specific date."
                     : "View and manage all expenses in the system."
                   }
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ExpenseList />
+                <Suspense fallback={<LoadingSpinner />}>
+                  <ExpenseList />
+                </Suspense>
               </CardContent>
             </Card>
           </TabsContent>
@@ -133,14 +138,18 @@ const Dashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <ExpenseForm onSuccess={() => setActiveTab('expenses')} />
+                <Suspense fallback={<LoadingSpinner />}>
+                  <ExpenseForm onSuccess={() => setActiveTab('expenses')} />
+                </Suspense>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {isAdmin && (
+          {userInfo.isAdmin && (
             <TabsContent value="analytics" className="space-y-6">
-              <EnhancedAnalytics />
+              <Suspense fallback={<LoadingSpinner />}>
+                <EnhancedAnalytics />
+              </Suspense>
             </TabsContent>
           )}
 
@@ -153,12 +162,14 @@ const Dashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <CSVImportExport />
+                <Suspense fallback={<LoadingSpinner />}>
+                  <CSVImportExport />
+                </Suspense>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {(isAdmin || isAccountOfficer) && (
+          {(userInfo.isAdmin || userInfo.isAccountOfficer) && (
             <TabsContent value="categories" className="space-y-6">
               <Card>
                 <CardHeader>
@@ -168,13 +179,15 @@ const Dashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <CategoryManager />
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <CategoryManager />
+                  </Suspense>
                 </CardContent>
               </Card>
             </TabsContent>
           )}
 
-          {isAdmin && (
+          {userInfo.isAdmin && (
             <TabsContent value="users" className="space-y-6">
               <Card>
                 <CardHeader>
@@ -184,22 +197,28 @@ const Dashboard = () => {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <UserManager />
+                  <Suspense fallback={<LoadingSpinner />}>
+                    <UserManager />
+                  </Suspense>
                 </CardContent>
               </Card>
             </TabsContent>
           )}
 
-          {isAdmin && (
+          {userInfo.isAdmin && (
             <TabsContent value="login-activity" className="space-y-6">
-              <LoginActivityTracker />
+              <Suspense fallback={<LoadingSpinner />}>
+                <LoginActivityTracker />
+              </Suspense>
             </TabsContent>
           )}
         </Tabs>
       </main>
     </div>
   );
-};
+});
+
+Dashboard.displayName = 'Dashboard';
 
 export default Dashboard;
 

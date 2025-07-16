@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { createCachedApiClient, warmCache } from '../utils/apiCache';
 
 const AuthContext = createContext();
 
@@ -18,6 +19,13 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [token, setToken] = useState(localStorage.getItem('token'));
+  
+  // Create cached API client instance
+  const cachedApiClient = useMemo(() => {
+    return createCachedApiClient((endpoint, options = {}) => {
+      return rawApiCall(endpoint, options);
+    });
+  }, [token]); // Recreate when token changes
 
   useEffect(() => {
     if (token) {
@@ -73,6 +81,12 @@ export const AuthProvider = ({ children }) => {
         setToken(data.token);
         setUser(data.user);
         localStorage.setItem('token', data.token);
+        
+        // Warm cache with commonly used data
+        setTimeout(() => {
+          warmCache(cachedApiClient, ['/categories', '/users']);
+        }, 100);
+        
         return { success: true };
       } else {
         return { success: false, error: data.error };
@@ -87,6 +101,9 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setToken(null);
     localStorage.removeItem('token');
+    
+    // Clear cache on logout
+    cachedApiClient.clear();
   };
 
   const register = async (userData) => {
@@ -113,7 +130,8 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const apiCall = async (endpoint, options = {}) => {
+  // Raw API call without caching (for internal use)
+  const rawApiCall = async (endpoint, options = {}) => {
     const url = `${API_BASE_URL}${endpoint}`;
     const config = {
       headers: {
@@ -147,6 +165,11 @@ export const AuthProvider = ({ children }) => {
       console.error('API call error:', error);
       throw error;
     }
+  };
+
+  // Cached API call (exposed to components)
+  const apiCall = async (endpoint, options = {}) => {
+    return cachedApiClient.call(endpoint, options);
   };
 
   const value = {
