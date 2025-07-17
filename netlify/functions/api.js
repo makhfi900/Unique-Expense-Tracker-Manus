@@ -1,17 +1,17 @@
 const { createClient } = require('@supabase/supabase-js');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const csvParser = require('csv-parser');
 const createCsvWriter = require('csv-writer').createObjectCsvWriter;
 
-// Initialize Supabase client
+// Initialize Supabase clients
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
-// JWT configuration
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+// Service role client for admin operations
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+// Anon client for auth operations
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // CORS headers
 const corsHeaders = {
@@ -20,7 +20,7 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 };
 
-// Authentication middleware
+// Supabase Auth middleware
 const authenticateToken = async (authHeader) => {
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     throw new Error('No token provided');
@@ -28,16 +28,23 @@ const authenticateToken = async (authHeader) => {
 
   const token = authHeader.substring(7);
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const { data: user, error } = await supabase
+    // Verify the Supabase Auth token
+    const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (authError || !authUser) {
+      throw new Error('Invalid token');
+    }
+
+    // Get user profile from our users table
+    const { data: user, error } = await supabaseAdmin
       .from('users')
       .select('*')
-      .eq('id', decoded.userId)
+      .eq('id', authUser.id)
       .eq('is_active', true)
       .single();
 
     if (error || !user) {
-      throw new Error('User not found');
+      throw new Error('User profile not found');
     }
 
     return user;
@@ -48,63 +55,16 @@ const authenticateToken = async (authHeader) => {
 
 // Route handlers
 const routes = {
-  // Authentication routes
+  // Authentication routes (handled by frontend Supabase Auth)
   'POST /auth/login': async (body, user, event) => {
-    const { email, password } = body;
-
-    if (!email || !password) {
-      return { statusCode: 400, body: { error: 'Email and password are required' } };
-    }
-
-    const { data: userRecord, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email.toLowerCase())
-      .eq('is_active', true)
-      .single();
-
-    // Extract request information for login activity tracking
-    const clientIP = event.headers['x-forwarded-for'] || event.headers['x-real-ip'] || 'unknown';
-    const userAgent = event.headers['user-agent'] || 'unknown';
-    
-    // Parse user agent for device and browser info
-    const deviceInfo = parseUserAgent(userAgent);
-
-    if (error || !userRecord) {
-      // Record failed login attempt
-      if (userRecord) {
-        await recordLoginActivity(userRecord.id, clientIP, userAgent, deviceInfo, false, 'Invalid password');
-      }
-      return { statusCode: 401, body: { error: 'Invalid credentials' } };
-    }
-
-    const isValidPassword = await bcrypt.compare(password, userRecord.password_hash);
-    if (!isValidPassword) {
-      // Record failed login attempt
-      await recordLoginActivity(userRecord.id, clientIP, userAgent, deviceInfo, false, 'Invalid password');
-      return { statusCode: 401, body: { error: 'Invalid credentials' } };
-    }
-
-    // Record successful login activity
-    await recordLoginActivity(userRecord.id, clientIP, userAgent, deviceInfo, true);
-
-    const token = jwt.sign(
-      { userId: userRecord.id, email: userRecord.email, role: userRecord.role },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
-
-    return {
-      statusCode: 200,
-      body: {
-        token,
-        user: {
-          id: userRecord.id,
-          email: userRecord.email,
-          full_name: userRecord.full_name,
-          role: userRecord.role,
-        },
-      },
+    // This endpoint is no longer used as authentication is handled by Supabase Auth on the frontend
+    // It's kept for backward compatibility but returns a not implemented message
+    return { 
+      statusCode: 501, 
+      body: { 
+        error: 'Authentication is now handled by Supabase Auth on the frontend',
+        message: 'Please use the Supabase Auth login flow instead'
+      } 
     };
   },
 
@@ -124,29 +84,43 @@ const routes = {
       return { statusCode: 400, body: { error: 'Invalid role' } };
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const { data: newUser, error } = await supabase
-      .from('users')
-      .insert([
-        {
-          email: email.toLowerCase(),
-          password_hash: hashedPassword,
+    try {
+      // Create user with Supabase Auth
+      const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: email.toLowerCase(),
+        password,
+        user_metadata: {
           full_name,
-          role,
+          role
         },
-      ])
-      .select('id, email, full_name, role')
-      .single();
+        email_confirm: true
+      });
 
-    if (error) {
-      if (error.code === '23505') {
-        return { statusCode: 409, body: { error: 'Email already exists' } };
+      if (authError) {
+        if (authError.message.includes('already registered')) {
+          return { statusCode: 409, body: { error: 'Email already exists' } };
+        }
+        return { statusCode: 500, body: { error: authError.message } };
       }
+
+      // The user profile will be automatically created by the database trigger
+      // Wait a moment and then fetch the created profile
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const { data: userProfile, error: profileError } = await supabaseAdmin
+        .from('users')
+        .select('id, email, full_name, role')
+        .eq('id', authUser.user.id)
+        .single();
+
+      if (profileError) {
+        return { statusCode: 500, body: { error: 'User created but profile fetch failed' } };
+      }
+
+      return { statusCode: 201, body: { user: userProfile } };
+    } catch (error) {
       return { statusCode: 500, body: { error: 'Failed to create user' } };
     }
-
-    return { statusCode: 201, body: { user: newUser } };
   },
 
   // User management routes
@@ -155,7 +129,7 @@ const routes = {
       return { statusCode: 403, body: { error: 'Admin access required' } };
     }
 
-    const { data: users, error } = await supabase
+    const { data: users, error } = await supabaseAdmin
       .from('users')
       .select('id, email, full_name, role, created_at, is_active')
       .eq('is_active', true)
@@ -181,7 +155,7 @@ const routes = {
     if (role !== undefined) updateData.role = role;
     if (is_active !== undefined) updateData.is_active = is_active;
 
-    const { data: updatedUser, error } = await supabase
+    const { data: updatedUser, error } = await supabaseAdmin
       .from('users')
       .update(updateData)
       .eq('id', id)
@@ -203,7 +177,7 @@ const routes = {
 
     const { user_id, limit = 100, offset = 0 } = query;
 
-    let queryBuilder = supabase
+    let queryBuilder = supabaseAdmin
       .from('login_activities')
       .select(`
         *,
@@ -235,7 +209,7 @@ const routes = {
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('login_activities')
       .delete()
       .lt('login_time', twoWeeksAgo.toISOString());
@@ -253,7 +227,7 @@ const routes = {
       return { statusCode: 401, body: { error: 'Authentication required' } };
     }
 
-    const { data: categories, error } = await supabase
+    const { data: categories, error } = await supabaseAdmin
       .from('categories')
       .select('*')
       .eq('is_active', true)
@@ -277,7 +251,7 @@ const routes = {
       return { statusCode: 400, body: { error: 'Category name is required' } };
     }
 
-    const { data: category, error } = await supabase
+    const { data: category, error } = await supabaseAdmin
       .from('categories')
       .insert([
         {
@@ -314,7 +288,7 @@ const routes = {
     if (color !== undefined) updateData.color = color;
     if (is_active !== undefined) updateData.is_active = is_active;
 
-    const { data: category, error } = await supabase
+    const { data: category, error } = await supabaseAdmin
       .from('categories')
       .update(updateData)
       .eq('id', id)
@@ -334,7 +308,7 @@ const routes = {
       return { statusCode: 401, body: { error: 'Authentication required' } };
     }
 
-    let queryBuilder = supabase
+    let queryBuilder = supabaseAdmin
       .from('expenses')
       .select(`
         *,
@@ -390,7 +364,7 @@ const routes = {
       return { statusCode: 400, body: { error: 'Amount, description, category, and date are required' } };
     }
 
-    const { data: expense, error } = await supabase
+    const { data: expense, error } = await supabaseAdmin
       .from('expenses')
       .insert([
         {
@@ -426,7 +400,7 @@ const routes = {
     const { amount, description, category_id, expense_date, receipt_url, notes } = body;
 
     // Check if user can edit this expense
-    const { data: existingExpense, error: fetchError } = await supabase
+    const { data: existingExpense, error: fetchError } = await supabaseAdmin
       .from('expenses')
       .select('created_by')
       .eq('id', id)
@@ -448,7 +422,7 @@ const routes = {
     if (receipt_url !== undefined) updateData.receipt_url = receipt_url;
     if (notes !== undefined) updateData.notes = notes;
 
-    const { data: expense, error } = await supabase
+    const { data: expense, error } = await supabaseAdmin
       .from('expenses')
       .update(updateData)
       .eq('id', id)
@@ -474,7 +448,7 @@ const routes = {
     const { id } = params;
 
     // Check if user can delete this expense
-    const { data: existingExpense, error: fetchError } = await supabase
+    const { data: existingExpense, error: fetchError } = await supabaseAdmin
       .from('expenses')
       .select('created_by')
       .eq('id', id)
@@ -488,7 +462,7 @@ const routes = {
       return { statusCode: 403, body: { error: 'You can only delete your own expenses' } };
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('expenses')
       .update({ is_active: false })
       .eq('id', id);
@@ -508,7 +482,7 @@ const routes = {
 
     const { period = 'monthly', year = new Date().getFullYear() } = query;
 
-    let queryBuilder = supabase
+    let queryBuilder = supabaseAdmin
       .from('expenses')
       .select('amount, expense_date, category:categories(name, color)')
       .eq('is_active', true);
@@ -557,7 +531,7 @@ const routes = {
 
     const { start_date, end_date } = query;
 
-    let queryBuilder = supabase
+    let queryBuilder = supabaseAdmin
       .from('expenses')
       .select('amount, category:categories(id, name, color)')
       .eq('is_active', true);
@@ -603,7 +577,7 @@ const routes = {
       return { statusCode: 401, body: { error: 'Authentication required' } };
     }
 
-    let queryBuilder = supabase
+    let queryBuilder = supabaseAdmin
       .from('expenses')
       .select(`
         amount,
@@ -727,7 +701,7 @@ const recordLoginActivity = async (userId, ipAddress, userAgent, deviceInfo, suc
   try {
     const location = await getLocationFromIP(ipAddress);
     
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('login_activities')
       .insert([
         {

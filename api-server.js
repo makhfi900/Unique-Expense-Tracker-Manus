@@ -2,20 +2,20 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Initialize Supabase client
+// Initialize Supabase clients
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
-// JWT configuration
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
+// Service role client for admin operations
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+
+// Anon client for auth operations
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // Middleware
 app.use(cors({
@@ -25,7 +25,7 @@ app.use(cors({
 }));
 app.use(express.json());
 
-// Authentication middleware
+// Supabase Auth middleware
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   
@@ -35,16 +35,23 @@ const authenticateToken = async (req, res, next) => {
 
   const token = authHeader.substring(7);
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    const { data: user, error } = await supabase
+    // Verify the Supabase Auth token
+    const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (authError || !authUser) {
+      return res.status(401).json({ error: 'Invalid token' });
+    }
+
+    // Get user profile from our users table
+    const { data: user, error } = await supabaseAdmin
       .from('users')
       .select('*')
-      .eq('id', decoded.userId)
+      .eq('id', authUser.id)
       .eq('is_active', true)
       .single();
 
     if (error || !user) {
-      return res.status(401).json({ error: 'User not found' });
+      return res.status(401).json({ error: 'User profile not found' });
     }
 
     req.user = user;
@@ -122,7 +129,7 @@ const recordLoginActivity = async (userId, ipAddress, userAgent, deviceInfo, suc
   try {
     const location = await getLocationFromIP(ipAddress);
     
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('login_activities')
       .insert([
         {
@@ -150,55 +157,14 @@ const recordLoginActivity = async (userId, ipAddress, userAgent, deviceInfo, suc
 
 // Routes
 
-// Authentication routes
+// Authentication routes (handled by frontend Supabase Auth)
 app.post('/api/auth/login', async (req, res) => {
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password are required' });
-    }
-
-    const { data: userRecord, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('email', email.toLowerCase())
-      .eq('is_active', true)
-      .single();
-
-    const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
-    const userAgent = req.headers['user-agent'] || 'unknown';
-    const deviceInfo = parseUserAgent(userAgent);
-
-    if (error || !userRecord) {
-      if (userRecord) {
-        await recordLoginActivity(userRecord.id, clientIP, userAgent, deviceInfo, false, 'Invalid password');
-      }
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    const isValidPassword = await bcrypt.compare(password, userRecord.password_hash);
-    if (!isValidPassword) {
-      await recordLoginActivity(userRecord.id, clientIP, userAgent, deviceInfo, false, 'Invalid password');
-      return res.status(401).json({ error: 'Invalid credentials' });
-    }
-
-    await recordLoginActivity(userRecord.id, clientIP, userAgent, deviceInfo, true);
-
-    const token = jwt.sign(
-      { userId: userRecord.id, email: userRecord.email, role: userRecord.role },
-      JWT_SECRET,
-      { expiresIn: JWT_EXPIRES_IN }
-    );
-
-    res.json({
-      token,
-      user: {
-        id: userRecord.id,
-        email: userRecord.email,
-        full_name: userRecord.full_name,
-        role: userRecord.role,
-      },
+    // This endpoint is no longer used as authentication is handled by Supabase Auth on the frontend
+    // It's kept for backward compatibility but returns a not implemented message
+    res.status(501).json({ 
+      error: 'Authentication is now handled by Supabase Auth on the frontend',
+      message: 'Please use the Supabase Auth login flow instead'
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -222,29 +188,39 @@ app.post('/api/auth/register', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Invalid role' });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Create user with Supabase Auth
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email: email.toLowerCase(),
+      password,
+      user_metadata: {
+        full_name,
+        role
+      },
+      email_confirm: true
+    });
 
-    const { data: newUser, error } = await supabase
-      .from('users')
-      .insert([
-        {
-          email: email.toLowerCase(),
-          password_hash: hashedPassword,
-          full_name,
-          role,
-        },
-      ])
-      .select('id, email, full_name, role')
-      .single();
-
-    if (error) {
-      if (error.code === '23505') {
+    if (authError) {
+      if (authError.message.includes('already registered')) {
         return res.status(409).json({ error: 'Email already exists' });
       }
-      return res.status(500).json({ error: 'Failed to create user' });
+      return res.status(500).json({ error: authError.message });
     }
 
-    res.status(201).json({ user: newUser });
+    // The user profile will be automatically created by the database trigger
+    // Wait a moment and then fetch the created profile
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    const { data: userProfile, error: profileError } = await supabaseAdmin
+      .from('users')
+      .select('id, email, full_name, role')
+      .eq('id', authUser.user.id)
+      .single();
+
+    if (profileError) {
+      return res.status(500).json({ error: 'User created but profile fetch failed' });
+    }
+
+    res.status(201).json({ user: userProfile });
   } catch (error) {
     console.error('Register error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -258,7 +234,7 @@ app.get('/api/users', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'Admin access required' });
     }
 
-    const { data: users, error } = await supabase
+    const { data: users, error } = await supabaseAdmin
       .from('users')
       .select('id, email, full_name, role, created_at, is_active')
       .eq('is_active', true)
@@ -289,7 +265,7 @@ app.put('/api/users/:id', authenticateToken, async (req, res) => {
     if (role !== undefined) updateData.role = role;
     if (is_active !== undefined) updateData.is_active = is_active;
 
-    const { data: updatedUser, error } = await supabase
+    const { data: updatedUser, error } = await supabaseAdmin
       .from('users')
       .update(updateData)
       .eq('id', id)
@@ -316,7 +292,7 @@ app.get('/api/login-activities', authenticateToken, async (req, res) => {
 
     const { user_id, limit = 100, offset = 0 } = req.query;
 
-    let queryBuilder = supabase
+    let queryBuilder = supabaseAdmin
       .from('login_activities')
       .select(`
         *,
@@ -345,7 +321,7 @@ app.get('/api/login-activities', authenticateToken, async (req, res) => {
 // Category routes
 app.get('/api/categories', authenticateToken, async (req, res) => {
   try {
-    const { data: categories, error } = await supabase
+    const { data: categories, error } = await supabaseAdmin
       .from('categories')
       .select('*')
       .eq('is_active', true)
@@ -370,7 +346,7 @@ app.post('/api/categories', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Category name is required' });
     }
 
-    const { data: category, error } = await supabase
+    const { data: category, error } = await supabaseAdmin
       .from('categories')
       .insert([
         {
@@ -412,7 +388,7 @@ app.put('/api/categories/:id', authenticateToken, async (req, res) => {
     if (color !== undefined) updateData.color = color;
     if (is_active !== undefined) updateData.is_active = is_active;
 
-    const { data: category, error } = await supabase
+    const { data: category, error } = await supabaseAdmin
       .from('categories')
       .update(updateData)
       .eq('id', id)
@@ -433,7 +409,7 @@ app.put('/api/categories/:id', authenticateToken, async (req, res) => {
 // Expense routes
 app.get('/api/expenses', authenticateToken, async (req, res) => {
   try {
-    let queryBuilder = supabase
+    let queryBuilder = supabaseAdmin
       .from('expenses')
       .select(`
         *,
@@ -487,7 +463,7 @@ app.post('/api/expenses', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Amount, description, category, and date are required' });
     }
 
-    const { data: expense, error } = await supabase
+    const { data: expense, error } = await supabaseAdmin
       .from('expenses')
       .insert([
         {
@@ -524,7 +500,7 @@ app.put('/api/expenses/:id', authenticateToken, async (req, res) => {
     const { amount, description, category_id, expense_date, receipt_url, notes } = req.body;
 
     // Check if user can edit this expense
-    const { data: existingExpense, error: fetchError } = await supabase
+    const { data: existingExpense, error: fetchError } = await supabaseAdmin
       .from('expenses')
       .select('created_by')
       .eq('id', id)
@@ -546,7 +522,7 @@ app.put('/api/expenses/:id', authenticateToken, async (req, res) => {
     if (receipt_url !== undefined) updateData.receipt_url = receipt_url;
     if (notes !== undefined) updateData.notes = notes;
 
-    const { data: expense, error } = await supabase
+    const { data: expense, error } = await supabaseAdmin
       .from('expenses')
       .update(updateData)
       .eq('id', id)
@@ -573,7 +549,7 @@ app.delete('/api/expenses/:id', authenticateToken, async (req, res) => {
     const { id } = req.params;
 
     // Check if user can delete this expense
-    const { data: existingExpense, error: fetchError } = await supabase
+    const { data: existingExpense, error: fetchError } = await supabaseAdmin
       .from('expenses')
       .select('created_by')
       .eq('id', id)
@@ -587,7 +563,7 @@ app.delete('/api/expenses/:id', authenticateToken, async (req, res) => {
       return res.status(403).json({ error: 'You can only delete your own expenses' });
     }
 
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('expenses')
       .update({ is_active: false })
       .eq('id', id);
@@ -608,7 +584,7 @@ app.get('/api/analytics/spending-trends', authenticateToken, async (req, res) =>
   try {
     const { period = 'monthly', year = new Date().getFullYear() } = req.query;
 
-    let queryBuilder = supabase
+    let queryBuilder = supabaseAdmin
       .from('expenses')
       .select('amount, expense_date, category:categories(name, color)')
       .eq('is_active', true);
@@ -655,7 +631,7 @@ app.get('/api/analytics/category-breakdown', authenticateToken, async (req, res)
   try {
     const { start_date, end_date } = req.query;
 
-    let queryBuilder = supabase
+    let queryBuilder = supabaseAdmin
       .from('expenses')
       .select('amount, category:categories(id, name, color)')
       .eq('is_active', true);
@@ -699,7 +675,7 @@ app.get('/api/analytics/category-breakdown', authenticateToken, async (req, res)
 // CSV Export route
 app.get('/api/expenses/export', authenticateToken, async (req, res) => {
   try {
-    let queryBuilder = supabase
+    let queryBuilder = supabaseAdmin
       .from('expenses')
       .select(`
         amount,
