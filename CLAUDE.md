@@ -41,8 +41,15 @@ cd frontend && pnpm run preview
 
 ### Database Setup
 ```bash
-# Execute the database schema (manually via Supabase dashboard)
-# File: database/schema.sql
+# IMPORTANT: Execute the fixed database schema via Supabase dashboard
+# File: database/supabase_auth_schema_fixed.sql
+# This fixes the infinite recursion issue in RLS policies
+
+# Steps to apply schema:
+# 1. Go to Supabase Dashboard → SQL Editor
+# 2. Copy contents of database/supabase_auth_schema_fixed.sql
+# 3. Paste and execute the SQL
+# 4. Verify no errors in the output
 ```
 
 ## Project Architecture
