@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
 import { 
-  DollarSign, 
   LogOut, 
   Users, 
   PlusCircle, 
@@ -68,8 +67,8 @@ const Dashboard = React.memo(() => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
-              <div className="bg-blue-600 p-2 rounded-lg mr-3">
-                <DollarSign className="h-6 w-6 text-white" />
+              <div className="bg-blue-600 p-2 rounded-lg mr-3 flex items-center justify-center">
+                <span className="text-white font-bold text-lg">Rs</span>
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">

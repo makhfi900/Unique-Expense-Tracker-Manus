@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
+import { formatCurrency as formatCurrencyPKR } from '../utils/currency';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
@@ -34,7 +35,6 @@ import {
   Trash2, 
   Filter, 
   Calendar,
-  DollarSign,
   User,
   Tag,
   Search,
@@ -71,7 +71,7 @@ const ExpenseRow = React.memo(({ expense, isAdmin, onEdit, onDelete, formatCurre
     </TableCell>
     <TableCell>
       <div className="flex items-center font-medium">
-        <DollarSign className="h-4 w-4 text-green-600 mr-1" />
+        <span className="text-green-600 font-bold text-sm mr-1">Rs</span>
         {formatCurrency(expense.amount)}
       </div>
     </TableCell>
@@ -154,10 +154,7 @@ const OptimizedExpenseList = () => {
 
   // Memoized formatting functions
   const formatCurrency = useCallback((amount) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(amount);
+    return formatCurrencyPKR(amount);
   }, []);
 
   const formatDate = useCallback((dateString) => {
@@ -436,7 +433,9 @@ const OptimizedExpenseList = () => {
 
           {!loading && expenses.length === 0 ? (
             <div className="text-center py-8">
-              <DollarSign className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <div className="h-12 w-12 text-gray-400 mx-auto mb-4 flex items-center justify-center border-2 border-gray-300 rounded-full">
+                <span className="text-gray-400 font-bold text-lg">Rs</span>
+              </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">No expenses found</h3>
               <p className="text-gray-500">
                 {searchTerm || dateFilter || startDateFilter || endDateFilter || categoryFilter

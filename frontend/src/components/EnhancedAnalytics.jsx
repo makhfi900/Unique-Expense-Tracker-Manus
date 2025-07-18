@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
+import { formatCurrency } from '../utils/currency';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
@@ -34,7 +35,6 @@ import {
   PieChart as PieChartIcon, 
   BarChart3, 
   Calendar,
-  DollarSign,
   Loader2,
   Filter,
   Target,
@@ -389,7 +389,7 @@ const EnhancedAnalytics = () => {
                       <h3 className="font-semibold">{categoryAnalysis.category?.name}</h3>
                     </div>
                     <p className="text-2xl font-bold text-green-600">
-                      ${categoryAnalysis.totalSpent.toFixed(2)}
+                      {formatCurrency(categoryAnalysis.totalSpent)}
                     </p>
                     <p className="text-sm text-muted-foreground">Total Spent</p>
                   </CardContent>
@@ -406,7 +406,7 @@ const EnhancedAnalytics = () => {
                 <Card>
                   <CardContent className="p-4">
                     <h3 className="font-semibold">Average Expense</h3>
-                    <p className="text-2xl font-bold">${categoryAnalysis.averageExpense.toFixed(2)}</p>
+                    <p className="text-2xl font-bold">{formatCurrency(categoryAnalysis.averageExpense)}</p>
                     <p className="text-sm text-muted-foreground">Per Transaction</p>
                   </CardContent>
                 </Card>
@@ -423,7 +423,7 @@ const EnhancedAnalytics = () => {
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="month" />
                         <YAxis />
-                        <Tooltip formatter={(value) => [`$${value.toFixed(2)}`, 'Amount']} />
+                        <Tooltip formatter={(value) => [formatCurrency(value), 'Amount']} />
                         <Line 
                           type="monotone" 
                           dataKey="amount" 
@@ -460,12 +460,14 @@ const EnhancedAnalytics = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Spent</p>
-                    <p className="text-2xl font-bold">${kpiData.totalSpent.toFixed(2)}</p>
+                    <p className="text-2xl font-bold">{formatCurrency(kpiData.totalSpent)}</p>
                     <p className="text-xs text-muted-foreground">
                       {dateRange.startDate} to {dateRange.endDate}
                     </p>
                   </div>
-                  <DollarSign className="h-8 w-8 text-green-600" />
+                  <div className="h-8 w-8 text-green-600 flex items-center justify-center">
+                    <span className="text-green-600 font-bold text-lg">Rs</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -477,7 +479,7 @@ const EnhancedAnalytics = () => {
                     <p className="text-sm font-medium text-muted-foreground">Total Expenses</p>
                     <p className="text-2xl font-bold">{kpiData.totalExpenses}</p>
                     <p className="text-xs text-muted-foreground">
-                      Avg: ${kpiData.averageExpense.toFixed(2)}
+                      Avg: {formatCurrency(kpiData.averageExpense)}
                     </p>
                   </div>
                   <BarChart3 className="h-8 w-8 text-blue-600" />
@@ -494,7 +496,7 @@ const EnhancedAnalytics = () => {
                       {kpiData.topCategory ? kpiData.topCategory.name : 'N/A'}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {kpiData.topCategory ? `$${kpiData.topCategory.amount.toFixed(2)}` : ''}
+                      {kpiData.topCategory ? formatCurrency(kpiData.topCategory.amount) : ''}
                     </p>
                   </div>
                   <TrendingUp className="h-8 w-8 text-orange-600" />
@@ -531,7 +533,7 @@ const EnhancedAnalytics = () => {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
-                    <Tooltip formatter={(value) => [`$${value.toFixed(2)}`, 'Amount']} />
+                    <Tooltip formatter={(value) => [formatCurrency(value), 'Amount']} />
                     <Area type="monotone" dataKey="amount" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.3} />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -560,7 +562,7 @@ const EnhancedAnalytics = () => {
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip formatter={(value) => [`$${value.toFixed(2)}`, 'Amount']} />
+                    <Tooltip formatter={(value) => [formatCurrency(value), 'Amount']} />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>

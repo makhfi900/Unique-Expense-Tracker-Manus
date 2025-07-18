@@ -5,7 +5,7 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
-import { Loader2, DollarSign, UserCheck, User } from 'lucide-react';
+import { Loader2, UserCheck, User } from 'lucide-react';
 
 const SupabaseLogin = () => {
   const [email, setEmail] = useState('');
@@ -51,8 +51,8 @@ const SupabaseLogin = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="bg-blue-600 p-3 rounded-full">
-              <DollarSign className="h-8 w-8 text-white" />
+            <div className="bg-blue-600 p-3 rounded-full flex items-center justify-center">
+              <span className="text-white font-bold text-xl">Rs</span>
             </div>
           </div>
           <CardTitle className="text-2xl font-bold">Expense Tracker</CardTitle>
