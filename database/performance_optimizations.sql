@@ -36,16 +36,16 @@ CREATE INDEX IF NOT EXISTS idx_login_activities_user_recent ON login_activities(
 -- Monthly spending summary by user and category
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_monthly_spending AS
 SELECT 
-    DATE_TRUNC('month', expense_date) as month,
-    category_id,
-    created_by,
-    SUM(amount) as total_amount,
+    DATE_TRUNC('month', e.expense_date) as month,
+    e.category_id,
+    e.created_by,
+    SUM(e.amount) as total_amount,
     COUNT(*) as expense_count,
-    AVG(amount) as avg_amount,
-    MIN(amount) as min_amount,
-    MAX(amount) as max_amount
-FROM expenses 
-WHERE is_active = true
+    AVG(e.amount) as avg_amount,
+    MIN(e.amount) as min_amount,
+    MAX(e.amount) as max_amount
+FROM expenses e
+WHERE e.is_active = true
 GROUP BY 1, 2, 3;
 
 -- Create index on materialized view for faster lookups
@@ -54,13 +54,13 @@ CREATE INDEX IF NOT EXISTS idx_mv_monthly_spending_lookup ON mv_monthly_spending
 -- Daily spending summary for trend analysis
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_daily_spending AS
 SELECT 
-    expense_date,
-    category_id,
-    created_by,
-    SUM(amount) as total_amount,
+    e.expense_date,
+    e.category_id,
+    e.created_by,
+    SUM(e.amount) as total_amount,
     COUNT(*) as expense_count
-FROM expenses 
-WHERE is_active = true
+FROM expenses e
+WHERE e.is_active = true
 GROUP BY 1, 2, 3;
 
 -- Create index on daily spending materialized view
@@ -69,15 +69,15 @@ CREATE INDEX IF NOT EXISTS idx_mv_daily_spending_lookup ON mv_daily_spending(exp
 -- Category spending summary for analytics
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_category_spending AS
 SELECT 
-    category_id,
+    e.category_id,
     c.name as category_name,
     c.color as category_color,
-    SUM(amount) as total_amount,
+    SUM(e.amount) as total_amount,
     COUNT(*) as expense_count,
-    AVG(amount) as avg_amount,
-    COUNT(DISTINCT created_by) as user_count,
-    MIN(expense_date) as first_expense_date,
-    MAX(expense_date) as last_expense_date
+    AVG(e.amount) as avg_amount,
+    COUNT(DISTINCT e.created_by) as user_count,  -- Fixed: specify e.created_by
+    MIN(e.expense_date) as first_expense_date,
+    MAX(e.expense_date) as last_expense_date
 FROM expenses e
 JOIN categories c ON e.category_id = c.id
 WHERE e.is_active = true AND c.is_active = true
@@ -89,15 +89,15 @@ CREATE INDEX IF NOT EXISTS idx_mv_category_spending_lookup ON mv_category_spendi
 -- User spending summary for user analytics
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_user_spending AS
 SELECT 
-    created_by as user_id,
+    e.created_by as user_id,
     u.full_name as user_name,
     u.role as user_role,
-    SUM(amount) as total_amount,
+    SUM(e.amount) as total_amount,
     COUNT(*) as expense_count,
-    AVG(amount) as avg_amount,
-    COUNT(DISTINCT category_id) as categories_used,
-    MIN(expense_date) as first_expense_date,
-    MAX(expense_date) as last_expense_date
+    AVG(e.amount) as avg_amount,
+    COUNT(DISTINCT e.category_id) as categories_used,
+    MIN(e.expense_date) as first_expense_date,
+    MAX(e.expense_date) as last_expense_date
 FROM expenses e
 JOIN users u ON e.created_by = u.id
 WHERE e.is_active = true AND u.is_active = true
@@ -122,6 +122,15 @@ BEGIN
     
     -- Log the refresh
     RAISE NOTICE 'Analytics materialized views refreshed at %', NOW();
+EXCEPTION
+    WHEN OTHERS THEN
+        -- If concurrent refresh fails, try regular refresh
+        REFRESH MATERIALIZED VIEW mv_monthly_spending;
+        REFRESH MATERIALIZED VIEW mv_daily_spending;
+        REFRESH MATERIALIZED VIEW mv_category_spending;
+        REFRESH MATERIALIZED VIEW mv_user_spending;
+        
+        RAISE NOTICE 'Analytics materialized views refreshed (non-concurrent) at %', NOW();
 END;
 $$ LANGUAGE plpgsql;
 
@@ -154,26 +163,42 @@ CREATE TRIGGER trigger_expense_analytics_refresh
 CREATE OR REPLACE VIEW v_index_usage AS
 SELECT 
     schemaname,
-    tablename,
-    indexname,
+    relname as tablename,
+    indexrelname as indexname,
     idx_tup_read,
     idx_tup_fetch,
     idx_scan
 FROM pg_stat_user_indexes
 ORDER BY idx_scan DESC;
 
--- Query to monitor slow queries
-CREATE OR REPLACE VIEW v_slow_queries AS
-SELECT 
-    query,
-    calls,
-    total_exec_time,
-    mean_exec_time,
-    stddev_exec_time,
-    rows
-FROM pg_stat_statements
-WHERE mean_exec_time > 100  -- Queries taking more than 100ms
-ORDER BY mean_exec_time DESC;
+-- Query to monitor slow queries (only if pg_stat_statements is enabled)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements') THEN
+        EXECUTE 'CREATE OR REPLACE VIEW v_slow_queries AS
+                 SELECT 
+                     query,
+                     calls,
+                     total_exec_time,
+                     mean_exec_time,
+                     stddev_exec_time,
+                     rows
+                 FROM pg_stat_statements
+                 WHERE mean_exec_time > 100
+                 ORDER BY mean_exec_time DESC';
+    ELSE
+        -- Create a placeholder view if pg_stat_statements is not available
+        EXECUTE 'CREATE OR REPLACE VIEW v_slow_queries AS
+                 SELECT 
+                     ''pg_stat_statements not enabled'' as query,
+                     0 as calls,
+                     0 as total_exec_time,
+                     0 as mean_exec_time,
+                     0 as stddev_exec_time,
+                     0 as rows';
+    END IF;
+END
+$$;
 
 -- =====================================================
 -- INITIAL DATA POPULATION
