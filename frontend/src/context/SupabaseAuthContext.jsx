@@ -15,6 +15,23 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [userProfile, setUserProfile] = useState(null)
+
+  // Fetch user profile from database
+  const fetchUserProfile = async (userId) => {
+    if (!userId) {
+      setUserProfile(null)
+      return
+    }
+    
+    try {
+      const profile = await getUserProfile(userId)
+      setUserProfile(profile)
+    } catch (error) {
+      console.error('Error fetching user profile:', error)
+      setUserProfile(null)
+    }
+  }
 
   useEffect(() => {
     // Get initial session
@@ -26,6 +43,9 @@ export const AuthProvider = ({ children }) => {
       } else {
         setSession(session)
         setUser(session?.user || null)
+        if (session?.user) {
+          await fetchUserProfile(session.user.id)
+        }
       }
       setLoading(false)
     }
@@ -38,6 +58,11 @@ export const AuthProvider = ({ children }) => {
         console.log('Auth state changed:', event, session?.user?.email)
         setSession(session)
         setUser(session?.user || null)
+        if (session?.user) {
+          await fetchUserProfile(session.user.id)
+        } else {
+          setUserProfile(null)
+        }
         setLoading(false)
       }
     )
@@ -214,14 +239,15 @@ export const AuthProvider = ({ children }) => {
   const loginAsAdmin = () => signIn('admin@expensetracker.com', 'admin123')
   const loginAsOfficer = () => signIn('officer@expensetracker.com', 'officer123')
 
-  // Check user roles and permissions
-  const isAdmin = user?.user_metadata?.role === 'admin' || user?.app_metadata?.role === 'admin'
-  const isAccountOfficer = user?.user_metadata?.role === 'account_officer' || user?.app_metadata?.role === 'account_officer'
+  // Check user roles and permissions based on database profile
+  const isAdmin = userProfile?.role === 'admin' || user?.user_metadata?.role === 'admin' || user?.app_metadata?.role === 'admin'
+  const isAccountOfficer = userProfile?.role === 'account_officer' || user?.user_metadata?.role === 'account_officer' || user?.app_metadata?.role === 'account_officer'
 
   const value = {
     user,
     session,
     loading,
+    userProfile,
     signIn,
     signUp,
     signOut,

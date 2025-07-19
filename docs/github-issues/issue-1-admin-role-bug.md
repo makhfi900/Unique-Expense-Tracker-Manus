@@ -76,7 +76,60 @@ const isAccountOfficer = user?.user_metadata?.role === 'account_officer' || user
 - frontend
 
 ## Acceptance Criteria
-- [ ] Admin user (admin@test.com) shows as Admin in UI
-- [ ] Role-based features work correctly for Admin users
-- [ ] Database user profile is properly fetched and used
-- [ ] Role detection logic is robust and reliable
+- [x] Admin user (admin@test.com) shows as Admin in UI
+- [x] Role-based features work correctly for Admin users
+- [x] Database user profile is properly fetched and used
+- [x] Role detection logic is robust and reliable
+
+## Status
+**RESOLVED** ✅ - Completed on 2025-07-18
+
+### Implementation Summary
+Successfully fixed the admin role detection bug by implementing proper database profile fetching:
+
+#### Root Cause
+The auth context was only checking `user_metadata` and `app_metadata` from the Supabase auth user object, but not fetching the actual user profile from the database where the correct role information was stored.
+
+#### Changes Made:
+1. **Enhanced AuthContext** (`frontend/src/context/SupabaseAuthContext.jsx`)
+   - Added `userProfile` state to store database user profile
+   - Added `fetchUserProfile()` function to fetch user data from database
+   - Modified auth state change handlers to fetch profile on login
+   - Updated role detection logic to prioritize database profile role
+
+2. **Updated Dashboard Component** (`frontend/src/components/Dashboard.jsx`)
+   - Added `userProfile` to the auth context destructuring
+   - Modified `userInfo` memoization to use database profile data
+   - Updated role display to use database profile information
+
+3. **Role Detection Logic**
+   - Now checks `userProfile.role` first (database source of truth)
+   - Falls back to `user_metadata.role` and `app_metadata.role` as backups
+   - Ensures proper role-based feature access
+
+#### Technical Implementation:
+```javascript
+// Enhanced role detection logic
+const isAdmin = userProfile?.role === 'admin' || 
+                user?.user_metadata?.role === 'admin' || 
+                user?.app_metadata?.role === 'admin'
+
+// User info now uses database profile
+const userInfo = useMemo(() => ({
+  name: userProfile?.full_name || user?.user_metadata?.full_name || user?.email,
+  role: userProfile?.role || user?.user_metadata?.role || 'account_officer',
+  isAdmin,
+  isAccountOfficer
+}), [userProfile, user, isAdmin, isAccountOfficer])
+```
+
+#### Files Updated:
+- `frontend/src/context/SupabaseAuthContext.jsx`
+- `frontend/src/components/Dashboard.jsx`
+
+#### Results:
+- ✅ Admin users now correctly show as "Administrator" in the UI
+- ✅ Role-based features (Analytics, Users, Categories) properly accessible
+- ✅ Database user profile is fetched and used as source of truth
+- ✅ Robust role detection with fallback mechanisms
+- ✅ No performance impact with proper memoization
