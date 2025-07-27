@@ -8,7 +8,7 @@ The Administrator dashboard has multiple issues affecting both functionality and
 3. **Bland UI Design**: The overall dashboard interface lacks visual appeal and modern design elements
 
 ## Steps to Reproduce
-1. Login as admin user (admin@expensetracker.com / admin123)
+1. Login as admin user (admin@test.com / admin123)
 2. Observe the dashboard interface
 3. Notice missing tabs and poor visual design
 

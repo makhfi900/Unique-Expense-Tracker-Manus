@@ -117,12 +117,12 @@ A full-stack expense tracking application with role-based access control, data v
 The application comes with two default users for testing:
 
 ### Administrator
-- **Email:** admin@expensetracker.com
+- **Email:** admin@test.com
 - **Password:** admin123
 - **Permissions:** Full system access, user management, analytics
 
 ### Account Officer
-- **Email:** officer@expensetracker.com
+- **Email:** officer@test.com
 - **Password:** officer123
 - **Permissions:** Personal expense management, date-specific filtering
 

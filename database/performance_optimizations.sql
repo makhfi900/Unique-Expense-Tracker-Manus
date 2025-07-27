@@ -1,5 +1,5 @@
--- Performance Optimization SQL Script
--- This script adds composite indexes and materialized views to improve query performance
+-- File: database/performance_optimizations_updated.sql
+-- Run this AFTER the main schema script
 
 -- =====================================================
 -- COMPOSITE INDEXES FOR PERFORMANCE OPTIMIZATION
@@ -33,41 +33,58 @@ CREATE INDEX IF NOT EXISTS idx_login_activities_user_recent ON login_activities(
 -- MATERIALIZED VIEWS FOR ANALYTICS PERFORMANCE
 -- =====================================================
 
+-- Drop existing materialized views if they exist
+DROP MATERIALIZED VIEW IF EXISTS mv_monthly_spending CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS mv_daily_spending CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS mv_category_spending CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS mv_user_spending CASCADE;
+
 -- Monthly spending summary by user and category
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_monthly_spending AS
+CREATE MATERIALIZED VIEW mv_monthly_spending AS
 SELECT 
     DATE_TRUNC('month', e.expense_date) as month,
     e.category_id,
     e.created_by,
+    c.name as category_name,
+    u.full_name as user_name,
+    u.role as user_role,
     SUM(e.amount) as total_amount,
     COUNT(*) as expense_count,
     AVG(e.amount) as avg_amount,
     MIN(e.amount) as min_amount,
     MAX(e.amount) as max_amount
 FROM expenses e
+LEFT JOIN categories c ON e.category_id = c.id
+LEFT JOIN users u ON e.created_by = u.id
 WHERE e.is_active = true
-GROUP BY 1, 2, 3;
+GROUP BY 1, 2, 3, 4, 5, 6;
 
 -- Create index on materialized view for faster lookups
-CREATE INDEX IF NOT EXISTS idx_mv_monthly_spending_lookup ON mv_monthly_spending(month, category_id, created_by);
+CREATE INDEX idx_mv_monthly_spending_lookup ON mv_monthly_spending(month, category_id, created_by);
+CREATE INDEX idx_mv_monthly_spending_role ON mv_monthly_spending(user_role);
 
 -- Daily spending summary for trend analysis
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_daily_spending AS
+CREATE MATERIALIZED VIEW mv_daily_spending AS
 SELECT 
     e.expense_date,
     e.category_id,
     e.created_by,
+    c.name as category_name,
+    u.role as user_role,
     SUM(e.amount) as total_amount,
     COUNT(*) as expense_count
 FROM expenses e
+LEFT JOIN categories c ON e.category_id = c.id
+LEFT JOIN users u ON e.created_by = u.id
 WHERE e.is_active = true
-GROUP BY 1, 2, 3;
+GROUP BY 1, 2, 3, 4, 5;
 
--- Create index on daily spending materialized view
-CREATE INDEX IF NOT EXISTS idx_mv_daily_spending_lookup ON mv_daily_spending(expense_date, category_id, created_by);
+-- Create indexes on daily spending materialized view
+CREATE INDEX idx_mv_daily_spending_lookup ON mv_daily_spending(expense_date, category_id, created_by);
+CREATE INDEX idx_mv_daily_spending_role ON mv_daily_spending(user_role);
 
 -- Category spending summary for analytics
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_category_spending AS
+CREATE MATERIALIZED VIEW mv_category_spending AS
 SELECT 
     e.category_id,
     c.name as category_name,
@@ -75,7 +92,7 @@ SELECT
     SUM(e.amount) as total_amount,
     COUNT(*) as expense_count,
     AVG(e.amount) as avg_amount,
-    COUNT(DISTINCT e.created_by) as user_count,  -- Fixed: specify e.created_by
+    COUNT(DISTINCT e.created_by) as user_count,
     MIN(e.expense_date) as first_expense_date,
     MAX(e.expense_date) as last_expense_date
 FROM expenses e
@@ -84,10 +101,10 @@ WHERE e.is_active = true AND c.is_active = true
 GROUP BY 1, 2, 3;
 
 -- Create index on category spending materialized view
-CREATE INDEX IF NOT EXISTS idx_mv_category_spending_lookup ON mv_category_spending(category_id);
+CREATE INDEX idx_mv_category_spending_lookup ON mv_category_spending(category_id);
 
 -- User spending summary for user analytics
-CREATE MATERIALIZED VIEW IF NOT EXISTS mv_user_spending AS
+CREATE MATERIALIZED VIEW mv_user_spending AS
 SELECT 
     e.created_by as user_id,
     u.full_name as user_name,
@@ -104,108 +121,183 @@ WHERE e.is_active = true AND u.is_active = true
 GROUP BY 1, 2, 3;
 
 -- Create index on user spending materialized view
-CREATE INDEX IF NOT EXISTS idx_mv_user_spending_lookup ON mv_user_spending(user_id);
+CREATE INDEX idx_mv_user_spending_lookup ON mv_user_spending(user_id);
+CREATE INDEX idx_mv_user_spending_role ON mv_user_spending(user_role);
 
 -- =====================================================
--- FUNCTIONS FOR MATERIALIZED VIEW REFRESH
+-- OPTIMIZED REFRESH FUNCTIONS
 -- =====================================================
 
--- Function to refresh all materialized views
-CREATE OR REPLACE FUNCTION refresh_analytics_views()
+-- Function to refresh all materialized views (optimized)
+CREATE OR REPLACE FUNCTION refresh_analytics_views(concurrent_refresh BOOLEAN DEFAULT TRUE)
 RETURNS void AS $$
+DECLARE
+    refresh_start TIMESTAMP;
+    refresh_method TEXT;
 BEGIN
-    -- Refresh materialized views concurrently to avoid blocking
-    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_monthly_spending;
-    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_spending;
-    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_category_spending;
-    REFRESH MATERIALIZED VIEW CONCURRENTLY mv_user_spending;
+    refresh_start := clock_timestamp();
+    refresh_method := CASE WHEN concurrent_refresh THEN 'CONCURRENTLY' ELSE '' END;
     
-    -- Log the refresh
-    RAISE NOTICE 'Analytics materialized views refreshed at %', NOW();
-EXCEPTION
-    WHEN OTHERS THEN
-        -- If concurrent refresh fails, try regular refresh
+    -- Try concurrent refresh first (non-blocking)
+    IF concurrent_refresh THEN
+        BEGIN
+            REFRESH MATERIALIZED VIEW CONCURRENTLY mv_monthly_spending;
+            REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_spending;
+            REFRESH MATERIALIZED VIEW CONCURRENTLY mv_category_spending;
+            REFRESH MATERIALIZED VIEW CONCURRENTLY mv_user_spending;
+            
+            RAISE NOTICE 'Analytics views refreshed concurrently in % ms', 
+                EXTRACT(MILLISECOND FROM clock_timestamp() - refresh_start);
+        EXCEPTION
+            WHEN OTHERS THEN
+                -- Fall back to regular refresh
+                RAISE NOTICE 'Concurrent refresh failed, using regular refresh: %', SQLERRM;
+                PERFORM refresh_analytics_views(FALSE);
+        END;
+    ELSE
+        -- Regular refresh (blocking but always works)
         REFRESH MATERIALIZED VIEW mv_monthly_spending;
         REFRESH MATERIALIZED VIEW mv_daily_spending;
         REFRESH MATERIALIZED VIEW mv_category_spending;
         REFRESH MATERIALIZED VIEW mv_user_spending;
         
-        RAISE NOTICE 'Analytics materialized views refreshed (non-concurrent) at %', NOW();
+        RAISE NOTICE 'Analytics views refreshed (blocking) in % ms', 
+            EXTRACT(MILLISECOND FROM clock_timestamp() - refresh_start);
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to refresh views after expense changes
-CREATE OR REPLACE FUNCTION trigger_refresh_analytics()
-RETURNS TRIGGER AS $$
+-- =====================================================
+-- SMART REFRESH TRIGGER (Only refresh when needed)
+-- =====================================================
+
+-- Table to track last refresh time
+CREATE TABLE IF NOT EXISTS analytics_refresh_log (
+    id SERIAL PRIMARY KEY,
+    refresh_time TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    refresh_type VARCHAR(50),
+    duration_ms INTEGER
+);
+
+-- Smart refresh function that checks if refresh is needed
+CREATE OR REPLACE FUNCTION smart_refresh_analytics()
+RETURNS void AS $$
+DECLARE
+    last_refresh TIMESTAMP;
+    minutes_since_refresh INTEGER;
 BEGIN
-    -- Refresh analytics views after expense operations
-    PERFORM refresh_analytics_views();
-    RETURN COALESCE(NEW, OLD);
+    -- Get last refresh time
+    SELECT MAX(refresh_time) INTO last_refresh 
+    FROM analytics_refresh_log 
+    WHERE refresh_type = 'auto';
+    
+    -- Calculate minutes since last refresh
+    minutes_since_refresh := EXTRACT(EPOCH FROM (NOW() - COALESCE(last_refresh, '2000-01-01'::timestamp))) / 60;
+    
+    -- Only refresh if more than 5 minutes have passed
+    IF minutes_since_refresh > 5 THEN
+        PERFORM refresh_analytics_views(TRUE);
+        
+        INSERT INTO analytics_refresh_log (refresh_type, duration_ms)
+        VALUES ('auto', 0);
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
 -- =====================================================
--- TRIGGERS FOR AUTOMATIC VIEW REFRESH
+-- REMOVE AUTOMATIC TRIGGERS (They can slow down operations)
 -- =====================================================
 
--- Trigger to refresh analytics views after expense insert/update/delete
+-- Drop the automatic refresh trigger if it exists
 DROP TRIGGER IF EXISTS trigger_expense_analytics_refresh ON expenses;
-CREATE TRIGGER trigger_expense_analytics_refresh
-    AFTER INSERT OR UPDATE OR DELETE ON expenses
-    FOR EACH STATEMENT
-    EXECUTE FUNCTION trigger_refresh_analytics();
+
+-- Instead, create a scheduled job (run this in your application or as a cron job)
+-- SELECT smart_refresh_analytics();
 
 -- =====================================================
--- PERFORMANCE MONITORING QUERIES
+-- PERFORMANCE MONITORING VIEWS
 -- =====================================================
 
--- Query to monitor index usage
+-- Enhanced index usage view
 CREATE OR REPLACE VIEW v_index_usage AS
 SELECT 
     schemaname,
     relname as tablename,
     indexrelname as indexname,
-    idx_tup_read,
-    idx_tup_fetch,
-    idx_scan
+    idx_scan as index_scans,
+    idx_tup_read as tuples_read,
+    idx_tup_fetch as tuples_fetched,
+    CASE 
+        WHEN idx_scan = 0 THEN 'UNUSED'
+        WHEN idx_scan < 100 THEN 'RARELY USED'
+        WHEN idx_scan < 1000 THEN 'OCCASIONALLY USED'
+        ELSE 'FREQUENTLY USED'
+    END as usage_category,
+    pg_size_pretty(pg_relation_size(indexrelid)) as index_size
 FROM pg_stat_user_indexes
+WHERE schemaname = 'public'
 ORDER BY idx_scan DESC;
 
--- Query to monitor slow queries (only if pg_stat_statements is enabled)
-DO $$
+-- Table size and bloat estimation
+CREATE OR REPLACE VIEW v_table_sizes AS
+SELECT
+    schemaname,
+    tablename,
+    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS total_size,
+    pg_size_pretty(pg_relation_size(schemaname||'.'||tablename)) AS table_size,
+    pg_size_pretty(pg_indexes_size(schemaname||'.'||tablename)) AS indexes_size
+FROM pg_tables
+WHERE schemaname = 'public'
+ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
+
+-- =====================================================
+-- QUERY PERFORMANCE HINTS
+-- =====================================================
+
+-- Create a function to analyze query performance
+CREATE OR REPLACE FUNCTION analyze_expense_query_performance()
+RETURNS TABLE(
+    suggestion TEXT,
+    impact TEXT,
+    query_example TEXT
+) AS $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements') THEN
-        EXECUTE 'CREATE OR REPLACE VIEW v_slow_queries AS
-                 SELECT 
-                     query,
-                     calls,
-                     total_exec_time,
-                     mean_exec_time,
-                     stddev_exec_time,
-                     rows
-                 FROM pg_stat_statements
-                 WHERE mean_exec_time > 100
-                 ORDER BY mean_exec_time DESC';
-    ELSE
-        -- Create a placeholder view if pg_stat_statements is not available
-        EXECUTE 'CREATE OR REPLACE VIEW v_slow_queries AS
-                 SELECT 
-                     ''pg_stat_statements not enabled'' as query,
-                     0 as calls,
-                     0 as total_exec_time,
-                     0 as mean_exec_time,
-                     0 as stddev_exec_time,
-                     0 as rows';
-    END IF;
-END
-$$;
+    -- Check if statistics are up to date
+    RETURN QUERY
+    SELECT 
+        'Run ANALYZE on tables' as suggestion,
+        'HIGH - Improves query planning' as impact,
+        'ANALYZE expenses, categories, users;' as query_example;
+    
+    -- Check for missing indexes
+    RETURN QUERY
+    SELECT 
+        'Consider adding index on frequently filtered columns' as suggestion,
+        'MEDIUM - Speeds up filtered queries' as impact,
+        'CREATE INDEX idx_expenses_custom ON expenses(column_name);' as query_example
+    FROM pg_stat_user_tables
+    WHERE schemaname = 'public' 
+    AND n_tup_upd + n_tup_ins + n_tup_del > 1000
+    AND NOT EXISTS (
+        SELECT 1 FROM pg_indexes 
+        WHERE tablename = pg_stat_user_tables.tablename
+    )
+    LIMIT 1;
+    
+    RETURN QUERY
+    SELECT 
+        'Refresh materialized views regularly' as suggestion,
+        'HIGH - Speeds up analytics queries' as impact,
+        'SELECT refresh_analytics_views();' as query_example;
+END;
+$$ LANGUAGE plpgsql;
 
 -- =====================================================
 -- INITIAL DATA POPULATION
 -- =====================================================
 
 -- Populate materialized views with initial data
-SELECT refresh_analytics_views();
+SELECT refresh_analytics_views(FALSE);
 
 -- Analyze tables to update statistics
 ANALYZE expenses;
@@ -214,22 +306,10 @@ ANALYZE users;
 ANALYZE login_activities;
 
 -- =====================================================
--- MAINTENANCE COMMANDS
+-- USAGE INSTRUCTIONS
 -- =====================================================
 
--- Commands to run periodically for maintenance:
--- REINDEX INDEX CONCURRENTLY idx_expenses_user_date;
--- VACUUM ANALYZE expenses;
--- SELECT refresh_analytics_views();
-
--- Monitor performance with:
--- SELECT * FROM v_index_usage;
--- SELECT * FROM v_slow_queries;
-
-COMMENT ON MATERIALIZED VIEW mv_monthly_spending IS 'Monthly spending aggregated by user and category for fast analytics';
-COMMENT ON MATERIALIZED VIEW mv_daily_spending IS 'Daily spending aggregated by user and category for trend analysis';
-COMMENT ON MATERIALIZED VIEW mv_category_spending IS 'Category spending summary for analytics dashboard';
-COMMENT ON MATERIALIZED VIEW mv_user_spending IS 'User spending summary for user analytics';
-
-COMMENT ON FUNCTION refresh_analytics_views() IS 'Refreshes all analytics materialized views';
-COMMENT ON FUNCTION trigger_refresh_analytics() IS 'Trigger function to refresh analytics views after expense changes';
+COMMENT ON FUNCTION refresh_analytics_views(BOOLEAN) IS 'Refreshes all analytics materialized views. Use TRUE for concurrent (non-blocking) refresh.';
+COMMENT ON FUNCTION smart_refresh_analytics() IS 'Intelligently refreshes analytics views only if needed (5+ minutes since last refresh)';
+COMMENT ON VIEW v_index_usage IS 'Monitor index usage to identify unused or rarely used indexes';
+COMMENT ON VIEW v_table_sizes IS 'Monitor table and index sizes for capacity planning';

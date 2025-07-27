@@ -98,8 +98,8 @@ If you want to enable additional authentication providers:
 
 ### 4.2 Test Default Users
 Try logging in with the default accounts:
-- **Admin:** admin@expensetracker.com / admin123
-- **Account Officer:** officer@expensetracker.com / officer123
+- **Admin:** admin@test.com / admin123
+- **Account Officer:** officer@test.com / officer123
 
 ### 4.3 Test Core Features
 1. **Login/Logout:** Verify authentication works

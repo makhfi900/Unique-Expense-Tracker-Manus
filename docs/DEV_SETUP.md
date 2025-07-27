@@ -71,12 +71,12 @@ npm run dev
 ## 👥 Test Accounts
 
 ### Administrator
-- **Email**: admin@expensetracker.com
+- **Email**: admin@test.com
 - **Password**: admin123
 - **Access**: Full system access, user management, analytics
 
 ### Account Officer
-- **Email**: officer@expensetracker.com
+- **Email**: officer@test.com
 - **Password**: officer123
 - **Access**: Personal expense management, date filtering
 

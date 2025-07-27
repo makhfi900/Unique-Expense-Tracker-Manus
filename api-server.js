@@ -21,7 +21,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id', 'X-User-Role', 'x-user-id', 'x-user-role']
 }));
 app.use(express.json());
 

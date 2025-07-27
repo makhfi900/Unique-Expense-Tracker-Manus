@@ -100,8 +100,8 @@ cd frontend && pnpm run dev
 5. **Account officers can only see their own data**
 
 ## Test Credentials (After Setup)
-- **Admin**: admin@expensetracker.com / admin123
-- **Account Officer**: officer@expensetracker.com / officer123
+- **Admin**: admin@test.com / admin123
+- **Account Officer**: officer@test.com / officer123
 
 ## Current Status
 - ✅ **Issue Identified**: Infinite recursion in RLS policies

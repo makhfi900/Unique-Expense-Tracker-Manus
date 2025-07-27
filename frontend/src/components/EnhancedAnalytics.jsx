@@ -1,39 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
+import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../utils/currency';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { 
-  LineChart, 
-  Line, 
-  AreaChart, 
-  Area, 
-  BarChart, 
-  Bar, 
-  PieChart, 
-  Pie, 
-  Cell, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer 
+import {
+  LineChart,
+  Line,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
 } from 'recharts';
-import { 
-  TrendingUp, 
-  PieChart as PieChartIcon, 
-  BarChart3, 
+import {
+  TrendingUp,
+  PieChart as PieChartIcon,
+  BarChart3,
   Calendar,
   Loader2,
   Filter,
@@ -42,24 +43,24 @@ import {
 } from 'lucide-react';
 
 const EnhancedAnalytics = () => {
-  const { apiCall, user } = useAuth();
+  const { apiCall, user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  
+
   // Date range filtering
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
-  
+
   // Quick presets
   const [selectedPreset, setSelectedPreset] = useState('this_month');
-  
+
   // Category-specific analysis
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categoryAnalysis, setCategoryAnalysis] = useState(null);
-  
+
   // Analytics data
   const [kpiData, setKpiData] = useState({
     totalSpent: 0,
@@ -69,7 +70,7 @@ const EnhancedAnalytics = () => {
     categoriesUsed: 0,
     totalCategories: 0
   });
-  
+
   const [trendsData, setTrendsData] = useState([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState([]);
   const [monthlyTrends, setMonthlyTrends] = useState([]);
@@ -132,33 +133,44 @@ const EnhancedAnalytics = () => {
   const fetchAnalyticsData = async () => {
     setLoading(true);
     try {
-      // Fetch expenses with date range filter
-      const expensesParams = new URLSearchParams({
-        start_date: dateRange.startDate,
-        end_date: dateRange.endDate
-      });
-      
+      // Use materialized views for better performance
+      const startMonth = new Date(dateRange.startDate).toISOString().slice(0, 7) + '-01';
+      const endMonth = new Date(dateRange.endDate).toISOString().slice(0, 7) + '-01';
+
+      // Fetch from materialized view for monthly summary
+      let monthlyQuery = supabase
+        .from('mv_monthly_spending')
+        .select('*')
+        .gte('month', startMonth)
+        .lte('month', endMonth);
+
       if (selectedCategory !== 'all') {
-        expensesParams.append('category_id', selectedCategory);
+        monthlyQuery = monthlyQuery.eq('category_id', selectedCategory);
       }
 
-      const expensesResponse = await apiCall(`/expenses?${expensesParams}`);
-      const expenses = expensesResponse.expenses || [];
+      // Apply role-based filtering
+      if (!isAdmin) {
+        monthlyQuery = monthlyQuery.eq('created_by', user.id);
+      }
 
-      // Calculate KPIs
-      const totalSpent = expenses.reduce((sum, expense) => sum + parseFloat(expense.amount), 0);
-      const totalExpenses = expenses.length;
+      const { data: monthlyData, error: monthlyError } = await monthlyQuery;
+
+      if (monthlyError) throw monthlyError;
+
+      // Calculate KPIs from materialized view data
+      const totalSpent = monthlyData.reduce((sum, row) => sum + parseFloat(row.total_amount), 0);
+      const totalExpenses = monthlyData.reduce((sum, row) => sum + row.expense_count, 0);
       const averageExpense = totalExpenses > 0 ? totalSpent / totalExpenses : 0;
-      
-      // Find top category
+
+      // Get top category from aggregated data
       const categoryTotals = {};
-      expenses.forEach(expense => {
-        const categoryName = expense.category?.name || 'Uncategorized';
-        categoryTotals[categoryName] = (categoryTotals[categoryName] || 0) + parseFloat(expense.amount);
+      monthlyData.forEach(row => {
+        const categoryName = row.category_name || 'Uncategorized';
+        categoryTotals[categoryName] = (categoryTotals[categoryName] || 0) + parseFloat(row.total_amount);
       });
-      
-      const topCategory = Object.keys(categoryTotals).length > 0 
-        ? Object.entries(categoryTotals).reduce((a, b) => categoryTotals[a[0]] > categoryTotals[b[0]] ? a : b)
+
+      const topCategory = Object.keys(categoryTotals).length > 0
+        ? Object.entries(categoryTotals).reduce((a, b) => parseFloat(a[1]) > parseFloat(b[1]) ? a : b)
         : null;
 
       setKpiData({
@@ -170,34 +182,42 @@ const EnhancedAnalytics = () => {
         totalCategories: categories.length
       });
 
-      // Fetch category breakdown
-      const breakdownParams = new URLSearchParams({
-        start_date: dateRange.startDate,
-        end_date: dateRange.endDate
-      });
-      
-      const breakdownResponse = await apiCall(`/analytics/category-breakdown?${breakdownParams}`);
-      const breakdown = breakdownResponse.breakdown || {};
-      
-      const breakdownData = Object.entries(breakdown).map(([name, data]) => ({
-        name,
-        value: data.total,
-        count: data.count,
-        color: data.color
-      }));
-      
+      // Fetch category breakdown from materialized view
+      let categoryQuery = supabase
+        .from('mv_category_spending')
+        .select('*');
+
+      const { data: categoryData, error: categoryError } = await categoryQuery;
+
+      if (categoryError) throw categoryError;
+
+      // Filter by date range in memory (since mv doesn't have date filtering)
+      const breakdownData = categoryData
+        .filter(cat => {
+          const firstDate = new Date(cat.first_expense_date);
+          const lastDate = new Date(cat.last_expense_date);
+          const startDate = new Date(dateRange.startDate);
+          const endDate = new Date(dateRange.endDate);
+          return lastDate >= startDate && firstDate <= endDate;
+        })
+        .map(cat => ({
+          name: cat.category_name,
+          value: parseFloat(cat.total_amount),
+          count: cat.expense_count,
+          color: cat.category_color
+        }));
+
       setCategoryBreakdown(breakdownData);
 
-      // Fetch spending trends
-      const trendsResponse = await apiCall(`/analytics/spending-trends?period=monthly&year=${new Date(dateRange.startDate).getFullYear()}`);
-      const trends = trendsResponse.trends || {};
-      
-      const trendsData = Object.entries(trends).map(([month, amount]) => ({
-        month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-        amount: amount
-      }));
-      
-      setTrendsData(trendsData);
+      // Transform monthly data for trends
+      const trendsData = monthlyData
+        .reduce((acc, row) => {
+          const monthKey = new Date(row.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+          acc[monthKey] = (acc[monthKey] || 0) + parseFloat(row.total_amount);
+          return acc;
+        }, {});
+
+      setTrendsData(Object.entries(trendsData).map(([month, amount]) => ({ month, amount })));
 
       // If specific category is selected, fetch category-specific analysis
       if (selectedCategory !== 'all') {
@@ -216,20 +236,29 @@ const EnhancedAnalytics = () => {
 
   const fetchCategoryAnalysis = async (categoryId) => {
     try {
-      const params = new URLSearchParams({
-        start_date: dateRange.startDate,
-        end_date: dateRange.endDate,
-        category_id: categoryId
-      });
+      // Use materialized view for daily trends
+      let dailyQuery = supabase
+        .from('mv_daily_spending')
+        .select('*')
+        .eq('category_id', categoryId)
+        .gte('expense_date', dateRange.startDate)
+        .lte('expense_date', dateRange.endDate)
+        .order('expense_date', { ascending: true });
 
-      const expensesResponse = await apiCall(`/expenses?${params}`);
-      const expenses = expensesResponse.expenses || [];
+      // Apply role-based filtering
+      if (!isAdmin) {
+        dailyQuery = dailyQuery.eq('created_by', user.id);
+      }
+
+      const { data: dailyData, error: dailyError } = await dailyQuery;
+
+      if (dailyError) throw dailyError;
 
       // Group by month for trend analysis
       const monthlyData = {};
-      expenses.forEach(expense => {
-        const month = new Date(expense.expense_date).toISOString().slice(0, 7);
-        monthlyData[month] = (monthlyData[month] || 0) + parseFloat(expense.amount);
+      dailyData.forEach(day => {
+        const month = day.expense_date.slice(0, 7);
+        monthlyData[month] = (monthlyData[month] || 0) + parseFloat(day.total_amount);
       });
 
       const monthlyTrend = Object.entries(monthlyData).map(([month, amount]) => ({
@@ -238,14 +267,16 @@ const EnhancedAnalytics = () => {
       }));
 
       const categoryInfo = categories.find(cat => cat.id === categoryId);
-      
+      const totalSpent = dailyData.reduce((sum, day) => sum + parseFloat(day.total_amount), 0);
+      const totalExpenses = dailyData.reduce((sum, day) => sum + day.expense_count, 0);
+
       setCategoryAnalysis({
         category: categoryInfo,
-        totalSpent: expenses.reduce((sum, expense) => sum + parseFloat(expense.amount), 0),
-        totalExpenses: expenses.length,
-        averageExpense: expenses.length > 0 ? expenses.reduce((sum, expense) => sum + parseFloat(expense.amount), 0) / expenses.length : 0,
+        totalSpent,
+        totalExpenses,
+        averageExpense: totalExpenses > 0 ? totalSpent / totalExpenses : 0,
         monthlyTrend,
-        recentExpenses: expenses.slice(0, 5)
+        recentExpenses: [] // We'll keep this empty since MV doesn't have individual expenses
       });
 
     } catch (err) {
@@ -313,7 +344,7 @@ const EnhancedAnalytics = () => {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div>
               <Label htmlFor="start-date">Start Date</Label>
               <Input
@@ -323,7 +354,7 @@ const EnhancedAnalytics = () => {
                 onChange={(e) => handleDateRangeChange('startDate', e.target.value)}
               />
             </div>
-            
+
             <div>
               <Label htmlFor="end-date">End Date</Label>
               <Input
@@ -333,7 +364,7 @@ const EnhancedAnalytics = () => {
                 onChange={(e) => handleDateRangeChange('endDate', e.target.value)}
               />
             </div>
-            
+
             <div className="flex items-end">
               <Button onClick={refreshData} className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4" />
@@ -364,8 +395,8 @@ const EnhancedAnalytics = () => {
                 {categories.map((category) => (
                   <SelectItem key={category.id} value={category.id}>
                     <div className="flex items-center gap-2">
-                      <div 
-                        className="w-3 h-3 rounded-full" 
+                      <div
+                        className="w-3 h-3 rounded-full"
                         style={{ backgroundColor: category.color }}
                       />
                       {category.name}
@@ -382,8 +413,8 @@ const EnhancedAnalytics = () => {
                 <Card>
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2">
-                      <div 
-                        className="w-4 h-4 rounded-full" 
+                      <div
+                        className="w-4 h-4 rounded-full"
                         style={{ backgroundColor: categoryAnalysis.category?.color }}
                       />
                       <h3 className="font-semibold">{categoryAnalysis.category?.name}</h3>
@@ -394,7 +425,7 @@ const EnhancedAnalytics = () => {
                     <p className="text-sm text-muted-foreground">Total Spent</p>
                   </CardContent>
                 </Card>
-                
+
                 <Card>
                   <CardContent className="p-4">
                     <h3 className="font-semibold">Expenses Count</h3>
@@ -402,7 +433,7 @@ const EnhancedAnalytics = () => {
                     <p className="text-sm text-muted-foreground">Total Transactions</p>
                   </CardContent>
                 </Card>
-                
+
                 <Card>
                   <CardContent className="p-4">
                     <h3 className="font-semibold">Average Expense</h3>
@@ -424,10 +455,10 @@ const EnhancedAnalytics = () => {
                         <XAxis dataKey="month" />
                         <YAxis />
                         <Tooltip formatter={(value) => [formatCurrency(value), 'Amount']} />
-                        <Line 
-                          type="monotone" 
-                          dataKey="amount" 
-                          stroke={categoryAnalysis.category?.color || '#3B82F6'} 
+                        <Line
+                          type="monotone"
+                          dataKey="amount"
+                          stroke={categoryAnalysis.category?.color || '#3B82F6'}
                           strokeWidth={3}
                         />
                       </LineChart>
@@ -575,4 +606,3 @@ const EnhancedAnalytics = () => {
 };
 
 export default EnhancedAnalytics;
-

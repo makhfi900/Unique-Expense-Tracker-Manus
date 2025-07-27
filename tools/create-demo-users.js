@@ -29,7 +29,7 @@ async function createDemoUsers() {
 
   const demoUsers = [
     {
-      email: 'admin@expensetracker.com',
+      email: 'admin@test.com',
       password: 'admin123',
       user_metadata: {
         full_name: 'System Administrator',
@@ -37,7 +37,7 @@ async function createDemoUsers() {
       }
     },
     {
-      email: 'officer@expensetracker.com',
+      email: 'officer@test.com',
       password: 'officer123',
       user_metadata: {
         full_name: 'Account Officer',
@@ -49,7 +49,7 @@ async function createDemoUsers() {
   for (const userData of demoUsers) {
     try {
       console.log(`Creating user: ${userData.email}`)
-      
+
       // Create user with admin privileges
       const { data, error } = await supabase.auth.admin.createUser({
         email: userData.email,
@@ -72,7 +72,7 @@ async function createDemoUsers() {
     } catch (error) {
       console.error(`❌ Unexpected error creating ${userData.email}:`, error.message)
     }
-    
+
     console.log() // Empty line for readability
   }
 
@@ -80,12 +80,12 @@ async function createDemoUsers() {
   console.log('\n📋 Demo Login Credentials:')
   console.log('┌─────────────────────────────────────────────────────────┐')
   console.log('│ Admin User:                                             │')
-  console.log('│   Email: admin@expensetracker.com                      │')
+  console.log('│   Email: admin@test.com                      │')
   console.log('│   Password: admin123                                   │')
   console.log('│   Role: admin                                          │')
   console.log('├─────────────────────────────────────────────────────────┤')
   console.log('│ Account Officer:                                        │')
-  console.log('│   Email: officer@expensetracker.com                    │')
+  console.log('│   Email: officer@test.com                    │')
   console.log('│   Password: officer123                                 │')
   console.log('│   Role: account_officer                                │')
   console.log('└─────────────────────────────────────────────────────────┘')
@@ -93,10 +93,10 @@ async function createDemoUsers() {
 
 async function listUsers() {
   console.log('\n🔍 Listing existing users in Supabase Auth...\n')
-  
+
   try {
     const { data, error } = await supabase.auth.admin.listUsers()
-    
+
     if (error) {
       console.error('❌ Error listing users:', error.message)
       return
@@ -122,7 +122,7 @@ async function listUsers() {
 
 async function main() {
   const command = process.argv[2]
-  
+
   switch (command) {
     case 'create':
       await createDemoUsers()
@@ -141,7 +141,7 @@ async function main() {
       console.log('  node scripts/create-demo-users.js setup    - Create users and list all')
       break
   }
-  
+
   process.exit(0)
 }
 

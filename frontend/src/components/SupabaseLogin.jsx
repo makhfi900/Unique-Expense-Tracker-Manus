@@ -20,11 +20,11 @@ const SupabaseLogin = () => {
     setLoading(true);
 
     const result = await signIn(email, password);
-    
+
     if (!result.success) {
       setError(result.error);
     }
-    
+
     setLoading(false);
   };
 
@@ -38,11 +38,11 @@ const SupabaseLogin = () => {
     } else {
       result = await loginAsOfficer();
     }
-    
+
     if (!result.success) {
       setError(result.error);
     }
-    
+
     setLoading(false);
   };
 
@@ -67,7 +67,7 @@ const SupabaseLogin = () => {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -80,7 +80,7 @@ const SupabaseLogin = () => {
                 disabled={loading}
               />
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -93,7 +93,7 @@ const SupabaseLogin = () => {
                 disabled={loading}
               />
             </div>
-            
+
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? (
                 <>
@@ -117,7 +117,7 @@ const SupabaseLogin = () => {
                 </span>
               </div>
             </div>
-            
+
             <div className="mt-4 space-y-2">
               <Button
                 variant="outline"
@@ -144,8 +144,8 @@ const SupabaseLogin = () => {
             <p className="mb-2">🚀 <strong>Powered by Supabase Auth</strong></p>
             <div className="text-xs space-y-1">
               <p><strong>Demo Credentials:</strong></p>
-              <p>Admin: admin@expensetracker.com / admin123</p>
-              <p>Officer: officer@expensetracker.com / officer123</p>
+              <p>Admin: admin@test.com / admin123</p>
+              <p>Officer: officer@test.com / officer123</p>
             </div>
           </div>
 

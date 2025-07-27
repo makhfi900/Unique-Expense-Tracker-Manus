@@ -41,18 +41,38 @@ cd frontend && pnpm run preview
 
 ### Database Setup
 ```bash
-# IMPORTANT: Execute the fixed database schema via Supabase dashboard
+# IMPORTANT: Execute the database schema via Supabase dashboard in this order:
+
+# 1. Main Schema Setup:
 # File: database/supabase_auth_schema_fixed.sql
-# This fixes the infinite recursion issue in RLS policies
+# This includes complete schema, RLS policies, triggers, and test users
+
+# 2. Performance Optimizations (optional but recommended):
+# File: database/performance_optimizations.sql
+# This includes materialized views, composite indexes, and analytics functions
 
 # Steps to apply schema:
 # 1. Go to Supabase Dashboard → SQL Editor
 # 2. Copy contents of database/supabase_auth_schema_fixed.sql
 # 3. Paste and execute the SQL
-# 4. Verify no errors in the output
+# 4. Copy contents of database/performance_optimizations.sql  
+# 5. Paste and execute the SQL
+# 6. Verify success messages in output
+# 7. Test creating users via Dashboard → Authentication → Users
+
+# Test Credentials (created by schema):
+# Admin: admin1@test.com / admin123
+# Officer: officer1@test.com / officer123
 ```
 
 ## Project Architecture
+
+### Authentication System Evolution
+**IMPORTANT**: The application has migrated from custom JWT to Supabase Auth:
+- **Current Implementation**: Uses `SupabaseApp.jsx` and `SupabaseAuthContext.jsx`
+- **Legacy Implementation**: `App.jsx` and `AuthContext.jsx` (deprecated but preserved)
+- **Main Entry Point**: `frontend/src/main.jsx` imports `SupabaseApp.jsx`
+- **Backend Compatibility**: Express server maintains JWT endpoints for development testing
 
 ### Dual-Environment Setup
 - **Development**: Express.js server for fast local development
@@ -60,30 +80,42 @@ cd frontend && pnpm run preview
 - **Environment Detection**: Automatic switching based on NODE_ENV
 
 ### Frontend Structure
-- **React 19** with Vite build tool
+- **React 19** with Vite build tool and React.lazy() for component lazy loading
 - **shadcn/ui** components with Radix UI primitives
-- **Tailwind CSS v4** for styling
-- **Context API** for state management (AuthContext)
+- **Tailwind CSS v4** with @tailwindcss/vite plugin for styling
+- **Context API** for state management (SupabaseAuthContext with analytics methods)
 - **React Router v7** for navigation (single-page app architecture)
-- **Recharts** for data visualization
+- **Recharts** for data visualization and analytics charts
+- **Performance Optimizations**: React.memo(), useMemo(), and Suspense for optimal rendering
 
 ### Backend Architecture
 - **Development**: Express.js server (`api-server.js`) on port 3001
 - **Production**: Netlify Serverless Functions (`netlify/functions/api.js`)
-- **Database**: Supabase PostgreSQL with Row Level Security
-- **Authentication**: JWT with bcryptjs password hashing
+- **Database**: Supabase PostgreSQL with Row Level Security (RLS) and materialized views
+- **Authentication**: **Supabase Auth** (migrated from custom JWT) with automatic user profile creation
+- **API Architecture**: Identical endpoint logic in both Express and Netlify function implementations
+- **Environment Detection**: Automatic API_BASE_URL switching based on `import.meta.env.DEV`
 
 ### Key Components
-- `frontend/src/App.jsx` - Main app component with conditional rendering
-- `frontend/src/context/AuthContext.jsx` - Authentication state management
-- `frontend/src/components/Dashboard.jsx` - Main dashboard with tabbed interface
-- `netlify/functions/api.js` - All backend API routes in single function
+- `frontend/src/SupabaseApp.jsx` - **Main app entry point** (Supabase Auth implementation)
+- `frontend/src/App.jsx` - Legacy app component (custom JWT - deprecated)
+- `frontend/src/main.jsx` - React root with SupabaseApp as primary component
+- `frontend/src/context/SupabaseAuthContext.jsx` - **Primary auth context** with analytics methods
+- `frontend/src/components/Dashboard.jsx` - Main dashboard with lazy-loaded tabbed interface
+- `frontend/src/lib/supabase.js` - Supabase client configuration
+- `netlify/functions/api.js` - All backend API routes in single serverless function
+- `api-server.js` - Express.js development server with identical API logic
 
 ### Database Schema
-- **users** - User accounts with role-based access (admin/account_officer)
-- **categories** - Expense categories with color coding
-- **expenses** - Expense records with foreign keys to users and categories
-- **login_activities** - Login tracking for audit purposes
+- **users** - User accounts linked to `auth.users` with role-based access (admin/account_officer)
+- **categories** - Expense categories with color coding, ownership tracking, and soft deletes
+- **expenses** - Expense records with foreign keys, constraints, and soft deletes (`is_active` flag)
+- **login_activities** - Login tracking for audit purposes with device/browser detection
+- **Schema Files**: 
+  - `database/supabase_auth_schema_fixed.sql` - Complete schema with RLS policies and test users
+  - `database/performance_optimizations.sql` - Materialized views and performance indexes
+- **Security**: Row Level Security (RLS) policies for role-based data access
+- **Performance**: Comprehensive indexes and materialized views for analytics
 
 ### Role-Based Access Control
 - **Admin**: Full system access, user management, analytics, category creation
@@ -99,21 +131,34 @@ All API routes are handled through `/.netlify/functions/api` with path-based rou
 
 ### Environment Variables Required
 ```bash
+# Backend/Development Environment
 SUPABASE_URL=your_supabase_project_url
 SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-JWT_SECRET=your_jwt_secret_key
+JWT_SECRET=your_jwt_secret_key  # Legacy - used by Express server
+
+# Frontend Environment (Vite)
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+
+# Production (Netlify)
+# Set same variables in Netlify Dashboard → Site Settings → Environment Variables
 ```
 
 ### Key Features Implementation
 - **CSV Import/Export**: Handled in `CSVImportExport.jsx` component
 - **Analytics**: Date-range filtering with Recharts visualizations
-- **Authentication**: JWT tokens stored in localStorage with automatic verification
+- **Authentication**: Supabase Auth tokens with automatic session management and refresh
 - **Responsive Design**: Mobile-first approach with Tailwind breakpoints
 
 ### Testing Accounts
-- Admin: admin@expensetracker.com / admin123
-- Account Officer: officer@expensetracker.com / officer123
+- Admin: admin@test.com / admin123
+- Account Officer: officer@test.com / officer123
+
+### TypeScript Configuration
+- **Frontend**: Configured with Vite TypeScript support
+- **Components**: JSX files with PropTypes for type checking
+- **API**: TypeScript-style JSDoc comments for better IDE support
 
 ### Package Managers
 - Root project: npm
@@ -125,3 +170,31 @@ JWT_SECRET=your_jwt_secret_key
 - **Database**: Supabase managed PostgreSQL
 - Build command: `cd frontend && pnpm install && pnpm run build`
 - Publish directory: `frontend/dist`
+- **Configuration**: `netlify.toml` handles redirects and CORS headers
+
+### Development Workflow & Important Notes
+
+#### **File Structure Priority**
+- **Main App**: `frontend/src/SupabaseApp.jsx` (current)
+- **Auth Context**: `frontend/src/context/SupabaseAuthContext.jsx` (current)
+- **Database Schemas**: 
+  - `database/supabase_auth_schema_fixed.sql` (main schema)
+  - `database/performance_optimizations.sql` (performance enhancements)
+- **API Implementation**: Both `api-server.js` and `netlify/functions/api.js` must be kept in sync
+
+#### **Environment-Specific Behavior**
+- **Development**: Frontend connects to Express server on localhost:3001
+- **Production**: Frontend connects to Netlify functions via /.netlify/functions/api
+- **API Detection**: Automatic based on `import.meta.env.DEV` in SupabaseAuthContext
+
+#### **Performance Considerations**
+- **Component Loading**: Uses React.lazy() and Suspense for code splitting
+- **Re-rendering**: React.memo() and useMemo() prevent unnecessary updates
+- **Database**: Materialized views and indexes for analytics queries
+- **Package Management**: pnpm for faster dependency management
+
+#### **Security Architecture**
+- **Database Level**: Row Level Security (RLS) policies enforce permissions
+- **Application Level**: Role-based component rendering and API filtering
+- **Authentication**: Supabase Auth handles tokens, sessions, and security
+- **API Security**: All endpoints require valid Supabase Auth tokens
