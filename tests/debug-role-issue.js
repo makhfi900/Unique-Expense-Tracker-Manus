@@ -15,8 +15,8 @@ async function debugRoleIssue() {
     // Step 1: Login as admin
     console.log('\n1. 🔐 Logging in as admin...');
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: 'admin@test.com',
-      password: 'admin123'
+      email: 'admin1@test.com',
+      password: 'admin1'
     });
 
     if (signInError) {

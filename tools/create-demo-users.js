@@ -29,16 +29,16 @@ async function createDemoUsers() {
 
   const demoUsers = [
     {
-      email: 'admin@test.com',
-      password: 'admin123',
+      email: 'admin1@test.com',
+      password: 'admin1',
       user_metadata: {
         full_name: 'System Administrator',
         role: 'admin'
       }
     },
     {
-      email: 'officer@test.com',
-      password: 'officer123',
+      email: 'officer1@test.com',
+      password: 'officer1',
       user_metadata: {
         full_name: 'Account Officer',
         role: 'account_officer'
@@ -80,13 +80,13 @@ async function createDemoUsers() {
   console.log('\n📋 Demo Login Credentials:')
   console.log('┌─────────────────────────────────────────────────────────┐')
   console.log('│ Admin User:                                             │')
-  console.log('│   Email: admin@test.com                      │')
-  console.log('│   Password: admin123                                   │')
+  console.log('│   Email: admin1@test.com                     │')
+  console.log('│   Password: admin1                           │')
   console.log('│   Role: admin                                          │')
   console.log('├─────────────────────────────────────────────────────────┤')
   console.log('│ Account Officer:                                        │')
-  console.log('│   Email: officer@test.com                    │')
-  console.log('│   Password: officer123                                 │')
+  console.log('│   Email: officer1@test.com                   │')
+  console.log('│   Password: officer1                         │')
   console.log('│   Role: account_officer                                │')
   console.log('└─────────────────────────────────────────────────────────┘')
 }

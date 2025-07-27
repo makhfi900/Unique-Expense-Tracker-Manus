@@ -16,7 +16,7 @@ async function testCompleteAuth() {
     
     // Test login with the existing admin user
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: 'admin@test.com',
+      email: 'admin1@test.com',
       password: 'testpassword'  // This will likely fail, but that's expected
     });
     
@@ -99,7 +99,7 @@ async function testCompleteAuth() {
     
     console.log('\n🚀 Ready to start the application!');
     console.log('📋 Next steps:');
-    console.log('1. Reset password for admin@test.com in Supabase Dashboard');
+    console.log('1. Reset password for admin1@test.com in Supabase Dashboard');
     console.log('2. Or create new demo users manually in Supabase Dashboard');
     console.log('3. Start the application: npm run dev:api & (cd frontend && pnpm run dev)');
     

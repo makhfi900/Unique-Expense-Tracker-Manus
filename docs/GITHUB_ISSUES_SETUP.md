@@ -90,7 +90,7 @@ git apply quick-fix-admin-role.patch
 # Admin user shows as Account Officer after login
 
 ## Bug Description
-When logging in with admin credentials (admin@test.com / admin123), the user interface shows the user as an Account Officer instead of Admin...
+When logging in with admin credentials (admin1@test.com / admin1), the user interface shows the user as an Account Officer instead of Admin...
 
 [Full content in github-issues/issue-1-admin-role-bug.md]
 ```

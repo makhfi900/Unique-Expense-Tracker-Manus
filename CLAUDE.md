@@ -61,8 +61,8 @@ cd frontend && pnpm run preview
 # 7. Test creating users via Dashboard → Authentication → Users
 
 # Test Credentials (created by schema):
-# Admin: admin1@test.com / admin123
-# Officer: officer1@test.com / officer123
+# Admin: admin1@test.com / admin1
+# Officer: officer1@test.com / officer1
 ```
 
 ## Project Architecture
@@ -152,8 +152,8 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 - **Responsive Design**: Mobile-first approach with Tailwind breakpoints
 
 ### Testing Accounts
-- Admin: admin@test.com / admin123
-- Account Officer: officer@test.com / officer123
+- Admin: admin1@test.com / admin1
+- Account Officer: officer1@test.com / officer1
 
 ### TypeScript Configuration
 - **Frontend**: Configured with Vite TypeScript support

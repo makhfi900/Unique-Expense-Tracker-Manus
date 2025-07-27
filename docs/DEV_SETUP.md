@@ -71,13 +71,13 @@ npm run dev
 ## 👥 Test Accounts
 
 ### Administrator
-- **Email**: admin@test.com
-- **Password**: admin123
+- **Email**: admin1@test.com
+- **Password**: admin1
 - **Access**: Full system access, user management, analytics
 
 ### Account Officer
-- **Email**: officer@test.com
-- **Password**: officer123
+- **Email**: officer1@test.com
+- **Password**: officer1
 - **Access**: Personal expense management, date filtering
 
 ## 🔧 Development Commands

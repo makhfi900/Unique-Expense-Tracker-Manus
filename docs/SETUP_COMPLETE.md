@@ -19,8 +19,8 @@ The authentication system has been successfully fixed and is now fully operation
 
 ### 🔐 Login Credentials
 ```
-Email:    admin@test.com
-Password: admin123
+Email:    admin1@test.com
+Password: admin1
 Role:     admin
 ```
 
@@ -43,8 +43,8 @@ Role:     admin
 ### 1. Access the Application
 1. Open your browser and go to **http://localhost:5173**
 2. Login with:
-   - Email: `admin@test.com`
-   - Password: `admin123`
+   - Email: `admin1@test.com`
+   - Password: `admin1`
 
 ### 2. Test the Features
 - ✅ User authentication and role-based access

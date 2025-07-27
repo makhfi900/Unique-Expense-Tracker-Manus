@@ -144,8 +144,8 @@ const SupabaseLogin = () => {
             <p className="mb-2">🚀 <strong>Powered by Supabase Auth</strong></p>
             <div className="text-xs space-y-1">
               <p><strong>Demo Credentials:</strong></p>
-              <p>Admin: admin@test.com / admin123</p>
-              <p>Officer: officer@test.com / officer123</p>
+              <p>Admin: admin1@test.com / admin1</p>
+              <p>Officer: officer1@test.com / officer1</p>
             </div>
           </div>
 

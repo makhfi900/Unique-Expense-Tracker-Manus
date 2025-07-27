@@ -278,8 +278,8 @@ export const AuthProvider = ({ children }) => {
   }
 
   // Demo login functions
-  const loginAsAdmin = () => signIn('admin@test.com', 'admin123')
-  const loginAsOfficer = () => signIn('officer@test.com', 'officer123')
+  const loginAsAdmin = () => signIn('admin1@test.com', 'admin1')
+  const loginAsOfficer = () => signIn('officer1@test.com', 'officer1')
 
   // Role checking with fallbacks
   const getUserRole = () => {

@@ -1,13 +1,13 @@
 # Admin user shows as Account Officer after login
 
 ## Bug Description
-When logging in with admin credentials (admin@test.com / admin123), the user interface shows the user as an Account Officer instead of Admin, despite having the correct role in both the database and auth metadata.
+When logging in with admin credentials (admin1@test.com / admin1), the user interface shows the user as an Account Officer instead of Admin, despite having the correct role in both the database and auth metadata.
 
 ## Steps to Reproduce
 1. Go to http://localhost:5173
 2. Login with credentials:
-   - Email: admin@test.com
-   - Password: admin123
+   - Email: admin1@test.com
+   - Password: admin1
 3. Observe that the dashboard shows user as "Account Officer" instead of "Admin"
 
 ## Expected Behavior
@@ -48,7 +48,7 @@ const isAccountOfficer = user?.user_metadata?.role === 'account_officer' || user
 ```json
 {
   "id": "a3fc8908-d1b2-40f1-bb5f-8df90be90102",
-  "email": "admin@test.com",
+  "email": "admin1@test.com",
   "role": "admin",
   "full_name": "System Administrator",
   "is_active": true
@@ -76,7 +76,7 @@ const isAccountOfficer = user?.user_metadata?.role === 'account_officer' || user
 - frontend
 
 ## Acceptance Criteria
-- [x] Admin user (admin@test.com) shows as Admin in UI
+- [x] Admin user (admin1@test.com) shows as Admin in UI
 - [x] Role-based features work correctly for Admin users
 - [x] Database user profile is properly fetched and used
 - [x] Role detection logic is robust and reliable

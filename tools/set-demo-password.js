@@ -20,7 +20,7 @@ async function setDemoPassword() {
       return false;
     }
     
-    const adminUser = users.users.find(user => user.email === 'admin@test.com');
+    const adminUser = users.users.find(user => user.email === 'admin1@test.com');
     
     if (!adminUser) {
       console.error('❌ Admin user not found');
@@ -29,11 +29,11 @@ async function setDemoPassword() {
     
     console.log('👤 Found admin user:', adminUser.email);
     
-    // Set the password to "admin123"
+    // Set the password to "admin1"
     const { data: updateData, error: updateError } = await supabase.auth.admin.updateUserById(
       adminUser.id,
       {
-        password: 'admin123',
+        password: 'admin1',
         user_metadata: {
           role: 'admin',
           full_name: 'System Administrator'
@@ -52,8 +52,8 @@ async function setDemoPassword() {
     console.log('\n🧪 Testing login with new password...');
     
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: 'admin@test.com',
-      password: 'admin123'
+      email: 'admin1@test.com',
+      password: 'admin1'
     });
     
     if (signInError) {
@@ -83,8 +83,8 @@ async function main() {
     console.log('\n🎉 Demo account setup complete!');
     console.log('\n📋 Login Credentials:');
     console.log('┌─────────────────────────────────────┐');
-    console.log('│ Email:    admin@test.com            │');
-    console.log('│ Password: admin123                  │');
+    console.log('│ Email:    admin1@test.com            │');
+    console.log('│ Password: admin1                  │');
     console.log('│ Role:     admin                     │');
     console.log('└─────────────────────────────────────┘');
     

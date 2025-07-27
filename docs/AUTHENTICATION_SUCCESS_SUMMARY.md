@@ -31,7 +31,7 @@ The authentication system had an **infinite recursion issue** in Row Level Secur
 - **User Profile**: Created and linked to auth
 
 ### ⚠️ Manual Steps Required
-1. **Reset Password**: Use Supabase Dashboard to set password for `admin@test.com`
+1. **Reset Password**: Use Supabase Dashboard to set password for `admin1@test.com`
 2. **Create Demo Users**: Manually create additional users in Supabase Dashboard
 
 ## Test Results
@@ -45,7 +45,7 @@ The authentication system had an **infinite recursion issue** in Row Level Secur
 ```
 
 ## Available User Account
-- **Email**: admin@test.com
+- **Email**: admin1@test.com
 - **Role**: admin
 - **Status**: Profile created, needs password reset
 
@@ -71,7 +71,7 @@ The authentication system had an **infinite recursion issue** in Row Level Secur
 ### 1. Set Up User Authentication
 ```bash
 # Go to Supabase Dashboard → Authentication → Users
-# Click on admin@test.com → Reset Password
+# Click on admin1@test.com → Reset Password
 # Or create new demo users manually
 ```
 
@@ -87,7 +87,7 @@ cd frontend && pnpm run dev
 ### 3. Access the Application
 - **Frontend**: http://localhost:5173
 - **API**: http://localhost:3001
-- **Login**: admin@test.com (after password reset)
+- **Login**: admin1@test.com (after password reset)
 
 ## Technical Details
 

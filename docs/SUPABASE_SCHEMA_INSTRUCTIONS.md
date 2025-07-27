@@ -65,8 +65,8 @@ Then visit `http://localhost:5173` and test the demo login buttons.
 ## Expected Results
 
 ### Demo Accounts Available
-- **Admin**: admin@test.com / admin123
-- **Account Officer**: officer@test.com / officer123
+- **Admin**: admin1@test.com / admin1
+- **Account Officer**: officer1@test.com / officer1
 
 ### Key Features Enabled
 - ✅ Supabase Authentication integration

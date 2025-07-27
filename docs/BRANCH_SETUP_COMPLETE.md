@@ -41,7 +41,7 @@
 - ✅ Analytics and reporting
 - ✅ CSV import/export
 - ✅ Login activity tracking
-- ✅ Demo account setup (admin@test.com / admin123)
+- ✅ Demo account setup (admin1@test.com / admin1)
 
 **Applications running:**
 - Frontend: http://localhost:5173

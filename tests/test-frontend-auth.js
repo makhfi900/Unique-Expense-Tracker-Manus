@@ -15,8 +15,8 @@ async function testFrontendAuth() {
     // Test login
     console.log('\n🔐 Testing login...');
     const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-      email: 'admin@test.com',
-      password: 'admin123'
+      email: 'admin1@test.com',
+      password: 'admin1'
     });
 
     if (signInError) {
@@ -77,8 +77,8 @@ async function main() {
     console.log('\n📋 To test the full application:');
     console.log('1. Open http://localhost:5173 in your browser');
     console.log('2. Login with:');
-    console.log('   Email: admin@test.com');
-    console.log('   Password: admin123');
+    console.log('   Email: admin1@test.com');
+    console.log('   Password: admin1');
     console.log('3. You should see the dashboard with full admin access');
   } else {
     console.log('\n❌ Frontend authentication test failed');

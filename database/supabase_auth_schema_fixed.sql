@@ -241,24 +241,24 @@ INSERT INTO categories (name, description, color) VALUES
     ('Miscellaneous', 'Other expenses that don''t fit into specific categories', '#64748B')
 ON CONFLICT (name) DO NOTHING;
 
--- Create admin user if not exists (password: admin123)
+-- Create admin user if not exists (password: admin1)
 INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, created_at, updated_at)
 VALUES (
     gen_random_uuid(),
     'admin1@test.com',
-    crypt('admin123', gen_salt('bf')),
+    crypt('admin1', gen_salt('bf')),
     NOW(),
     '{"full_name": "Admin User", "role": "admin"}'::jsonb,
     NOW(),
     NOW()
 );
 
--- Create officer user if not exists (password: officer123)
+-- Create officer user if not exists (password: officer1)
 INSERT INTO auth.users (id, email, encrypted_password, email_confirmed_at, raw_user_meta_data, created_at, updated_at)
 VALUES (
     gen_random_uuid(),
     'officer1@test.com',
-    crypt('officer123', gen_salt('bf')),
+    crypt('officer1', gen_salt('bf')),
     NOW(),
     '{"full_name": "Account Officer", "role": "account_officer"}'::jsonb,
     NOW(),

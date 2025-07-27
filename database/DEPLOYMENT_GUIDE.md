@@ -67,8 +67,8 @@ If MCP is not available, execute in Supabase Dashboard:
 **Create through Supabase Auth Dashboard:**
 1. Go to Authentication → Users
 2. Create these accounts:
-   - **Email**: `admin@test.com` | **Password**: `admin123`
-   - **Email**: `officer@test.com` | **Password**: `officer123`
+   - **Email**: `admin1@test.com` | **Password**: `admin1`
+   - **Email**: `officer1@test.com` | **Password**: `officer1`
 
 **The trigger will automatically populate the users table.**
 
@@ -163,7 +163,7 @@ After successful deployment:
 
 ### Functional Testing
 - [ ] Create user through Supabase Auth Dashboard
-- [ ] Login with `admin@test.com` / `admin123`
+- [ ] Login with `admin1@test.com` / `admin1`
 - [ ] Refresh page - should load dashboard with all tabs
 - [ ] Click logout - should return to login without blank page
 - [ ] Navigate to Expenses tab - should load expense list
@@ -195,7 +195,7 @@ SELECT routine_name FROM information_schema.routines WHERE routine_name = 'handl
 
 -- Manual user creation if needed
 INSERT INTO users (id, email, full_name, role)
-SELECT id, email, 'Admin User', 'admin' FROM auth.users WHERE email = 'admin@test.com';
+SELECT id, email, 'Admin User', 'admin' FROM auth.users WHERE email = 'admin1@test.com';
 ```
 
 ### If Performance Issues Occur

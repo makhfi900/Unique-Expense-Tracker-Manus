@@ -34,8 +34,8 @@ This directory contains the database schema and performance optimization files f
 
 ### Step 3: Test User Access
 The main schema automatically creates test users:
-- **Admin:** admin1@test.com / admin123
-- **Officer:** officer1@test.com / officer123
+- **Admin:** admin1@test.com / admin1
+- **Officer:** officer1@test.com / officer1
 
 These users are ready to use immediately after schema execution.
 
