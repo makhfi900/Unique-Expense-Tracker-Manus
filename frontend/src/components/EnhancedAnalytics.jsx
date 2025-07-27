@@ -306,7 +306,7 @@ const EnhancedAnalytics = () => {
     fetchAnalyticsData();
   };
 
-  if (user?.role !== 'admin') {
+  if (!isAdmin) {
     return (
       <Alert>
         <AlertDescription>

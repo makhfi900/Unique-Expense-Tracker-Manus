@@ -11,7 +11,7 @@ import { Loader2, Monitor, Smartphone, Tablet, MapPin, Clock, User, Shield, Aler
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const LoginActivityTracker = () => {
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const [activities, setActivities] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,11 +21,11 @@ const LoginActivityTracker = () => {
   const [itemsPerPage] = useState(20);
 
   useEffect(() => {
-    if (user?.role === 'admin') {
+    if (isAdmin) {
       fetchUsers();
       fetchLoginActivities();
     }
-  }, [user, selectedUser, currentPage]);
+  }, [isAdmin, selectedUser, currentPage]);
 
   const fetchUsers = async () => {
     try {
@@ -120,7 +120,7 @@ const LoginActivityTracker = () => {
     return parts.length > 0 ? parts.join(', ') : 'Unknown Location';
   };
 
-  if (user?.role !== 'admin') {
+  if (!isAdmin) {
     return (
       <Alert>
         <Shield className="h-4 w-4" />

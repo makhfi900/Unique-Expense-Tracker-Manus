@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 
 const CategoryManager = () => {
-  const { apiCall, user } = useAuth();
+  const { apiCall, user, isAdmin } = useAuth();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -41,7 +41,7 @@ const CategoryManager = () => {
   const [editingCategory, setEditingCategory] = useState(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
 
-  const isAdmin = user?.role === 'admin';
+  // isAdmin is already provided by useAuth hook
 
   // Form state
   const [formData, setFormData] = useState({
