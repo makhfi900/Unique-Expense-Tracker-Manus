@@ -4,6 +4,7 @@ import { Button } from './ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Badge } from './ui/badge';
+import ThemeToggle from './ThemeToggle';
 import { 
   LogOut, 
   Users, 
@@ -28,8 +29,8 @@ const LoginActivityTracker = lazy(() => import('./LoginActivityTracker'));
 // Loading component for suspense
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center p-8">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-    <span className="ml-2 text-gray-600">Loading...</span>
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+    <span className="ml-2 text-muted-foreground">Loading...</span>
   </div>
 );
 
@@ -73,9 +74,9 @@ const Dashboard = React.memo(() => {
   }, [loading, userProfile, isAdmin, isAccountOfficer]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-slate-200">
+      <header className="bg-card shadow-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
@@ -83,10 +84,10 @@ const Dashboard = React.memo(() => {
                 <img src="/assets/logo.png" alt="College Logo" className="h-12 w-12" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">
+                <h1 className="text-2xl font-bold text-foreground">
                   Unique Expense Tracker
                 </h1>
-                <p className="text-sm text-slate-600">
+                <p className="text-sm text-muted-foreground">
                   Welcome back, {userInfo.name}
                 </p>
               </div>
@@ -95,17 +96,13 @@ const Dashboard = React.memo(() => {
             <div className="flex items-center space-x-4">
               <Badge 
                 variant={userInfo.isAdmin ? "default" : "secondary"}
-                className={userInfo.isAdmin ? 
-                  "bg-blue-600 text-white px-3 py-1" : 
-                  "bg-slate-600 text-white px-3 py-1"
-                }
               >
                 {userInfo.role === 'admin' ? 'Administrator' : 'Account Officer'}
               </Badge>
+              <ThemeToggle />
               <Button 
                 variant="outline" 
                 onClick={handleLogout}
-                className="border-slate-300 text-slate-700 hover:bg-slate-50"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
@@ -119,19 +116,19 @@ const Dashboard = React.memo(() => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           {/* Elegant Navigation */}
-          <div className="bg-white rounded-2xl shadow-lg border border-slate-200/60 overflow-hidden">
+          <div className="bg-card rounded-2xl shadow-lg border border-border overflow-hidden">
             {/* Navigation Header */}
-            <div className="bg-gradient-to-r from-slate-50 to-blue-50 px-6 py-4 border-b border-slate-200/60">
-              <h2 className="text-lg font-semibold text-slate-800 flex items-center">
-                <div className="w-2 h-2 bg-blue-500 rounded-full mr-3 animate-pulse"></div>
+            <div className="bg-muted px-6 py-4 border-b border-border">
+              <h2 className="text-lg font-semibold text-foreground flex items-center">
+                <div className="w-2 h-2 bg-primary rounded-full mr-3 animate-pulse"></div>
                 Dashboard Navigation
               </h2>
-              <p className="text-sm text-slate-600 mt-1">Select a section to manage your expenses</p>
+              <p className="text-sm text-muted-foreground mt-1">Select a section to manage your expenses</p>
             </div>
             
             {/* Enhanced Tab Navigation */}
             <div className="p-6">
-              <TabsList className="grid w-full bg-gradient-to-r from-slate-50 to-slate-100 rounded-xl p-2 shadow-inner border border-slate-200/50" style={{gridTemplateColumns: `repeat(${tabConfig.filter(tab => tab.show).length}, 1fr)`}}>
+              <TabsList className="grid w-full bg-muted rounded-xl p-2 shadow-inner border border-border" style={{gridTemplateColumns: `repeat(${tabConfig.filter(tab => tab.show).length}, 1fr)`}}>
                 {tabConfig.map(tab => {
                   if (!tab.show) return null;
                   const Icon = tab.icon;
@@ -175,13 +172,13 @@ const Dashboard = React.memo(() => {
           </div>
 
           <TabsContent value="expenses" className="space-y-6">
-            <Card className="bg-white shadow-sm border border-slate-200 rounded-lg">
-              <CardHeader className="bg-blue-50 border-b border-blue-100">
-                <CardTitle className="text-xl font-semibold flex items-center text-slate-900">
+            <Card className="shadow-sm rounded-lg">
+              <CardHeader className="bg-muted border-b border-border">
+                <CardTitle className="text-xl font-semibold flex items-center text-foreground">
                   <FileText className="h-5 w-5 mr-2 text-blue-600" />
                   Expense Management
                 </CardTitle>
-                <CardDescription className="text-slate-600">
+                <CardDescription className="text-muted-foreground">
                   {userInfo.isAccountOfficer 
                     ? "View and manage your expenses. Use the date filter to view expenses for a specific date."
                     : "View and manage all expenses in the system."
@@ -197,13 +194,13 @@ const Dashboard = React.memo(() => {
           </TabsContent>
 
           <TabsContent value="add-expense" className="space-y-6">
-            <Card className="bg-white shadow-sm border border-slate-200 rounded-lg">
-              <CardHeader className="bg-green-50 border-b border-green-100">
-                <CardTitle className="text-xl font-semibold flex items-center text-slate-900">
+            <Card className="shadow-sm rounded-lg">
+              <CardHeader className="bg-muted border-b border-border">
+                <CardTitle className="text-xl font-semibold flex items-center text-foreground">
                   <PlusCircle className="h-5 w-5 mr-2 text-green-600" />
                   Add New Expense
                 </CardTitle>
-                <CardDescription className="text-slate-600">
+                <CardDescription className="text-muted-foreground">
                   Record a new expense with details and categorization.
                 </CardDescription>
               </CardHeader>
@@ -224,13 +221,13 @@ const Dashboard = React.memo(() => {
           )}
 
           <TabsContent value="import-export" className="space-y-6">
-            <Card className="bg-white shadow-sm border border-slate-200 rounded-lg">
-              <CardHeader className="bg-purple-50 border-b border-purple-100">
-                <CardTitle className="text-xl font-semibold flex items-center text-slate-900">
+            <Card className="shadow-sm rounded-lg">
+              <CardHeader className="bg-muted border-b border-border">
+                <CardTitle className="text-xl font-semibold flex items-center text-foreground">
                   <Upload className="h-5 w-5 mr-2 text-purple-600" />
                   Import & Export
                 </CardTitle>
-                <CardDescription className="text-slate-600">
+                <CardDescription className="text-muted-foreground">
                   Import expenses from CSV files or export current data.
                 </CardDescription>
               </CardHeader>
@@ -244,13 +241,13 @@ const Dashboard = React.memo(() => {
 
           {(userInfo.isAdmin || userInfo.isAccountOfficer) && (
             <TabsContent value="categories" className="space-y-6">
-              <Card className="bg-white shadow-sm border border-slate-200 rounded-lg">
-                <CardHeader className="bg-orange-50 border-b border-orange-100">
-                  <CardTitle className="text-xl font-semibold flex items-center text-slate-900">
+              <Card className="shadow-sm rounded-lg">
+                <CardHeader className="bg-muted border-b border-border">
+                  <CardTitle className="text-xl font-semibold flex items-center text-foreground">
                     <Settings className="h-5 w-5 mr-2 text-orange-600" />
                     Category Management
                   </CardTitle>
-                  <CardDescription className="text-slate-600">
+                  <CardDescription className="text-muted-foreground">
                     Create and manage expense categories.
                   </CardDescription>
                 </CardHeader>
@@ -265,13 +262,13 @@ const Dashboard = React.memo(() => {
 
           {userInfo.isAdmin && (
             <TabsContent value="users" className="space-y-6">
-              <Card className="bg-white shadow-sm border border-slate-200 rounded-lg">
-                <CardHeader className="bg-indigo-50 border-b border-indigo-100">
-                  <CardTitle className="text-xl font-semibold flex items-center text-slate-900">
+              <Card className="shadow-sm rounded-lg">
+                <CardHeader className="bg-muted border-b border-border">
+                  <CardTitle className="text-xl font-semibold flex items-center text-foreground">
                     <Users className="h-5 w-5 mr-2 text-indigo-600" />
                     User Management
                   </CardTitle>
-                  <CardDescription className="text-slate-600">
+                  <CardDescription className="text-muted-foreground">
                     Manage user accounts and permissions.
                   </CardDescription>
                 </CardHeader>
@@ -286,13 +283,13 @@ const Dashboard = React.memo(() => {
 
           {userInfo.isAdmin && (
             <TabsContent value="login-activity" className="space-y-6">
-              <Card className="bg-white shadow-sm border border-slate-200 rounded-lg">
-                <CardHeader className="bg-slate-50 border-b border-slate-100">
-                  <CardTitle className="text-xl font-semibold flex items-center text-slate-900">
-                    <Shield className="h-5 w-5 mr-2 text-slate-600" />
+              <Card className="shadow-sm rounded-lg">
+                <CardHeader className="bg-muted border-b border-border">
+                  <CardTitle className="text-xl font-semibold flex items-center text-foreground">
+                    <Shield className="h-5 w-5 mr-2 text-muted-foreground" />
                     Login Activity
                   </CardTitle>
-                  <CardDescription className="text-slate-600">
+                  <CardDescription className="text-muted-foreground">
                     Monitor user login activities and security events.
                   </CardDescription>
                 </CardHeader>

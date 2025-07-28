@@ -33,8 +33,8 @@ const SupabaseLogin = () => {
 
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
-      <Card className="w-full max-w-md shadow-2xl border-0">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center pb-8">
           <div className="flex justify-center mb-8">
             <img 
@@ -43,23 +43,23 @@ const SupabaseLogin = () => {
               className="w-48 h-48 object-contain"
             />
           </div>
-          <CardTitle className="text-3xl font-bold text-slate-800 mb-2">
+          <CardTitle className="text-3xl font-bold text-foreground mb-2">
             Expense Tracker
           </CardTitle>
-          <CardDescription className="text-slate-600 text-base">
+          <CardDescription className="text-muted-foreground text-base">
             Welcome back! Please sign in to your account
           </CardDescription>
         </CardHeader>
         <CardContent className="px-8 pb-8">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <Alert variant="destructive" className="border-red-200 bg-red-50">
-                <AlertDescription className="text-red-800">{error}</AlertDescription>
+              <Alert variant="destructive">
+                <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email" className="text-slate-700 font-medium">
+              <Label htmlFor="email" className="text-foreground font-medium">
                 Email Address
               </Label>
               <Input
@@ -70,12 +70,12 @@ const SupabaseLogin = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
-                className="h-12 border-slate-200 focus:border-slate-400 focus:ring-slate-400"
+                className="h-12"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="text-slate-700 font-medium">
+              <Label htmlFor="password" className="text-foreground font-medium">
                 Password
               </Label>
               <div className="relative">
@@ -87,12 +87,12 @@ const SupabaseLogin = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   disabled={loading}
-                  className="h-12 border-slate-200 focus:border-slate-400 focus:ring-slate-400 pr-10"
+                  className="h-12 pr-10"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   disabled={loading}
                 >
                   {showPassword ? (
@@ -114,7 +114,7 @@ const SupabaseLogin = () => {
                 />
                 <Label 
                   htmlFor="remember" 
-                  className="text-sm text-slate-600 cursor-pointer"
+                  className="text-sm text-muted-foreground cursor-pointer"
                 >
                   Keep me signed in
                 </Label>
