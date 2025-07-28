@@ -117,6 +117,19 @@ cd frontend && pnpm run preview
 - **Security**: Row Level Security (RLS) policies for role-based data access
 - **Performance**: Comprehensive indexes and materialized views for analytics
 
+### Analytics & Materialized Views
+- **Materialized Views**: Pre-computed analytics data for fast queries
+  - `mv_monthly_spending` - Monthly spending summaries by user/category
+  - `mv_daily_spending` - Daily spending trends for detailed analysis
+  - `mv_category_spending` - Category-wise spending breakdown with totals
+  - `mv_user_spending` - User-wise spending summaries and statistics
+- **Automatic Refresh**: Smart refresh after expense CREATE/UPDATE/DELETE operations
+  - Uses `smart_refresh_analytics()` function with 5-minute cooldown
+  - Prevents performance impact from excessive refreshes
+  - Graceful error handling - expense operations won't fail if refresh fails
+- **Manual Refresh**: `SELECT refresh_analytics_views(FALSE);` for immediate updates
+- **Performance Monitoring**: Built-in views for index usage and table sizes
+
 ### Role-Based Access Control
 - **Admin**: Full system access, user management, analytics, category creation
 - **Account Officer**: Personal expense management with date-specific filtering
@@ -172,6 +185,24 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 - Publish directory: `frontend/dist`
 - **Configuration**: `netlify.toml` handles redirects and CORS headers
 
+### Troubleshooting & Common Issues
+
+#### **Analytics Showing Zero Values**
+- **Cause**: Materialized views need refreshing after new data is added
+- **Solution**: Run `SELECT refresh_analytics_views(FALSE);` in Supabase SQL Editor
+- **Prevention**: Automatic refresh is now implemented in expense operations
+
+#### **SelectItem "Blank Page on Filter" Error**
+- **Cause**: Radix UI SelectItem components cannot have empty string values
+- **Fixed**: Changed `<SelectItem value="">` to `<SelectItem value="all">` in OptimizedExpenseList.jsx
+- **Location**: `frontend/src/components/OptimizedExpenseList.jsx:392`
+
+#### **Sample Data for Testing**
+- **Scripts Available**: 
+  - `tools/add-sample-expenses.js` - Adds diverse expense data across categories/dates
+  - `tools/add-sample-login-activity.js` - Adds login activity for audit testing
+  - `tools/create-demo-users.js` - Creates admin and officer demo accounts
+
 ### Development Workflow & Important Notes
 
 #### **File Structure Priority**
@@ -191,6 +222,7 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 - **Component Loading**: Uses React.lazy() and Suspense for code splitting
 - **Re-rendering**: React.memo() and useMemo() prevent unnecessary updates
 - **Database**: Materialized views and indexes for analytics queries
+- **Automatic Analytics Refresh**: Smart refresh of materialized views after expense changes (5-minute cooldown)
 - **Package Management**: pnpm for faster dependency management
 
 #### **Security Architecture**
