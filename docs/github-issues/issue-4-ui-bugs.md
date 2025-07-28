@@ -1,39 +1,115 @@
-# Issue: UI Bugs - Refresh Stuck and Blank Page on Filter
+@radix-ui_react-select.js?v=5d357fef:3101 Uncaught Error: A <Select.Item /> must have a value prop that is not an empty string. This is because the Select value can be set to an empty string to clear the selection and show the placeholder.
+    at SelectItem (@radix-ui_react-select.js?v=5d357fef:3101:13)
+    at react-stack-bottom-frame (react-dom_client.js?v=5d357fef:17424:20)
+    at renderWithHooks (react-dom_client.js?v=5d357fef:4206:24)
+    at updateForwardRef (react-dom_client.js?v=5d357fef:6461:21)
+    at beginWork (react-dom_client.js?v=5d357fef:7864:20)
+    at runWithFiberInDEV (react-dom_client.js?v=5d357fef:1485:72)
+    at performUnitOfWork (react-dom_client.js?v=5d357fef:10868:98)
+    at workLoopSync (react-dom_client.js?v=5d357fef:10728:43)
+    at renderRootSync (react-dom_client.js?v=5d357fef:10711:13)
+    at performWorkOnRoot (react-dom_client.js?v=5d357fef:10359:46)
+SelectItem @ @radix-ui_react-select.js?v=5d357fef:3101
+react-stack-bottom-frame @ react-dom_client.js?v=5d357fef:17424
+renderWithHooks @ react-dom_client.js?v=5d357fef:4206
+updateForwardRef @ react-dom_client.js?v=5d357fef:6461
+beginWork @ react-dom_client.js?v=5d357fef:7864
+runWithFiberInDEV @ react-dom_client.js?v=5d357fef:1485
+performUnitOfWork @ react-dom_client.js?v=5d357fef:10868
+workLoopSync @ react-dom_client.js?v=5d357fef:10728
+renderRootSync @ react-dom_client.js?v=5d357fef:10711
+performWorkOnRoot @ react-dom_client.js?v=5d357fef:10359
+performSyncWorkOnRoot @ react-dom_client.js?v=5d357fef:11635
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=5d357fef:11536
+processRootScheduleInMicrotask @ react-dom_client.js?v=5d357fef:11558
+(anonymous) @ react-dom_client.js?v=5d357fef:11649
+<SelectItem>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=5d357fef:250
+SelectItem @ select.jsx:96
+react-stack-bottom-frame @ react-dom_client.js?v=5d357fef:17424
+renderWithHooksAgain @ react-dom_client.js?v=5d357fef:4281
+renderWithHooks @ react-dom_client.js?v=5d357fef:4217
+updateFunctionComponent @ react-dom_client.js?v=5d357fef:6619
+beginWork @ react-dom_client.js?v=5d357fef:7654
+runWithFiberInDEV @ react-dom_client.js?v=5d357fef:1485
+performUnitOfWork @ react-dom_client.js?v=5d357fef:10868
+workLoopSync @ react-dom_client.js?v=5d357fef:10728
+renderRootSync @ react-dom_client.js?v=5d357fef:10711
+performWorkOnRoot @ react-dom_client.js?v=5d357fef:10359
+performSyncWorkOnRoot @ react-dom_client.js?v=5d357fef:11635
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=5d357fef:11536
+processRootScheduleInMicrotask @ react-dom_client.js?v=5d357fef:11558
+(anonymous) @ react-dom_client.js?v=5d357fef:11649
+<SelectItem>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=5d357fef:250
+OptimizedExpenseList @ OptimizedExpenseList.jsx:392
+react-stack-bottom-frame @ react-dom_client.js?v=5d357fef:17424
+renderWithHooksAgain @ react-dom_client.js?v=5d357fef:4281
+renderWithHooks @ react-dom_client.js?v=5d357fef:4217
+updateFunctionComponent @ react-dom_client.js?v=5d357fef:6619
+beginWork @ react-dom_client.js?v=5d357fef:7654
+runWithFiberInDEV @ react-dom_client.js?v=5d357fef:1485
+performUnitOfWork @ react-dom_client.js?v=5d357fef:10868
+workLoopSync @ react-dom_client.js?v=5d357fef:10728
+renderRootSync @ react-dom_client.js?v=5d357fef:10711
+performWorkOnRoot @ react-dom_client.js?v=5d357fef:10330
+performSyncWorkOnRoot @ react-dom_client.js?v=5d357fef:11635
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=5d357fef:11536
+processRootScheduleInMicrotask @ react-dom_client.js?v=5d357fef:11558
+(anonymous) @ react-dom_client.js?v=5d357fef:11649
+select.jsx:96 An error occurred in the <SelectItem> component.
 
-## Description
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries.
 
-Two distinct UI bugs have been identified:
-
-1.  **Stuck on Refresh:** After a user logs in, if they refresh the page, the application gets stuck on the "Loading... Initializing Supabase Auth..." screen.
-2.  **Blank Page on Filter:** When an admin user clicks the "Show Filters" button on the Expense Management page, the page turns completely white.
-
-## Steps to Reproduce
-
-### Stuck on Refresh
-1.  Log in to the application.
-2.  Once the dashboard is loaded, refresh the browser page.
-3.  Observe that the page is stuck on the loading screen.
-
-### Blank Page on Filter
-1.  Log in to the application as an admin user.
-2.  Navigate to the "Expenses" tab in the Dashboard Navigation.
-3.  Click on the "Show Filters" button.
-4.  Observe that the page content disappears and turns white.
-
-## Expected Behavior
-
--   **Refresh:** The page should reload the dashboard and its components correctly without getting stuck.
--   **Filter:** The filter options should appear on the page, allowing the user to filter the expense list.
-
-## Screenshots
-
-**Stuck on Refresh:**
-(Reference to `expense_app.JPG`)
-
-**Blank Page on Filter:**
-(Reference to `expense_app1.JPG`)
-
-## Possible Causes
-
--   **Stuck on Refresh:** This could be related to how the Supabase authentication state is being checked or re-initialized on page load. There might be a race condition or an unhandled state in the `SupabaseApp.jsx` or `SupabaseAuthContext.jsx`.
--   **Blank Page on Filter:** This might be a JavaScript error in the component responsible for rendering the filters. It could be a state management issue where the component re-renders into a blank state.
+overrideMethod @ hook.js:608
+defaultOnUncaughtError @ react-dom_client.js?v=5d357fef:6229
+logUncaughtError @ react-dom_client.js?v=5d357fef:6283
+runWithFiberInDEV @ react-dom_client.js?v=5d357fef:1485
+lane.callback @ react-dom_client.js?v=5d357fef:6311
+callCallback @ react-dom_client.js?v=5d357fef:4097
+commitCallbacks @ react-dom_client.js?v=5d357fef:4109
+runWithFiberInDEV @ react-dom_client.js?v=5d357fef:1487
+commitLayoutEffectOnFiber @ react-dom_client.js?v=5d357fef:9029
+flushLayoutEffects @ react-dom_client.js?v=5d357fef:11174
+commitRoot @ react-dom_client.js?v=5d357fef:11080
+commitRootWhenReady @ react-dom_client.js?v=5d357fef:10512
+performWorkOnRoot @ react-dom_client.js?v=5d357fef:10457
+performSyncWorkOnRoot @ react-dom_client.js?v=5d357fef:11635
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=5d357fef:11536
+processRootScheduleInMicrotask @ react-dom_client.js?v=5d357fef:11558
+(anonymous) @ react-dom_client.js?v=5d357fef:11649
+<SelectItem>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=5d357fef:250
+SelectItem @ select.jsx:96
+react-stack-bottom-frame @ react-dom_client.js?v=5d357fef:17424
+renderWithHooksAgain @ react-dom_client.js?v=5d357fef:4281
+renderWithHooks @ react-dom_client.js?v=5d357fef:4217
+updateFunctionComponent @ react-dom_client.js?v=5d357fef:6619
+beginWork @ react-dom_client.js?v=5d357fef:7654
+runWithFiberInDEV @ react-dom_client.js?v=5d357fef:1485
+performUnitOfWork @ react-dom_client.js?v=5d357fef:10868
+workLoopSync @ react-dom_client.js?v=5d357fef:10728
+renderRootSync @ react-dom_client.js?v=5d357fef:10711
+performWorkOnRoot @ react-dom_client.js?v=5d357fef:10359
+performSyncWorkOnRoot @ react-dom_client.js?v=5d357fef:11635
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=5d357fef:11536
+processRootScheduleInMicrotask @ react-dom_client.js?v=5d357fef:11558
+(anonymous) @ react-dom_client.js?v=5d357fef:11649
+<SelectItem>
+exports.jsxDEV @ react_jsx-dev-runtime.js?v=5d357fef:250
+OptimizedExpenseList @ OptimizedExpenseList.jsx:392
+react-stack-bottom-frame @ react-dom_client.js?v=5d357fef:17424
+renderWithHooksAgain @ react-dom_client.js?v=5d357fef:4281
+renderWithHooks @ react-dom_client.js?v=5d357fef:4217
+updateFunctionComponent @ react-dom_client.js?v=5d357fef:6619
+beginWork @ react-dom_client.js?v=5d357fef:7654
+runWithFiberInDEV @ react-dom_client.js?v=5d357fef:1485
+performUnitOfWork @ react-dom_client.js?v=5d357fef:10868
+workLoopSync @ react-dom_client.js?v=5d357fef:10728
+renderRootSync @ react-dom_client.js?v=5d357fef:10711
+performWorkOnRoot @ react-dom_client.js?v=5d357fef:10330
+performSyncWorkOnRoot @ react-dom_client.js?v=5d357fef:11635@
+flushSyncWorkAcrossRoots_impl @ react-dom_client.js?v=5d357fef:11536
+processRootScheduleInMicrotask @ react-dom_client.js?v=5d357fef:11558
+(anonymous) @ react-dom_client.js?v=5d357fef:11649
