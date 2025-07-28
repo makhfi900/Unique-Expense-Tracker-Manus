@@ -68,7 +68,7 @@ export const getDeviceInfo = () => {
         country: 'Unknown',
         region: 'Unknown',
         city: 'Unknown',
-        ip: 'Unknown'
+        ip: '127.0.0.1' // Valid IP format for database inet type
       };
     }
   };
@@ -79,7 +79,7 @@ export const getDeviceInfo = () => {
       const locationInfo = await getLocationInfo();
       return locationInfo.ip;
     } catch (error) {
-      return 'Unknown';
+      return '127.0.0.1'; // Valid IP format for database inet type
     }
   };
 

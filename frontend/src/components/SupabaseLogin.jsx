@@ -5,14 +5,17 @@ import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
-import { Loader2, UserCheck, User } from 'lucide-react';
+import { Checkbox } from './ui/checkbox';
+import { Loader2, Eye, EyeOff } from 'lucide-react';
 
 const SupabaseLogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, loginAsAdmin, loginAsOfficer } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
+  const { signIn } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -28,73 +31,108 @@ const SupabaseLogin = () => {
     setLoading(false);
   };
 
-  const handleDemoLogin = async (type) => {
-    setError('');
-    setLoading(true);
-
-    let result;
-    if (type === 'admin') {
-      result = await loginAsAdmin();
-    } else {
-      result = await loginAsOfficer();
-    }
-
-    if (!result.success) {
-      setError(result.error);
-    }
-
-    setLoading(false);
-  };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
-            <div className="bg-blue-600 p-3 rounded-full flex items-center justify-center">
-              <span className="text-white font-bold text-xl">Rs</span>
-            </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100 p-4">
+      <Card className="w-full max-w-md shadow-2xl border-0">
+        <CardHeader className="text-center pb-8">
+          <div className="flex justify-center mb-8">
+            <img 
+              src="/new_logo_capital1.PNG" 
+              alt="College Logo" 
+              className="w-48 h-48 object-contain"
+            />
           </div>
-          <CardTitle className="text-2xl font-bold">Expense Tracker</CardTitle>
-          <CardDescription>
-            Sign in with Supabase Authentication
+          <CardTitle className="text-3xl font-bold text-slate-800 mb-2">
+            Expense Tracker
+          </CardTitle>
+          <CardDescription className="text-slate-600 text-base">
+            Welcome back! Please sign in to your account
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+        <CardContent className="px-8 pb-8">
+          <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
+              <Alert variant="destructive" className="border-red-200 bg-red-50">
+                <AlertDescription className="text-red-800">{error}</AlertDescription>
               </Alert>
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-slate-700 font-medium">
+                Email Address
+              </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter your email"
+                placeholder="Enter your email address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
+                className="h-12 border-slate-200 focus:border-slate-400 focus:ring-slate-400"
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={loading}
-              />
+              <Label htmlFor="password" className="text-slate-700 font-medium">
+                Password
+              </Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Enter your password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  className="h-12 border-slate-200 focus:border-slate-400 focus:ring-slate-400 pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  disabled={loading}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember"
+                  checked={rememberMe}
+                  onCheckedChange={setRememberMe}
+                  disabled={loading}
+                />
+                <Label 
+                  htmlFor="remember" 
+                  className="text-sm text-slate-600 cursor-pointer"
+                >
+                  Keep me signed in
+                </Label>
+              </div>
+              <button
+                type="button"
+                className="text-sm text-slate-600 hover:text-slate-800 font-medium"
+                disabled={loading}
+              >
+                Forgot password?
+              </button>
+            </div>
+
+            <Button 
+              type="submit" 
+              className="w-full h-12 bg-slate-800 hover:bg-slate-900 text-white font-medium text-base" 
+              disabled={loading}
+            >
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -106,58 +144,6 @@ const SupabaseLogin = () => {
             </Button>
           </form>
 
-          <div className="mt-6">
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Demo Accounts
-                </span>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => handleDemoLogin('admin')}
-                disabled={loading}
-              >
-                <UserCheck className="mr-2 h-4 w-4" />
-                Login as Admin
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => handleDemoLogin('officer')}
-                disabled={loading}
-              >
-                <User className="mr-2 h-4 w-4" />
-                Login as Account Officer
-              </Button>
-            </div>
-          </div>
-
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p className="mb-2">🚀 <strong>Powered by Supabase Auth</strong></p>
-            <div className="text-xs space-y-1">
-              <p><strong>Demo Credentials:</strong></p>
-              <p>Admin: admin1@test.com / admin1</p>
-              <p>Officer: officer1@test.com / officer1</p>
-            </div>
-          </div>
-
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg text-xs text-blue-800">
-            <p className="font-medium mb-1">✨ New Features:</p>
-            <ul className="space-y-1">
-              <li>• Automatic session management</li>
-              <li>• Secure token handling</li>
-              <li>• Real-time auth state sync</li>
-              <li>• Built-in security with RLS</li>
-            </ul>
-          </div>
         </CardContent>
       </Card>
     </div>
