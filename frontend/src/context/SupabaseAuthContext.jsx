@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { createLoginActivityData } from '../utils/deviceDetection'
 
 const AuthContext = createContext({})
 
@@ -103,8 +104,28 @@ export const AuthProvider = ({ children }) => {
     }
   }, [])
 
+  // Helper function to record login activity
+  const recordLoginActivity = async (userId, success = true, failureReason = null) => {
+    try {
+      const activityData = await createLoginActivityData(userId, success, failureReason)
+      
+      // Insert login activity record
+      const { error } = await supabase
+        .from('login_activities')
+        .insert([activityData])
+      
+      if (error) {
+        console.error('Failed to record login activity:', error)
+      }
+    } catch (error) {
+      console.error('Error recording login activity:', error)
+    }
+  }
+
   // Sign in with email and password
   const signIn = async (email, password) => {
+    let userId = null
+    
     try {
       setLoading(true)
       const { data, error } = await supabase.auth.signInWithPassword({
@@ -113,11 +134,35 @@ export const AuthProvider = ({ children }) => {
       })
 
       if (error) {
+        // Try to get user ID for failed login tracking
+        const { data: userData } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email)
+          .single()
+        
+        userId = userData?.id
+        
+        // Record failed login attempt
+        if (userId) {
+          await recordLoginActivity(userId, false, error.message)
+        }
+        
         return { success: false, error: error.message }
       }
 
+      userId = data.user.id
+      
+      // Record successful login
+      await recordLoginActivity(userId, true)
+
       return { success: true, user: data.user }
     } catch (error) {
+      // Record failed login if we have user ID
+      if (userId) {
+        await recordLoginActivity(userId, false, error.message)
+      }
+      
       return { success: false, error: error.message }
     } finally {
       setLoading(false)
@@ -278,8 +323,8 @@ export const AuthProvider = ({ children }) => {
   }
 
   // Demo login functions
-  const loginAsAdmin = () => signIn('admin1@test.com', 'admin1')
-  const loginAsOfficer = () => signIn('officer1@test.com', 'officer1')
+  const loginAsAdmin = () => signIn('admin1@test.com', 'admin123')
+  const loginAsOfficer = () => signIn('officer1@test.com', 'officer123')
 
   // Role checking with fallbacks
   const getUserRole = () => {

@@ -318,6 +318,33 @@ app.get('/api/login-activities', authenticateToken, async (req, res) => {
   }
 });
 
+// Cleanup old login activities
+app.delete('/api/login-activities/cleanup', authenticateToken, async (req, res) => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    // Clean up login activities older than 2 weeks
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+    const { error } = await supabaseAdmin
+      .from('login_activities')
+      .delete()
+      .lt('login_time', twoWeeksAgo.toISOString());
+
+    if (error) {
+      return res.status(500).json({ error: 'Failed to cleanup old login activities' });
+    }
+
+    res.json({ message: 'Old login activities cleaned up successfully' });
+  } catch (error) {
+    console.error('Cleanup login activities error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Category routes
 app.get('/api/categories', authenticateToken, async (req, res) => {
   try {
