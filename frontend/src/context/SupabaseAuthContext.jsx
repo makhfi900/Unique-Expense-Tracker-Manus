@@ -105,11 +105,38 @@ export const AuthProvider = ({ children }) => {
   }, [])
 
   // Helper function to record login activity
-  const recordLoginActivity = async (userId, success = true, failureReason = null) => {
+  const recordLoginActivity = async (userId, success = true, failureReason = null, email = null) => {
     try {
       const activityData = await createLoginActivityData(userId, success, failureReason)
       
-      // Insert login activity record
+      // For failed logins, we might not have userId, so try to get it via API call
+      if (!userId && email && !success) {
+        try {
+          // Use API call to record failed login (will use service role key)
+          const response = await fetch(
+            import.meta.env.DEV ? 'http://localhost:3001/api/login-activities/record-failed' : '/.netlify/functions/api/login-activities/record-failed',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                email,
+                ...activityData
+              })
+            }
+          )
+          
+          if (!response.ok) {
+            console.error('Failed to record failed login via API')
+          }
+          return
+        } catch (apiError) {
+          console.error('API call for failed login failed:', apiError)
+        }
+      }
+      
+      // Insert login activity record directly
       const { error } = await supabase
         .from('login_activities')
         .insert([activityData])
@@ -134,19 +161,8 @@ export const AuthProvider = ({ children }) => {
       })
 
       if (error) {
-        // Try to get user ID for failed login tracking
-        const { data: userData } = await supabase
-          .from('users')
-          .select('id')
-          .eq('email', email)
-          .single()
-        
-        userId = userData?.id
-        
-        // Record failed login attempt
-        if (userId) {
-          await recordLoginActivity(userId, false, error.message)
-        }
+        // Record failed login attempt (will try to get userId via API)
+        await recordLoginActivity(null, false, error.message, email)
         
         return { success: false, error: error.message }
       }

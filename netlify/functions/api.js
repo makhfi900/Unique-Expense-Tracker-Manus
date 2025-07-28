@@ -221,6 +221,38 @@ const routes = {
     return { statusCode: 200, body: { message: 'Old login activities cleaned up successfully' } };
   },
 
+  'POST /login-activities/record-failed': async (body, user) => {
+    const { email, ...activityData } = body;
+
+    // Get user ID by email using service role
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (userError || !userData) {
+      return { statusCode: 404, body: { error: 'User not found' } };
+    }
+
+    // Insert failed login activity
+    const loginActivity = {
+      ...activityData,
+      user_id: userData.id,
+      success: false
+    };
+
+    const { error: insertError } = await supabaseAdmin
+      .from('login_activities')
+      .insert([loginActivity]);
+
+    if (insertError) {
+      return { statusCode: 500, body: { error: 'Failed to record login activity' } };
+    }
+
+    return { statusCode: 200, body: { message: 'Failed login activity recorded successfully' } };
+  },
+
   // Category routes
   'GET /categories': async (body, user) => {
     if (!user) {

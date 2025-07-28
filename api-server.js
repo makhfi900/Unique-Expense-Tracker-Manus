@@ -345,6 +345,44 @@ app.delete('/api/login-activities/cleanup', authenticateToken, async (req, res) 
   }
 });
 
+// Record failed login activity (no auth required)
+app.post('/api/login-activities/record-failed', async (req, res) => {
+  try {
+    const { email, ...activityData } = req.body;
+
+    // Get user ID by email using service role
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
+
+    if (userError || !userData) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Insert failed login activity
+    const loginActivity = {
+      ...activityData,
+      user_id: userData.id,
+      success: false
+    };
+
+    const { error: insertError } = await supabaseAdmin
+      .from('login_activities')
+      .insert([loginActivity]);
+
+    if (insertError) {
+      return res.status(500).json({ error: 'Failed to record login activity' });
+    }
+
+    res.json({ message: 'Failed login activity recorded successfully' });
+  } catch (error) {
+    console.error('Record failed login error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Category routes
 app.get('/api/categories', authenticateToken, async (req, res) => {
   try {
