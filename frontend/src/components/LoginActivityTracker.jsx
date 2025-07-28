@@ -11,7 +11,7 @@ import { Loader2, Monitor, Smartphone, Tablet, MapPin, Clock, User, Shield, Aler
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const LoginActivityTracker = () => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, apiCall } = useAuth();
   const [activities, setActivities] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -29,18 +29,8 @@ const LoginActivityTracker = () => {
 
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/users', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setUsers(data.users || []);
-      }
+      const response = await apiCall('/users');
+      setUsers(response.users || []);
     } catch (err) {
       console.error('Failed to fetch users:', err);
     }
@@ -49,28 +39,18 @@ const LoginActivityTracker = () => {
   const fetchLoginActivities = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token');
+      setError(''); // Clear previous errors
       const offset = (currentPage - 1) * itemsPerPage;
       
-      let url = `/api/login-activities?limit=${itemsPerPage}&offset=${offset}`;
+      let endpoint = `/login-activities?limit=${itemsPerPage}&offset=${offset}`;
       if (selectedUser !== 'all') {
-        url += `&user_id=${selectedUser}`;
+        endpoint += `&user_id=${selectedUser}`;
       }
 
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setActivities(data.activities || []);
-      } else {
-        setError('Failed to fetch login activities');
-      }
+      const response = await apiCall(endpoint);
+      setActivities(response.activities || []);
     } catch (err) {
+      console.error('Failed to fetch login activities:', err);
       setError('Network error. Please try again.');
     } finally {
       setLoading(false);
@@ -79,23 +59,12 @@ const LoginActivityTracker = () => {
 
   const cleanupOldActivities = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('/api/login-activities/cleanup', {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        fetchLoginActivities(); // Refresh the list
-        alert('Old login activities cleaned up successfully');
-      } else {
-        setError('Failed to cleanup old activities');
-      }
+      await apiCall('/login-activities/cleanup', { method: 'DELETE' });
+      fetchLoginActivities(); // Refresh the list
+      alert('Old login activities cleaned up successfully');
     } catch (err) {
-      setError('Network error. Please try again.');
+      console.error('Failed to cleanup old activities:', err);
+      setError('Failed to cleanup old activities');
     }
   };
 
