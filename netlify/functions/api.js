@@ -209,16 +209,43 @@ const routes = {
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
-    const { error } = await supabaseAdmin
+    // First, count how many records would be deleted
+    const { count: recordsToDelete, error: countError } = await supabaseAdmin
+      .from('login_activities')
+      .select('*', { count: 'exact', head: true })
+      .lt('login_time', twoWeeksAgo.toISOString());
+
+    if (countError) {
+      return { statusCode: 500, body: { error: 'Failed to check old login activities' } };
+    }
+
+    if (recordsToDelete === 0) {
+      return { 
+        statusCode: 200, 
+        body: { 
+          message: 'No old login activities found to cleanup',
+          deletedCount: 0 
+        } 
+      };
+    }
+
+    // Delete the old records
+    const { error: deleteError } = await supabaseAdmin
       .from('login_activities')
       .delete()
       .lt('login_time', twoWeeksAgo.toISOString());
 
-    if (error) {
+    if (deleteError) {
       return { statusCode: 500, body: { error: 'Failed to cleanup old login activities' } };
     }
 
-    return { statusCode: 200, body: { message: 'Old login activities cleaned up successfully' } };
+    return { 
+      statusCode: 200, 
+      body: { 
+        message: `Successfully cleaned up ${recordsToDelete} old login activities`,
+        deletedCount: recordsToDelete 
+      } 
+    };
   },
 
   'POST /login-activities/record-failed': async (body, user) => {

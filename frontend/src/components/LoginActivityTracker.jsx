@@ -59,12 +59,20 @@ const LoginActivityTracker = () => {
 
   const cleanupOldActivities = async () => {
     try {
-      await apiCall('/login-activities/cleanup', { method: 'DELETE' });
-      fetchLoginActivities(); // Refresh the list
-      alert('Old login activities cleaned up successfully');
+      const response = await apiCall('/login-activities/cleanup', { method: 'DELETE' });
+      
+      // Display accurate feedback based on actual deletion count
+      if (response.deletedCount === 0) {
+        alert(response.message || 'No old login activities found to cleanup');
+      } else {
+        alert(`Successfully cleaned up ${response.deletedCount} old login activities`);
+      }
+      
+      // Refresh the list to show updated data
+      fetchLoginActivities();
     } catch (err) {
       console.error('Failed to cleanup old activities:', err);
-      setError('Failed to cleanup old activities');
+      setError('Failed to cleanup old activities: ' + err.message);
     }
   };
 

@@ -329,16 +329,37 @@ app.delete('/api/login-activities/cleanup', authenticateToken, async (req, res) 
     const twoWeeksAgo = new Date();
     twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
 
-    const { error } = await supabaseAdmin
+    // First, count how many records would be deleted
+    const { count: recordsToDelete, error: countError } = await supabaseAdmin
+      .from('login_activities')
+      .select('*', { count: 'exact', head: true })
+      .lt('login_time', twoWeeksAgo.toISOString());
+
+    if (countError) {
+      return res.status(500).json({ error: 'Failed to check old login activities' });
+    }
+
+    if (recordsToDelete === 0) {
+      return res.json({ 
+        message: 'No old login activities found to cleanup',
+        deletedCount: 0 
+      });
+    }
+
+    // Delete the old records
+    const { error: deleteError } = await supabaseAdmin
       .from('login_activities')
       .delete()
       .lt('login_time', twoWeeksAgo.toISOString());
 
-    if (error) {
+    if (deleteError) {
       return res.status(500).json({ error: 'Failed to cleanup old login activities' });
     }
 
-    res.json({ message: 'Old login activities cleaned up successfully' });
+    res.json({ 
+      message: `Successfully cleaned up ${recordsToDelete} old login activities`,
+      deletedCount: recordsToDelete 
+    });
   } catch (error) {
     console.error('Cleanup login activities error:', error);
     res.status(500).json({ error: 'Internal server error' });
