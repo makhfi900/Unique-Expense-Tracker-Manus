@@ -141,7 +141,7 @@ const OptimizedExpenseList = () => {
   const [dateFilter, setDateFilter] = useState('');
   const [startDateFilter, setStartDateFilter] = useState('');
   const [endDateFilter, setEndDateFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
 
   // Pagination
@@ -192,7 +192,7 @@ const OptimizedExpenseList = () => {
       if (filters.end_date || endDateFilter) {
         queryParams.append('end_date', filters.end_date || endDateFilter);
       }
-      if (filters.category_id || categoryFilter) {
+      if ((filters.category_id && filters.category_id !== 'all') || (categoryFilter && categoryFilter !== 'all')) {
         queryParams.append('category_id', filters.category_id || categoryFilter);
       }
 
@@ -272,7 +272,7 @@ const OptimizedExpenseList = () => {
     setDateFilter('');
     setStartDateFilter('');
     setEndDateFilter('');
-    setCategoryFilter('');
+    setCategoryFilter('all');
     setCurrentPage(1);
     fetchExpenses({}, 1);
   }, [fetchExpenses]);
@@ -344,21 +344,21 @@ const OptimizedExpenseList = () => {
 
           {/* Filters */}
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {isAccountOfficer && (
-                <div className="space-y-2">
-                  <Label htmlFor="date-filter">Specific Date</Label>
-                  <Input
-                    id="date-filter"
-                    type="date"
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value)}
-                  />
-                </div>
-              )}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {isAccountOfficer && (
+                  <div className="space-y-2">
+                    <Label htmlFor="date-filter">Specific Date</Label>
+                    <Input
+                      id="date-filter"
+                      type="date"
+                      value={dateFilter}
+                      onChange={(e) => setDateFilter(e.target.value)}
+                    />
+                  </div>
+                )}
 
-              {isAdmin && (
-                <>
+                {isAdmin && (
                   <div className="space-y-2">
                     <Label htmlFor="start-date-filter">Start Date</Label>
                     <Input
@@ -368,7 +368,9 @@ const OptimizedExpenseList = () => {
                       onChange={(e) => setStartDateFilter(e.target.value)}
                     />
                   </div>
+                )}
 
+                {isAdmin && (
                   <div className="space-y-2">
                     <Label htmlFor="end-date-filter">End Date</Label>
                     <Input
@@ -378,27 +380,27 @@ const OptimizedExpenseList = () => {
                       onChange={(e) => setEndDateFilter(e.target.value)}
                     />
                   </div>
-                </>
-              )}
+                )}
 
-              <div className="space-y-2">
-                <Label htmlFor="category-filter">Category</Label>
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">All categories</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Label htmlFor="category-filter">Category</Label>
+                  <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All categories" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All categories</SelectItem>
+                      {categories.map((category) => (
+                        <SelectItem key={category.id} value={category.id}>
+                          {category.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
-              <div className="flex items-end space-x-2">
+              <div className="flex items-center space-x-2">
                 <Button onClick={applyFilters} disabled={loading}>
                   Apply Filters
                 </Button>
@@ -438,7 +440,7 @@ const OptimizedExpenseList = () => {
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">No expenses found</h3>
               <p className="text-gray-500">
-                {searchTerm || dateFilter || startDateFilter || endDateFilter || categoryFilter
+                {searchTerm || dateFilter || startDateFilter || endDateFilter || (categoryFilter && categoryFilter !== 'all')
                   ? "No expenses match your search criteria. Try adjusting your filters."
                   : isAccountOfficer 
                     ? "You haven't recorded any expenses yet."
