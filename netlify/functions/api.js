@@ -384,6 +384,16 @@ const routes = {
       `)
       .single();
 
+    // Smart refresh of materialized views (only if needed)
+    if (!error && expense) {
+      try {
+        await supabaseAdmin.rpc('smart_refresh_analytics');
+      } catch (refreshError) {
+        console.error('Failed to refresh analytics views:', refreshError);
+        // Don't fail the expense creation if refresh fails
+      }
+    }
+
     if (error) {
       return { statusCode: 500, body: { error: 'Failed to create expense' } };
     }
@@ -437,6 +447,14 @@ const routes = {
       return { statusCode: 500, body: { error: 'Failed to update expense' } };
     }
 
+    // Smart refresh of materialized views (only if needed)
+    try {
+      await supabaseAdmin.rpc('smart_refresh_analytics');
+    } catch (refreshError) {
+      console.error('Failed to refresh analytics views:', refreshError);
+      // Don't fail the expense update if refresh fails
+    }
+
     return { statusCode: 200, body: { expense } };
   },
 
@@ -469,6 +487,14 @@ const routes = {
 
     if (error) {
       return { statusCode: 500, body: { error: 'Failed to delete expense' } };
+    }
+
+    // Smart refresh of materialized views (only if needed)
+    try {
+      await supabaseAdmin.rpc('smart_refresh_analytics');
+    } catch (refreshError) {
+      console.error('Failed to refresh analytics views:', refreshError);
+      // Don't fail the expense deletion if refresh fails
     }
 
     return { statusCode: 200, body: { message: 'Expense deleted successfully' } };

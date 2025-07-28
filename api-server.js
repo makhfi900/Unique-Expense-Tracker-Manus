@@ -487,6 +487,14 @@ app.post('/api/expenses', authenticateToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to create expense' });
     }
 
+    // Smart refresh of materialized views (only if needed)
+    try {
+      await supabaseAdmin.rpc('smart_refresh_analytics');
+    } catch (refreshError) {
+      console.error('Failed to refresh analytics views:', refreshError);
+      // Don't fail the expense creation if refresh fails
+    }
+
     res.status(201).json({ expense });
   } catch (error) {
     console.error('Create expense error:', error);
@@ -537,6 +545,14 @@ app.put('/api/expenses/:id', authenticateToken, async (req, res) => {
       return res.status(500).json({ error: 'Failed to update expense' });
     }
 
+    // Smart refresh of materialized views (only if needed)
+    try {
+      await supabaseAdmin.rpc('smart_refresh_analytics');
+    } catch (refreshError) {
+      console.error('Failed to refresh analytics views:', refreshError);
+      // Don't fail the expense update if refresh fails
+    }
+
     res.json({ expense });
   } catch (error) {
     console.error('Update expense error:', error);
@@ -570,6 +586,14 @@ app.delete('/api/expenses/:id', authenticateToken, async (req, res) => {
 
     if (error) {
       return res.status(500).json({ error: 'Failed to delete expense' });
+    }
+
+    // Smart refresh of materialized views (only if needed)
+    try {
+      await supabaseAdmin.rpc('smart_refresh_analytics');
+    } catch (refreshError) {
+      console.error('Failed to refresh analytics views:', refreshError);
+      // Don't fail the expense deletion if refresh fails
     }
 
     res.json({ message: 'Expense deleted successfully' });
