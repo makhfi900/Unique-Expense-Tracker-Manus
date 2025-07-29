@@ -218,7 +218,6 @@ const Dashboard = React.memo(() => {
               sections={sectionConfig}
               activeSection={activeTab}
               onSectionChange={setActiveTab}
-              userInfo={userInfo}
             />
           </div>
         )}
