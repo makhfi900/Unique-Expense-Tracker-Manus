@@ -21,10 +21,10 @@ This guide sets up the Supabase Model Context Protocol (MCP) server to allow Cla
       "args": [
         "-y",
         "@supabase/mcp-server-supabase@latest",
-        "--project-ref=wtntczhwdqtymoqcistg"
+        "--project-ref=YOUR_PROJECT_REF"
       ],
       "env": {
-        "SUPABASE_ACCESS_TOKEN": "sbp_54a61806626b71c5031c9a802abc146ff62f8d24"
+        "SUPABASE_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN"
       }
     }
   }
@@ -36,8 +36,8 @@ Add to your `.env` file if needed:
 
 ```bash
 # Supabase MCP Configuration
-SUPABASE_MCP_PROJECT_REF=wtntczhwdqtymoqcistg
-SUPABASE_MCP_ACCESS_TOKEN=sbp_54a61806626b71c5031c9a802abc146ff62f8d24
+SUPABASE_MCP_PROJECT_REF=YOUR_PROJECT_REF
+SUPABASE_MCP_ACCESS_TOKEN=YOUR_ACCESS_TOKEN
 ```
 
 ## Setup Steps
@@ -53,7 +53,7 @@ node -v
 ### Step 2: Test MCP Server Connection
 ```bash
 # Test the MCP server manually (optional)
-npx -y @supabase/mcp-server-supabase@latest --project-ref=wtntczhwdqtymoqcistg --help
+npx -y @supabase/mcp-server-supabase@latest --project-ref=YOUR_PROJECT_REF --help
 ```
 
 ### Step 3: Configure Claude Code
@@ -92,7 +92,7 @@ With MCP server connected, Claude Code can:
 ## Security Considerations
 
 ### Current Configuration
-- **Project Scoped:** Limited to project `wtntczhwdqtymoqcistg`
+- **Project Scoped:** Limited to project `YOUR_PROJECT_REF`
 - **Access Token:** Uses personal access token (full permissions)
 - **Environment:** Development database
 
@@ -113,10 +113,10 @@ For production environments, modify configuration to:
         "-y",
         "@supabase/mcp-server-supabase@latest",
         "--read-only",
-        "--project-ref=wtntczhwdqtymoqcistg"
+        "--project-ref=YOUR_PROJECT_REF"
       ],
       "env": {
-        "SUPABASE_ACCESS_TOKEN": "sbp_54a61806626b71c5031c9a802abc146ff62f8d24"
+        "SUPABASE_ACCESS_TOKEN": "YOUR_ACCESS_TOKEN"
       }
     }
   }
@@ -151,7 +151,7 @@ npm cache clean --force
 ```bash
 # Test connection manually
 npx -y @supabase/mcp-server-supabase@latest \
-  --project-ref=wtntczhwdqtymoqcistg \
+  --project-ref=YOUR_PROJECT_REF \
   --debug
 
 # Check MCP server logs

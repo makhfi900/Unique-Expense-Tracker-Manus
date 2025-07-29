@@ -29,7 +29,7 @@ database/
 
 2. **MCP Configuration is Ready**
    - File: `.claude-mcp-config.json` ✅ Created
-   - Project Ref: `wtntczhwdqtymoqcistg` ✅ Configured
+   - Project Ref: `YOUR_PROJECT_REF` ✅ Configured
    - Access Token: ✅ Included
 
 3. **Enable MCP in Claude Code**

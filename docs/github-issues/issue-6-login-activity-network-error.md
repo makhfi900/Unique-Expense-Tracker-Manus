@@ -1,7 +1,7 @@
 SupabaseAuthContext.jsx:158 
             
             
-           POST https://wtntczhwdqtymoqcistg.supabase.co/auth/v1/token?grant_type=password 400 (Bad Request)
+           POST https://YOUR_SUPABASE_URL.supabase.co/auth/v1/token?grant_type=password 400 (Bad Request)
 (anonymous) @ @supabase_supabase-js.js?v=5d357fef:4368
 _handleRequest2 @ @supabase_supabase-js.js?v=5d357fef:4646
 _request @ @supabase_supabase-js.js?v=5d357fef:4636
