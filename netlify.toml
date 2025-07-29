@@ -5,6 +5,9 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  # Allow VITE_ environment variables in frontend build
+  SECRETS_SCAN_OMIT_PATHS = "frontend/dist/**"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY"
 
 [functions]
   directory = "netlify/functions"
