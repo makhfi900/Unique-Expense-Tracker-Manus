@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -39,6 +39,140 @@ import {
   Calendar,
   Loader2
 } from 'lucide-react';
+
+// UserForm component extracted outside to prevent recreation on every render
+const UserForm = React.memo(({ 
+  formData, 
+  setFormData, 
+  handleSubmit, 
+  formLoading, 
+  formError, 
+  formSuccess, 
+  editingUser,
+  onCancel
+}) => {
+  // Use useCallback to prevent function recreation on every render
+  const handleInputChange = useCallback((field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  }, [setFormData]);
+
+  const handleEmailChange = useCallback((e) => {
+    handleInputChange('email', e.target.value);
+  }, [handleInputChange]);
+
+  const handleFullNameChange = useCallback((e) => {
+    handleInputChange('full_name', e.target.value);
+  }, [handleInputChange]);
+
+  const handlePasswordChange = useCallback((e) => {
+    handleInputChange('password', e.target.value);
+  }, [handleInputChange]);
+
+  const handleRoleChange = useCallback((value) => {
+    handleInputChange('role', value);
+  }, [handleInputChange]);
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {formError && (
+        <Alert variant="destructive">
+          <AlertDescription>{formError}</AlertDescription>
+        </Alert>
+      )}
+
+      {formSuccess && (
+        <Alert>
+          <AlertDescription>{formSuccess}</AlertDescription>
+        </Alert>
+      )}
+
+      <div className="space-y-2">
+        <Label htmlFor="email">Email *</Label>
+        <Input
+          id="email"
+          type="email"
+          placeholder="user@example.com"
+          value={formData.email}
+          onChange={handleEmailChange}
+          required
+          disabled={formLoading || editingUser} // Disable email editing for existing users
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="full_name">Full Name *</Label>
+        <Input
+          id="full_name"
+          type="text"
+          placeholder="Enter full name"
+          value={formData.full_name}
+          onChange={handleFullNameChange}
+          required
+          disabled={formLoading}
+        />
+      </div>
+
+      {!editingUser && (
+        <div className="space-y-2">
+          <Label htmlFor="password">Password *</Label>
+          <Input
+            id="password"
+            type="password"
+            placeholder="Enter password"
+            value={formData.password}
+            onChange={handlePasswordChange}
+            required
+            disabled={formLoading}
+          />
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <Label htmlFor="role">Role *</Label>
+        <Select 
+          value={formData.role} 
+          onValueChange={handleRoleChange}
+          disabled={formLoading}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="admin">Administrator</SelectItem>
+            <SelectItem value="account_officer">Account Officer</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex justify-end space-x-2">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={onCancel}
+          disabled={formLoading}
+        >
+          Cancel
+        </Button>
+        <Button type="submit" disabled={formLoading}>
+          {formLoading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {editingUser ? 'Updating...' : 'Creating...'}
+            </>
+          ) : (
+            <>
+              <Users className="h-4 w-4 mr-2" />
+              {editingUser ? 'Update User' : 'Create User'}
+            </>
+          )}
+        </Button>
+      </div>
+    </form>
+  );
+});
+
+// Add display name for debugging purposes
+UserForm.displayName = 'UserForm';
 
 const UserManager = () => {
   const { apiCall, register } = useAuth();
@@ -175,108 +309,13 @@ const UserManager = () => {
     }
   };
 
-  const UserForm = () => (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      {formError && (
-        <Alert variant="destructive">
-          <AlertDescription>{formError}</AlertDescription>
-        </Alert>
-      )}
-
-      {formSuccess && (
-        <Alert>
-          <AlertDescription>{formSuccess}</AlertDescription>
-        </Alert>
-      )}
-
-      <div className="space-y-2">
-        <Label htmlFor="email">Email *</Label>
-        <Input
-          id="email"
-          type="email"
-          placeholder="user@example.com"
-          value={formData.email}
-          onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-          required
-          disabled={formLoading || editingUser} // Disable email editing for existing users
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="full_name">Full Name *</Label>
-        <Input
-          id="full_name"
-          type="text"
-          placeholder="Enter full name"
-          value={formData.full_name}
-          onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
-          required
-          disabled={formLoading}
-        />
-      </div>
-
-      {!editingUser && (
-        <div className="space-y-2">
-          <Label htmlFor="password">Password *</Label>
-          <Input
-            id="password"
-            type="password"
-            placeholder="Enter password"
-            value={formData.password}
-            onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
-            required
-            disabled={formLoading}
-          />
-        </div>
-      )}
-
-      <div className="space-y-2">
-        <Label htmlFor="role">Role *</Label>
-        <Select 
-          value={formData.role} 
-          onValueChange={(value) => setFormData(prev => ({ ...prev, role: value }))}
-          disabled={formLoading}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Select role" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="admin">Administrator</SelectItem>
-            <SelectItem value="account_officer">Account Officer</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="flex justify-end space-x-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => {
-            setShowCreateDialog(false);
-            setShowEditDialog(false);
-            setEditingUser(null);
-            resetForm();
-          }}
-          disabled={formLoading}
-        >
-          Cancel
-        </Button>
-        <Button type="submit" disabled={formLoading}>
-          {formLoading ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {editingUser ? 'Updating...' : 'Creating...'}
-            </>
-          ) : (
-            <>
-              <Users className="h-4 w-4 mr-2" />
-              {editingUser ? 'Update User' : 'Create User'}
-            </>
-          )}
-        </Button>
-      </div>
-    </form>
-  );
+  // Use useCallback for cancel handler to prevent function recreation
+  const handleCancel = useCallback(() => {
+    setShowCreateDialog(false);
+    setShowEditDialog(false);
+    setEditingUser(null);
+    resetForm();
+  }, []);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -318,7 +357,16 @@ const UserManager = () => {
                 Add a new user to the expense tracking system.
               </DialogDescription>
             </DialogHeader>
-            <UserForm />
+            <UserForm 
+              formData={formData}
+              setFormData={setFormData}
+              handleSubmit={handleSubmit}
+              formLoading={formLoading}
+              formError={formError}
+              formSuccess={formSuccess}
+              editingUser={editingUser}
+              onCancel={handleCancel}
+            />
           </DialogContent>
         </Dialog>
       </div>
@@ -424,7 +472,16 @@ const UserManager = () => {
               Update the user details below.
             </DialogDescription>
           </DialogHeader>
-          <UserForm />
+          <UserForm 
+            formData={formData}
+            setFormData={setFormData}
+            handleSubmit={handleSubmit}
+            formLoading={formLoading}
+            formError={formError}
+            formSuccess={formSuccess}
+            editingUser={editingUser}
+            onCancel={handleCancel}
+          />
         </DialogContent>
       </Dialog>
     </div>

@@ -782,6 +782,260 @@ app.get('/api/analytics/category-breakdown', authenticateToken, async (req, res)
   }
 });
 
+// New Phase 2 Analytics Routes - Yearly Analysis
+app.get('/api/analytics/available-years', authenticateToken, async (req, res) => {
+  try {
+    // Admin can see all years, account officers see only their own data
+    const isAdmin = req.user.role === 'admin';
+
+    const { data: years, error } = await supabaseAdmin
+      .rpc('get_available_years');
+
+    if (error) {
+      return res.status(500).json({ error: 'Failed to fetch available years' });
+    }
+
+    // Filter years for account officers if needed
+    let filteredYears = years;
+    if (!isAdmin) {
+      // For account officers, we need to filter by their own data
+      // This requires a custom query since the function returns all data
+      const { data: userYears, error: userError } = await supabaseAdmin
+        .from('expenses')
+        .select('expense_date')
+        .eq('created_by', req.user.id)
+        .eq('is_active', true);
+
+      if (userError) {
+        return res.status(500).json({ error: 'Failed to fetch user expense years' });
+      }
+
+      // Extract unique years from user's expenses
+      const userYearSet = new Set();
+      userYears.forEach(expense => {
+        const year = new Date(expense.expense_date).getFullYear();
+        userYearSet.add(year);
+      });
+
+      filteredYears = years.filter(yearData => userYearSet.has(yearData.year));
+    }
+
+    res.json({ years: filteredYears });
+  } catch (error) {
+    console.error('Available years error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/analytics/yearly-breakdown', authenticateToken, async (req, res) => {
+  try {
+    const { year = new Date().getFullYear() } = req.query;
+    const isAdmin = req.user.role === 'admin';
+    const targetUserId = isAdmin ? null : req.user.id;
+
+    const { data: breakdown, error } = await supabaseAdmin
+      .rpc('get_yearly_breakdown', { 
+        target_year: parseInt(year),
+        user_id: targetUserId
+      });
+
+    if (error) {
+      return res.status(500).json({ error: 'Failed to fetch yearly breakdown' });
+    }
+
+    // Calculate additional metrics
+    const totalSpending = breakdown.reduce((sum, month) => sum + parseFloat(month.total_amount || 0), 0);
+    const avgMonthlySpending = totalSpending / 12; // Average across all 12 months
+    const activeMonths = breakdown.filter(month => parseFloat(month.total_amount || 0) > 0).length;
+    
+    const highestMonth = breakdown.reduce((max, month) => 
+      parseFloat(month.total_amount || 0) > parseFloat(max.total_amount || 0) ? month : max
+    , breakdown[0] || {});
+    
+    const lowestMonth = breakdown.reduce((min, month) => 
+      parseFloat(month.total_amount || 0) < parseFloat(min.total_amount || 0) && parseFloat(month.total_amount || 0) > 0 ? month : min
+    , breakdown.find(m => parseFloat(m.total_amount || 0) > 0) || {});
+
+    const yearlyMetrics = {
+      totalSpending,
+      avgMonthlySpending,
+      activeMonths,
+      highestMonth: {
+        month: highestMonth.month_name,
+        amount: parseFloat(highestMonth.total_amount || 0)
+      },
+      lowestMonth: {
+        month: lowestMonth.month_name,
+        amount: parseFloat(lowestMonth.total_amount || 0)
+      }
+    };
+
+    res.json({ 
+      year: parseInt(year),
+      breakdown,
+      metrics: yearlyMetrics
+    });
+  } catch (error) {
+    console.error('Yearly breakdown error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Phase 3 Analytics Routes - Year-over-Year Comparison
+app.get('/api/analytics/year-comparison', authenticateToken, async (req, res) => {
+  try {
+    const { 
+      base_year = new Date().getFullYear() - 1, 
+      compare_year = new Date().getFullYear() 
+    } = req.query;
+
+    const isAdmin = req.user.role === 'admin';
+    const targetUserId = isAdmin ? null : req.user.id;
+
+    // Get detailed monthly comparison
+    const { data: monthlyComparison, error: monthlyError } = await supabaseAdmin
+      .rpc('calculate_year_comparison', {
+        base_year: parseInt(base_year),
+        compare_year: parseInt(compare_year),
+        user_id: targetUserId
+      });
+
+    if (monthlyError) {
+      return res.status(500).json({ error: 'Failed to fetch monthly comparison' });
+    }
+
+    // Get summary statistics
+    const { data: summaryData, error: summaryError } = await supabaseAdmin
+      .rpc('get_year_comparison_summary', {
+        base_year: parseInt(base_year),
+        compare_year: parseInt(compare_year),
+        user_id: targetUserId
+      });
+
+    if (summaryError) {
+      return res.status(500).json({ error: 'Failed to fetch comparison summary' });
+    }
+
+    // Get category comparison
+    const { data: categoryComparison, error: categoryError } = await supabaseAdmin
+      .rpc('get_category_year_comparison', {
+        base_year: parseInt(base_year),
+        compare_year: parseInt(compare_year),
+        user_id: targetUserId
+      });
+
+    if (categoryError) {
+      return res.status(500).json({ error: 'Failed to fetch category comparison' });
+    }
+
+    res.json({
+      baseYear: parseInt(base_year),
+      compareYear: parseInt(compare_year),
+      monthlyComparison,
+      summary: summaryData[0] || {},
+      categoryComparison
+    });
+  } catch (error) {
+    console.error('Year comparison error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Phase 4 Analytics Routes - Intelligent Insights
+app.get('/api/analytics/insights', authenticateToken, async (req, res) => {
+  try {
+    const { limit = 10, refresh = false } = req.query;
+    const isAdmin = req.user.role === 'admin';
+
+    // For admins, they can get system-wide insights, for others only personal insights
+    const targetUserId = isAdmin ? req.user.id : req.user.id;
+
+    if (refresh === 'true') {
+      // Force refresh insights
+      await supabaseAdmin.rpc('refresh_insights_cache', { target_user_id: targetUserId });
+    }
+
+    // Get user-specific insights
+    const { data: userInsights, error: userError } = await supabaseAdmin
+      .rpc('get_user_insights', {
+        target_user_id: targetUserId,
+        limit_count: parseInt(limit)
+      });
+
+    if (userError) {
+      return res.status(500).json({ error: 'Failed to fetch user insights' });
+    }
+
+    let systemInsights = [];
+    
+    // If admin, also get system-wide insights
+    if (isAdmin) {
+      const { data: adminInsights, error: adminError } = await supabaseAdmin
+        .from('insights_cache')
+        .select('*')
+        .is('user_id', null) // System-wide insights have null user_id
+        .eq('is_active', true)
+        .gte('applicable_to', new Date().toISOString().split('T')[0])
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (!adminError && adminInsights) {
+        systemInsights = adminInsights;
+      }
+    }
+
+    // Categorize insights by type
+    const categorizedInsights = {
+      critical: [],
+      alerts: [],
+      warnings: [],
+      recommendations: [],
+      systemwide: systemInsights
+    };
+
+    userInsights.forEach(insight => {
+      switch (insight.severity) {
+        case 'critical':
+          categorizedInsights.critical.push(insight);
+          break;
+        case 'alert':
+          categorizedInsights.alerts.push(insight);
+          break;
+        case 'warning':
+          categorizedInsights.warnings.push(insight);
+          break;
+        case 'info':
+          categorizedInsights.recommendations.push(insight);
+          break;
+      }
+    });
+
+    // Generate summary statistics
+    const summary = {
+      totalInsights: userInsights.length,
+      criticalCount: categorizedInsights.critical.length,
+      alertCount: categorizedInsights.alerts.length,
+      warningCount: categorizedInsights.warnings.length,
+      recommendationCount: categorizedInsights.recommendations.length,
+      systemwideCount: categorizedInsights.systemwide.length,
+      avgConfidenceScore: userInsights.length > 0 
+        ? userInsights.reduce((sum, insight) => sum + parseFloat(insight.confidence_score), 0) / userInsights.length 
+        : 0,
+      lastUpdated: userInsights.length > 0 ? userInsights[0].created_at : null
+    };
+
+    res.json({
+      insights: categorizedInsights,
+      summary,
+      isAdmin,
+      userId: req.user.id
+    });
+  } catch (error) {
+    console.error('Insights error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // CSV Export route
 app.get('/api/expenses/export', authenticateToken, async (req, res) => {
   try {

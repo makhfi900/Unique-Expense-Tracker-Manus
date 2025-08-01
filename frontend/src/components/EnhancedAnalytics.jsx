@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import {
   Select,
   SelectContent,
@@ -14,6 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
+import YearSelector from './YearSelector';
+import MonthlyYearlyView from './MonthlyYearlyView';
+import YearComparisonView from './YearComparisonView';
+import InsightsDashboard from './InsightsDashboard';
 import {
   LineChart,
   Line,
@@ -29,7 +34,9 @@ import {
   CartesianGrid,
   Tooltip,
   Legend,
-  ResponsiveContainer
+  ResponsiveContainer,
+  ComposedChart,
+  ReferenceLine
 } from 'recharts';
 import {
   TrendingUp,
@@ -71,9 +78,19 @@ const EnhancedAnalytics = () => {
     totalCategories: 0
   });
 
+  // Budget and threshold settings
+  const [budgetSettings, setBudgetSettings] = useState({
+    monthlyBudget: 50000, // Default budget of Rs. 50,000
+    warningThreshold: 0.8, // 80% warning threshold
+    emergencyThreshold: 0.95 // 95% emergency threshold
+  });
+
   const [trendsData, setTrendsData] = useState([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState([]);
   const [monthlyTrends, setMonthlyTrends] = useState([]);
+
+  // Phase 2: Yearly Analysis State
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   // Date presets
   const datePresets = {
@@ -318,8 +335,19 @@ const EnhancedAnalytics = () => {
 
   return (
     <div className="space-y-6">
-      {/* Date Range Filtering */}
-      <Card>
+      {/* Main Navigation Tabs */}
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Overview & Trends</TabsTrigger>
+          <TabsTrigger value="yearly">Yearly Analysis</TabsTrigger>
+          <TabsTrigger value="comparison">Year Comparison</TabsTrigger>
+          <TabsTrigger value="insights">AI Insights</TabsTrigger>
+        </TabsList>
+
+        {/* Overview Tab - Original Analytics */}
+        <TabsContent value="overview" className="space-y-6">
+          {/* Date Range Filtering */}
+          <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
@@ -450,18 +478,26 @@ const EnhancedAnalytics = () => {
                   </CardHeader>
                   <CardContent>
                     <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={categoryAnalysis.monthlyTrend}>
+                      <BarChart data={categoryAnalysis.monthlyTrend}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="month" />
                         <YAxis />
-                        <Tooltip formatter={(value) => [formatCurrency(value), 'Amount']} />
-                        <Line
-                          type="monotone"
-                          dataKey="amount"
-                          stroke={categoryAnalysis.category?.color || '#3B82F6'}
-                          strokeWidth={3}
+                        <Tooltip 
+                          formatter={(value) => {
+                            const avgSpending = categoryAnalysis.totalSpent / categoryAnalysis.monthlyTrend.length;
+                            const isAboveAverage = value > avgSpending;
+                            return [
+                              formatCurrency(value),
+                              `${isAboveAverage ? 'Above' : 'Below'} Average (${formatCurrency(avgSpending)})`
+                            ];
+                          }}
                         />
-                      </LineChart>
+                        <Bar
+                          dataKey="amount"
+                          fill={categoryAnalysis.category?.color || '#3B82F6'}
+                          name={categoryAnalysis.category?.name}
+                        />
+                      </BarChart>
                     </ResponsiveContainer>
                   </CardContent>
                 </Card>
@@ -553,21 +589,113 @@ const EnhancedAnalytics = () => {
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Spending Trends */}
+            {/* Enhanced Spending Trends with Thresholds */}
             <Card>
               <CardHeader>
-                <CardTitle>Monthly Spending Trends</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  Monthly Spending Trends
+                  <div className="text-sm text-muted-foreground">
+                    Budget: {formatCurrency(budgetSettings.monthlyBudget)}/month
+                  </div>
+                </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <AreaChart data={trendsData}>
+                <ResponsiveContainer width="100%" height={350}>
+                  <ComposedChart 
+                    data={trendsData.map(item => ({
+                      ...item,
+                      status: item.amount > budgetSettings.monthlyBudget * budgetSettings.emergencyThreshold ? 'emergency' :
+                               item.amount > budgetSettings.monthlyBudget * budgetSettings.warningThreshold ? 'warning' : 'normal'
+                    }))}
+                  >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
-                    <Tooltip formatter={(value) => [formatCurrency(value), 'Amount']} />
-                    <Area type="monotone" dataKey="amount" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.3} />
-                  </AreaChart>
+                    <Tooltip 
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          const value = data.amount;
+                          const percentage = (value / budgetSettings.monthlyBudget * 100).toFixed(1);
+                          const status = value > budgetSettings.monthlyBudget * budgetSettings.emergencyThreshold ? 'Over Budget!' :
+                                        value > budgetSettings.monthlyBudget * budgetSettings.warningThreshold ? 'Warning Level' : 'Within Budget';
+                          
+                          return (
+                            <div className="bg-white p-3 border rounded shadow-lg">
+                              <p className="font-semibold">{`Month: ${label}`}</p>
+                              <p className="text-blue-600">{`Spending: ${formatCurrency(value)}`}</p>
+                              <p className="text-gray-600">{`${percentage}% of budget`}</p>
+                              <p className={`font-medium ${
+                                status === 'Over Budget!' ? 'text-red-600' :
+                                status === 'Warning Level' ? 'text-amber-600' : 'text-green-600'
+                              }`}>{status}</p>
+                              <div className="mt-2 text-sm text-gray-500">
+                                <div>Budget: {formatCurrency(budgetSettings.monthlyBudget)}</div>
+                                <div>Warning: {formatCurrency(budgetSettings.monthlyBudget * budgetSettings.warningThreshold)}</div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Legend />
+                    
+                    {/* Reference lines for budget thresholds */}
+                    <ReferenceLine 
+                      y={budgetSettings.monthlyBudget} 
+                      stroke="#10B981" 
+                      strokeDasharray="5 5" 
+                      strokeWidth={2}
+                      label={{ value: "Budget", position: "topRight" }}
+                    />
+                    <ReferenceLine 
+                      y={budgetSettings.monthlyBudget * budgetSettings.warningThreshold} 
+                      stroke="#F59E0B" 
+                      strokeDasharray="3 3" 
+                      strokeWidth={2}
+                      label={{ value: "Warning", position: "topRight" }}
+                    />
+                    <ReferenceLine 
+                      y={budgetSettings.monthlyBudget * budgetSettings.emergencyThreshold} 
+                      stroke="#EF4444" 
+                      strokeDasharray="2 2" 
+                      strokeWidth={2}
+                      label={{ value: "Emergency", position: "topRight" }}
+                    />
+                    
+                    {/* Actual spending bars */}
+                    <Bar 
+                      dataKey="amount" 
+                      name="Spending"
+                    >
+                      {trendsData.map((entry, index) => {
+                        const value = entry.amount;
+                        let fillColor = '#10B981'; // green for normal
+                        if (value > budgetSettings.monthlyBudget * budgetSettings.emergencyThreshold) {
+                          fillColor = '#EF4444'; // red for emergency
+                        } else if (value > budgetSettings.monthlyBudget * budgetSettings.warningThreshold) {
+                          fillColor = '#F59E0B'; // amber for warning
+                        }
+                        return <Cell key={`cell-${index}`} fill={fillColor} />;
+                      })}
+                    </Bar>
+                  </ComposedChart>
                 </ResponsiveContainer>
+                <div className="mt-4 flex flex-wrap gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-green-500 rounded"></div>
+                    <span>Within Budget</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-amber-500 rounded"></div>
+                    <span>Warning (80%+)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-red-500 rounded"></div>
+                    <span>Over Budget (95%+)</span>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 
@@ -601,6 +729,27 @@ const EnhancedAnalytics = () => {
           </div>
         </div>
       )}
+        </TabsContent>
+
+        {/* Yearly Analysis Tab */}
+        <TabsContent value="yearly" className="space-y-6">
+          <YearSelector 
+            selectedYear={selectedYear}
+            onYearChange={setSelectedYear}
+          />
+          <MonthlyYearlyView selectedYear={selectedYear} />
+        </TabsContent>
+
+        {/* Year Comparison Tab - Phase 3 */}
+        <TabsContent value="comparison" className="space-y-6">
+          <YearComparisonView />
+        </TabsContent>
+
+        {/* AI Insights Tab - Phase 4 */}
+        <TabsContent value="insights" className="space-y-6">
+          <InsightsDashboard />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

@@ -413,17 +413,30 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  const refreshAnalytics = async () => {
+  const refreshAnalytics = async (includeInsights = false) => {
     try {
       // Only admins can force refresh
       if (!isAdmin) {
         return { success: false, error: 'Access denied' };
       }
 
-      const { error } = await supabase.rpc('smart_refresh_analytics');
-      if (error) throw error;
+      if (includeInsights) {
+        // Use the enhanced refresh function that includes insights
+        const { data, error } = await supabase.rpc('smart_refresh_all');
+        if (error) throw error;
+        
+        return { 
+          success: true, 
+          message: 'Analytics and insights refreshed',
+          details: data
+        };
+      } else {
+        // Use the standard analytics refresh
+        const { error } = await supabase.rpc('smart_refresh_analytics');
+        if (error) throw error;
 
-      return { success: true, message: 'Analytics refreshed' };
+        return { success: true, message: 'Analytics refreshed' };
+      }
     } catch (error) {
       console.error('Failed to refresh analytics:', error);
       return { success: false, error: error.message };

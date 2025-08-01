@@ -656,6 +656,281 @@ const routes = {
     return { statusCode: 200, body: { breakdown } };
   },
 
+  // New Phase 2 Analytics Routes - Yearly Analysis
+  'GET /analytics/available-years': async (body, user, params, query) => {
+    if (!user) {
+      return { statusCode: 401, body: { error: 'Authentication required' } };
+    }
+
+    // Admin can see all years, account officers see only their own data
+    const isAdmin = user.role === 'admin';
+
+    try {
+      const { data: years, error } = await supabaseAdmin
+        .rpc('get_available_years');
+
+      if (error) {
+        return { statusCode: 500, body: { error: 'Failed to fetch available years' } };
+      }
+
+      // Filter years for account officers if needed
+      let filteredYears = years;
+      if (!isAdmin) {
+        // For account officers, we need to filter by their own data
+        // This requires a custom query since the function returns all data
+        const { data: userYears, error: userError } = await supabaseAdmin
+          .from('expenses')
+          .select('expense_date')
+          .eq('created_by', user.id)
+          .eq('is_active', true);
+
+        if (userError) {
+          return { statusCode: 500, body: { error: 'Failed to fetch user expense years' } };
+        }
+
+        // Extract unique years from user's expenses
+        const userYearSet = new Set();
+        userYears.forEach(expense => {
+          const year = new Date(expense.expense_date).getFullYear();
+          userYearSet.add(year);
+        });
+
+        filteredYears = years.filter(yearData => userYearSet.has(yearData.year));
+      }
+
+      return { statusCode: 200, body: { years: filteredYears } };
+    } catch (error) {
+      return { statusCode: 500, body: { error: 'Failed to fetch available years' } };
+    }
+  },
+
+  'GET /analytics/yearly-breakdown': async (body, user, params, query) => {
+    if (!user) {
+      return { statusCode: 401, body: { error: 'Authentication required' } };
+    }
+
+    const { year = new Date().getFullYear() } = query;
+    const isAdmin = user.role === 'admin';
+    const targetUserId = isAdmin ? null : user.id;
+
+    try {
+      const { data: breakdown, error } = await supabaseAdmin
+        .rpc('get_yearly_breakdown', { 
+          target_year: parseInt(year),
+          user_id: targetUserId
+        });
+
+      if (error) {
+        return { statusCode: 500, body: { error: 'Failed to fetch yearly breakdown' } };
+      }
+
+      // Calculate additional metrics
+      const totalSpending = breakdown.reduce((sum, month) => sum + parseFloat(month.total_amount || 0), 0);
+      const avgMonthlySpending = totalSpending / 12; // Average across all 12 months
+      const activeMonths = breakdown.filter(month => parseFloat(month.total_amount || 0) > 0).length;
+      
+      const highestMonth = breakdown.reduce((max, month) => 
+        parseFloat(month.total_amount || 0) > parseFloat(max.total_amount || 0) ? month : max
+      , breakdown[0] || {});
+      
+      const lowestMonth = breakdown.reduce((min, month) => 
+        parseFloat(month.total_amount || 0) < parseFloat(min.total_amount || 0) && parseFloat(month.total_amount || 0) > 0 ? month : min
+      , breakdown.find(m => parseFloat(m.total_amount || 0) > 0) || {});
+
+      const yearlyMetrics = {
+        totalSpending,
+        avgMonthlySpending,
+        activeMonths,
+        highestMonth: {
+          month: highestMonth.month_name,
+          amount: parseFloat(highestMonth.total_amount || 0)
+        },
+        lowestMonth: {
+          month: lowestMonth.month_name,
+          amount: parseFloat(lowestMonth.total_amount || 0)
+        }
+      };
+
+      return { 
+        statusCode: 200, 
+        body: { 
+          year: parseInt(year),
+          breakdown,
+          metrics: yearlyMetrics
+        } 
+      };
+    } catch (error) {
+      return { statusCode: 500, body: { error: 'Failed to fetch yearly breakdown' } };
+    }
+  },
+
+  // Phase 3 Analytics Routes - Year-over-Year Comparison
+  'GET /analytics/year-comparison': async (body, user, params, query) => {
+    if (!user) {
+      return { statusCode: 401, body: { error: 'Authentication required' } };
+    }
+
+    const { 
+      base_year = new Date().getFullYear() - 1, 
+      compare_year = new Date().getFullYear() 
+    } = query;
+
+    const isAdmin = user.role === 'admin';
+    const targetUserId = isAdmin ? null : user.id;
+
+    try {
+      // Get detailed monthly comparison
+      const { data: monthlyComparison, error: monthlyError } = await supabaseAdmin
+        .rpc('calculate_year_comparison', {
+          base_year: parseInt(base_year),
+          compare_year: parseInt(compare_year),
+          user_id: targetUserId
+        });
+
+      if (monthlyError) {
+        return { statusCode: 500, body: { error: 'Failed to fetch monthly comparison' } };
+      }
+
+      // Get summary statistics
+      const { data: summaryData, error: summaryError } = await supabaseAdmin
+        .rpc('get_year_comparison_summary', {
+          base_year: parseInt(base_year),
+          compare_year: parseInt(compare_year),
+          user_id: targetUserId
+        });
+
+      if (summaryError) {
+        return { statusCode: 500, body: { error: 'Failed to fetch comparison summary' } };
+      }
+
+      // Get category comparison
+      const { data: categoryComparison, error: categoryError } = await supabaseAdmin
+        .rpc('get_category_year_comparison', {
+          base_year: parseInt(base_year),
+          compare_year: parseInt(compare_year),
+          user_id: targetUserId
+        });
+
+      if (categoryError) {
+        return { statusCode: 500, body: { error: 'Failed to fetch category comparison' } };
+      }
+
+      return {
+        statusCode: 200,
+        body: {
+          baseYear: parseInt(base_year),
+          compareYear: parseInt(compare_year),
+          monthlyComparison,
+          summary: summaryData[0] || {},
+          categoryComparison
+        }
+      };
+    } catch (error) {
+      return { statusCode: 500, body: { error: 'Failed to fetch year comparison data' } };
+    }
+  },
+
+  // Phase 4 Analytics Routes - Intelligent Insights
+  'GET /analytics/insights': async (body, user, params, query) => {
+    if (!user) {
+      return { statusCode: 401, body: { error: 'Authentication required' } };
+    }
+
+    const { limit = 10, refresh = false } = query;
+    const isAdmin = user.role === 'admin';
+
+    try {
+      // For admins, they can get system-wide insights, for others only personal insights
+      const targetUserId = isAdmin ? user.id : user.id;
+
+      if (refresh === 'true') {
+        // Force refresh insights
+        await supabaseAdmin.rpc('refresh_insights_cache', { target_user_id: targetUserId });
+      }
+
+      // Get user-specific insights
+      const { data: userInsights, error: userError } = await supabaseAdmin
+        .rpc('get_user_insights', {
+          target_user_id: targetUserId,
+          limit_count: parseInt(limit)
+        });
+
+      if (userError) {
+        return { statusCode: 500, body: { error: 'Failed to fetch user insights' } };
+      }
+
+      let systemInsights = [];
+      
+      // If admin, also get system-wide insights
+      if (isAdmin) {
+        const { data: adminInsights, error: adminError } = await supabaseAdmin
+          .from('insights_cache')
+          .select('*')
+          .is('user_id', null) // System-wide insights have null user_id
+          .eq('is_active', true)
+          .gte('applicable_to', new Date().toISOString().split('T')[0])
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (!adminError && adminInsights) {
+          systemInsights = adminInsights;
+        }
+      }
+
+      // Categorize insights by type
+      const categorizedInsights = {
+        critical: [],
+        alerts: [],
+        warnings: [],
+        recommendations: [],
+        systemwide: systemInsights
+      };
+
+      userInsights.forEach(insight => {
+        switch (insight.severity) {
+          case 'critical':
+            categorizedInsights.critical.push(insight);
+            break;
+          case 'alert':
+            categorizedInsights.alerts.push(insight);
+            break;
+          case 'warning':
+            categorizedInsights.warnings.push(insight);
+            break;
+          case 'info':
+            categorizedInsights.recommendations.push(insight);
+            break;
+        }
+      });
+
+      // Generate summary statistics
+      const summary = {
+        totalInsights: userInsights.length,
+        criticalCount: categorizedInsights.critical.length,
+        alertCount: categorizedInsights.alerts.length,
+        warningCount: categorizedInsights.warnings.length,
+        recommendationCount: categorizedInsights.recommendations.length,
+        systemwideCount: categorizedInsights.systemwide.length,
+        avgConfidenceScore: userInsights.length > 0 
+          ? userInsights.reduce((sum, insight) => sum + parseFloat(insight.confidence_score), 0) / userInsights.length 
+          : 0,
+        lastUpdated: userInsights.length > 0 ? userInsights[0].created_at : null
+      };
+
+      return {
+        statusCode: 200,
+        body: {
+          insights: categorizedInsights,
+          summary,
+          isAdmin,
+          userId: user.id
+        }
+      };
+    } catch (error) {
+      return { statusCode: 500, body: { error: 'Failed to fetch insights data' } };
+    }
+  },
+
   // CSV Export route
   'GET /expenses/export': async (body, user, params, query) => {
     if (!user) {
