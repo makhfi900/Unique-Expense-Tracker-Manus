@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
-import { supabase } from '../lib/supabase';
 import { formatCurrency } from '../utils/currency';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -19,6 +18,7 @@ import YearSelector from './YearSelector';
 import MonthlyYearlyView from './MonthlyYearlyView';
 import YearComparisonView from './YearComparisonView';
 import InsightsDashboard from './InsightsDashboard';
+import BudgetConfiguration from './BudgetConfiguration';
 import {
   LineChart,
   Line,
@@ -54,14 +54,14 @@ const EnhancedAnalytics = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // Date range filtering
+  // Date range filtering - Set to "All Time" by default to show all existing data
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    startDate: '2000-01-01',
     endDate: new Date().toISOString().split('T')[0]
   });
 
-  // Quick presets
-  const [selectedPreset, setSelectedPreset] = useState('this_month');
+  // Quick presets - Set to "All Time" by default to show all existing data  
+  const [selectedPreset, setSelectedPreset] = useState('all_time');
 
   // Category-specific analysis
   const [categories, setCategories] = useState([]);
@@ -84,6 +84,23 @@ const EnhancedAnalytics = () => {
     warningThreshold: 0.8, // 80% warning threshold
     emergencyThreshold: 0.95 // 95% emergency threshold
   });
+
+  // Fetch user's budget settings
+  const fetchBudgetSettings = async () => {
+    try {
+      const response = await apiCall('/budget/settings');
+      if (response.settings) {
+        setBudgetSettings({
+          monthlyBudget: response.settings.monthly_budget || 50000,
+          warningThreshold: response.settings.warning_threshold || 0.8,
+          emergencyThreshold: response.settings.emergency_threshold || 0.95
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch budget settings:', err);
+      // Keep default settings if API fails
+    }
+  };
 
   const [trendsData, setTrendsData] = useState([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState([]);
@@ -128,13 +145,24 @@ const EnhancedAnalytics = () => {
       label: 'This Year',
       startDate: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
       endDate: new Date().toISOString().split('T')[0]
+    },
+    all_time: {
+      label: 'All Time',
+      startDate: '2000-01-01',
+      endDate: new Date().toISOString().split('T')[0]
     }
   };
 
   useEffect(() => {
     fetchCategories();
-    fetchAnalyticsData();
-  }, [dateRange, selectedCategory]);
+    fetchBudgetSettings();
+  }, []); // Only run once on mount
+
+  useEffect(() => {
+    if (categories.length > 0) { // Only fetch analytics after categories are loaded
+      fetchAnalyticsData();
+    }
+  }, [dateRange, selectedCategory, categories.length]); // Properly trigger on date/category changes
 
   const fetchCategories = async () => {
     try {
@@ -149,94 +177,58 @@ const EnhancedAnalytics = () => {
 
   const fetchAnalyticsData = async () => {
     setLoading(true);
+    setError('');
     try {
-      // Use materialized views for better performance
-      const startMonth = new Date(dateRange.startDate).toISOString().slice(0, 7) + '-01';
-      const endMonth = new Date(dateRange.endDate).toISOString().slice(0, 7) + '-01';
-
-      // Fetch from materialized view for monthly summary
-      let monthlyQuery = supabase
-        .from('mv_monthly_spending')
-        .select('*')
-        .gte('month', startMonth)
-        .lte('month', endMonth);
-
-      if (selectedCategory !== 'all') {
-        monthlyQuery = monthlyQuery.eq('category_id', selectedCategory);
-      }
-
-      // Apply role-based filtering
-      if (!isAdmin) {
-        monthlyQuery = monthlyQuery.eq('created_by', user.id);
-      }
-
-      const { data: monthlyData, error: monthlyError } = await monthlyQuery;
-
-      if (monthlyError) throw monthlyError;
-
-      // Calculate KPIs from materialized view data
-      const totalSpent = monthlyData.reduce((sum, row) => sum + parseFloat(row.total_amount), 0);
-      const totalExpenses = monthlyData.reduce((sum, row) => sum + row.expense_count, 0);
-      const averageExpense = totalExpenses > 0 ? totalSpent / totalExpenses : 0;
-
-      // Get top category from aggregated data
-      const categoryTotals = {};
-      monthlyData.forEach(row => {
-        const categoryName = row.category_name || 'Uncategorized';
-        categoryTotals[categoryName] = (categoryTotals[categoryName] || 0) + parseFloat(row.total_amount);
-      });
-
-      const topCategory = Object.keys(categoryTotals).length > 0
-        ? Object.entries(categoryTotals).reduce((a, b) => parseFloat(a[1]) > parseFloat(b[1]) ? a : b)
-        : null;
-
-      setKpiData({
-        totalSpent,
-        totalExpenses,
-        averageExpense,
-        topCategory: topCategory ? { name: topCategory[0], amount: topCategory[1] } : null,
-        categoriesUsed: Object.keys(categoryTotals).length,
-        totalCategories: categories.length
-      });
-
-      // Fetch category breakdown from materialized view
-      let categoryQuery = supabase
-        .from('mv_category_spending')
-        .select('*');
-
-      const { data: categoryData, error: categoryError } = await categoryQuery;
-
-      if (categoryError) throw categoryError;
-
-      // Filter by date range in memory (since mv doesn't have date filtering)
-      const breakdownData = categoryData
-        .filter(cat => {
-          const firstDate = new Date(cat.first_expense_date);
-          const lastDate = new Date(cat.last_expense_date);
-          const startDate = new Date(dateRange.startDate);
-          const endDate = new Date(dateRange.endDate);
-          return lastDate >= startDate && firstDate <= endDate;
-        })
-        .map(cat => ({
-          name: cat.category_name,
-          value: parseFloat(cat.total_amount),
-          count: cat.expense_count,
-          color: cat.category_color
+      // Use API calls instead of direct Supabase queries for proper authentication
+      
+      // 1. Fetch spending trends - Use consistent date range with category breakdown
+      const startYear = new Date(dateRange.startDate).getFullYear();
+      const endYear = new Date(dateRange.endDate).getFullYear();
+      
+      // For spending trends, we'll get data for the year range and filter client-side if needed
+      const trendsResponse = await apiCall(`/analytics/spending-trends?period=monthly&year=${startYear}&start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`);
+      
+      if (trendsResponse.trends) {
+        const trendsArray = Object.entries(trendsResponse.trends).map(([month, amount]) => ({
+          month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          amount: parseFloat(amount)
         }));
+        setTrendsData(trendsArray);
+      }
 
-      setCategoryBreakdown(breakdownData);
+      // 2. Fetch category breakdown
+      const categoryResponse = await apiCall(`/analytics/category-breakdown?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`);
+      
+      if (categoryResponse.breakdown) {
+        const breakdownArray = Object.entries(categoryResponse.breakdown).map(([name, data]) => ({
+          name,
+          value: parseFloat(data.total),
+          count: data.count,
+          color: data.color
+        }));
+        setCategoryBreakdown(breakdownArray);
+        
+        // Calculate KPIs from category data
+        const totalSpent = breakdownArray.reduce((sum, cat) => sum + cat.value, 0);
+        const totalExpenses = breakdownArray.reduce((sum, cat) => sum + cat.count, 0);
+        const averageExpense = totalExpenses > 0 ? totalSpent / totalExpenses : 0;
+        
+        // Find top category
+        const topCategory = breakdownArray.length > 0 
+          ? breakdownArray.reduce((max, cat) => cat.value > max.value ? cat : max)
+          : null;
 
-      // Transform monthly data for trends
-      const trendsData = monthlyData
-        .reduce((acc, row) => {
-          const monthKey = new Date(row.month).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-          acc[monthKey] = (acc[monthKey] || 0) + parseFloat(row.total_amount);
-          return acc;
-        }, {});
+        setKpiData({
+          totalSpent,
+          totalExpenses,
+          averageExpense,
+          topCategory: topCategory ? { name: topCategory.name, amount: topCategory.value } : null,
+          categoriesUsed: breakdownArray.length,
+          totalCategories: categories.length
+        });
+      }
 
-      setTrendsData(Object.entries(trendsData).map(([month, amount]) => ({ month, amount })));
-
-      // If specific category is selected, fetch category-specific analysis
+      // 3. If specific category is selected, fetch category-specific analysis
       if (selectedCategory !== 'all') {
         await fetchCategoryAnalysis(selectedCategory);
       } else {
@@ -244,7 +236,7 @@ const EnhancedAnalytics = () => {
       }
 
     } catch (err) {
-      setError('Failed to fetch analytics data');
+      setError('Failed to fetch analytics data: ' + err.message);
       console.error('Analytics error:', err);
     } finally {
       setLoading(false);
@@ -253,48 +245,37 @@ const EnhancedAnalytics = () => {
 
   const fetchCategoryAnalysis = async (categoryId) => {
     try {
-      // Use materialized view for daily trends
-      let dailyQuery = supabase
-        .from('mv_daily_spending')
-        .select('*')
-        .eq('category_id', categoryId)
-        .gte('expense_date', dateRange.startDate)
-        .lte('expense_date', dateRange.endDate)
-        .order('expense_date', { ascending: true });
+      // Fetch expenses for the specific category via API
+      const expensesResponse = await apiCall(`/expenses?category_id=${categoryId}&start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`);
+      
+      if (expensesResponse.expenses) {
+        const expenses = expensesResponse.expenses;
+        
+        // Group by month for trend analysis
+        const monthlyData = {};
+        expenses.forEach(expense => {
+          const month = expense.expense_date.slice(0, 7);
+          monthlyData[month] = (monthlyData[month] || 0) + parseFloat(expense.amount);
+        });
 
-      // Apply role-based filtering
-      if (!isAdmin) {
-        dailyQuery = dailyQuery.eq('created_by', user.id);
+        const monthlyTrend = Object.entries(monthlyData).map(([month, amount]) => ({
+          month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+          amount: amount
+        }));
+
+        const categoryInfo = categories.find(cat => cat.id === categoryId);
+        const totalSpent = expenses.reduce((sum, expense) => sum + parseFloat(expense.amount), 0);
+        const totalExpenses = expenses.length;
+
+        setCategoryAnalysis({
+          category: categoryInfo,
+          totalSpent,
+          totalExpenses,
+          averageExpense: totalExpenses > 0 ? totalSpent / totalExpenses : 0,
+          monthlyTrend,
+          recentExpenses: expenses.slice(0, 5) // Show recent 5 expenses
+        });
       }
-
-      const { data: dailyData, error: dailyError } = await dailyQuery;
-
-      if (dailyError) throw dailyError;
-
-      // Group by month for trend analysis
-      const monthlyData = {};
-      dailyData.forEach(day => {
-        const month = day.expense_date.slice(0, 7);
-        monthlyData[month] = (monthlyData[month] || 0) + parseFloat(day.total_amount);
-      });
-
-      const monthlyTrend = Object.entries(monthlyData).map(([month, amount]) => ({
-        month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-        amount: amount
-      }));
-
-      const categoryInfo = categories.find(cat => cat.id === categoryId);
-      const totalSpent = dailyData.reduce((sum, day) => sum + parseFloat(day.total_amount), 0);
-      const totalExpenses = dailyData.reduce((sum, day) => sum + day.expense_count, 0);
-
-      setCategoryAnalysis({
-        category: categoryInfo,
-        totalSpent,
-        totalExpenses,
-        averageExpense: totalExpenses > 0 ? totalSpent / totalExpenses : 0,
-        monthlyTrend,
-        recentExpenses: [] // We'll keep this empty since MV doesn't have individual expenses
-      });
 
     } catch (err) {
       console.error('Failed to fetch category analysis:', err);
@@ -319,7 +300,18 @@ const EnhancedAnalytics = () => {
     }));
   };
 
-  const refreshData = () => {
+  const refreshData = async () => {
+    setError('');
+    try {
+      await fetchAnalyticsData();
+    } catch (err) {
+      setError('Failed to refresh data: ' + err.message);
+    }
+  };
+
+  const handleBudgetUpdate = (newBudgetSettings) => {
+    setBudgetSettings(newBudgetSettings);
+    // Refresh analytics data to reflect new budget calculations
     fetchAnalyticsData();
   };
 
@@ -393,7 +385,8 @@ const EnhancedAnalytics = () => {
               />
             </div>
 
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
+              <BudgetConfiguration onBudgetUpdate={handleBudgetUpdate} />
               <Button onClick={refreshData} className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4" />
                 Refresh
@@ -600,14 +593,15 @@ const EnhancedAnalytics = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={350}>
-                  <ComposedChart 
-                    data={trendsData.map(item => ({
-                      ...item,
-                      status: item.amount > budgetSettings.monthlyBudget * budgetSettings.emergencyThreshold ? 'emergency' :
-                               item.amount > budgetSettings.monthlyBudget * budgetSettings.warningThreshold ? 'warning' : 'normal'
-                    }))}
-                  >
+                {trendsData && trendsData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={350}>
+                    <ComposedChart 
+                      data={trendsData.map(item => ({
+                        ...item,
+                        status: item.amount > budgetSettings.monthlyBudget * budgetSettings.emergencyThreshold ? 'emergency' :
+                                 item.amount > budgetSettings.monthlyBudget * budgetSettings.warningThreshold ? 'warning' : 'normal'
+                      }))}
+                    >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="month" />
                     <YAxis />
@@ -682,6 +676,14 @@ const EnhancedAnalytics = () => {
                     </Bar>
                   </ComposedChart>
                 </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[350px] text-muted-foreground">
+                    <div className="text-center">
+                      <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No spending data available for the selected period</p>
+                    </div>
+                  </div>
+                )}
                 <div className="mt-4 flex flex-wrap gap-4 text-sm">
                   <div className="flex items-center gap-2">
                     <div className="w-3 h-3 bg-green-500 rounded"></div>
@@ -705,25 +707,34 @@ const EnhancedAnalytics = () => {
                 <CardTitle>Category Breakdown</CardTitle>
               </CardHeader>
               <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={categoryBreakdown}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {categoryBreakdown.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => [formatCurrency(value), 'Amount']} />
-                  </PieChart>
-                </ResponsiveContainer>
+                {categoryBreakdown && categoryBreakdown.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={categoryBreakdown}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        outerRadius={80}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {categoryBreakdown.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value) => [formatCurrency(value), 'Amount']} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                    <div className="text-center">
+                      <PieChartIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No category data available for the selected period</p>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
