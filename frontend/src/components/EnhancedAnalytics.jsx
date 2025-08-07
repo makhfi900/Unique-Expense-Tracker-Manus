@@ -18,7 +18,7 @@ import YearSelector from './YearSelector';
 import MonthlyYearlyView from './MonthlyYearlyView';
 import YearComparisonView from './YearComparisonView';
 import InsightsDashboard from './InsightsDashboard';
-import BudgetConfiguration from './BudgetConfiguration';
+import TimeRangeSlider from './TimeRangeSlider';
 import {
   LineChart,
   Line,
@@ -46,13 +46,22 @@ import {
   Loader2,
   Filter,
   Target,
-  RefreshCw
+  RefreshCw,
+  Settings,
+  ToggleLeft,
+  ToggleRight,
+  Play,
+  Pause
 } from 'lucide-react';
 
 const EnhancedAnalytics = () => {
   const { apiCall, user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState('overview');
+  
+  // Chart display preferences
+  const [categoryChartType, setCategoryChartType] = useState('donut'); // 'bar' or 'donut' for category breakdown
 
   // Date range filtering - Set to "All Time" by default to show all existing data
   const [dateRange, setDateRange] = useState({
@@ -78,29 +87,6 @@ const EnhancedAnalytics = () => {
     totalCategories: 0
   });
 
-  // Budget and threshold settings
-  const [budgetSettings, setBudgetSettings] = useState({
-    monthlyBudget: 50000, // Default budget of Rs. 50,000
-    warningThreshold: 0.8, // 80% warning threshold
-    emergencyThreshold: 0.95 // 95% emergency threshold
-  });
-
-  // Fetch user's budget settings
-  const fetchBudgetSettings = async () => {
-    try {
-      const response = await apiCall('/budget/settings');
-      if (response.settings) {
-        setBudgetSettings({
-          monthlyBudget: response.settings.monthly_budget || 50000,
-          warningThreshold: response.settings.warning_threshold || 0.8,
-          emergencyThreshold: response.settings.emergency_threshold || 0.95
-        });
-      }
-    } catch (err) {
-      console.error('Failed to fetch budget settings:', err);
-      // Keep default settings if API fails
-    }
-  };
 
   const [trendsData, setTrendsData] = useState([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState([]);
@@ -155,7 +141,6 @@ const EnhancedAnalytics = () => {
 
   useEffect(() => {
     fetchCategories();
-    fetchBudgetSettings();
   }, []); // Only run once on mount
 
   useEffect(() => {
@@ -179,27 +164,39 @@ const EnhancedAnalytics = () => {
     setLoading(true);
     setError('');
     try {
-      // Use API calls instead of direct Supabase queries for proper authentication
+      // Use Promise.all for parallel requests to improve performance
+      const requests = [];
       
-      // 1. Fetch spending trends - Use consistent date range with category breakdown
+      // 1. Fetch spending trends
       const startYear = new Date(dateRange.startDate).getFullYear();
-      const endYear = new Date(dateRange.endDate).getFullYear();
+      requests.push(
+        apiCall(`/analytics/spending-trends?period=monthly&year=${startYear}&start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`)
+          .catch(err => ({ error: err.message, type: 'trends' }))
+      );
       
-      // For spending trends, we'll get data for the year range and filter client-side if needed
-      const trendsResponse = await apiCall(`/analytics/spending-trends?period=monthly&year=${startYear}&start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`);
+      // 2. Fetch category breakdown
+      requests.push(
+        apiCall(`/analytics/category-breakdown?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`)
+          .catch(err => ({ error: err.message, type: 'categories' }))
+      );
+
+      // Execute all requests in parallel
+      const [trendsResponse, categoryResponse] = await Promise.all(requests);
       
-      if (trendsResponse.trends) {
+      // Handle trends data
+      if (trendsResponse.trends && !trendsResponse.error) {
         const trendsArray = Object.entries(trendsResponse.trends).map(([month, amount]) => ({
           month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
           amount: parseFloat(amount)
         }));
         setTrendsData(trendsArray);
+      } else if (trendsResponse.error) {
+        console.warn('Trends data failed:', trendsResponse.error);
+        setTrendsData([]);
       }
 
-      // 2. Fetch category breakdown
-      const categoryResponse = await apiCall(`/analytics/category-breakdown?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`);
-      
-      if (categoryResponse.breakdown) {
+      // Handle category breakdown
+      if (categoryResponse.breakdown && !categoryResponse.error) {
         const breakdownArray = Object.entries(categoryResponse.breakdown).map(([name, data]) => ({
           name,
           value: parseFloat(data.total),
@@ -226,6 +223,9 @@ const EnhancedAnalytics = () => {
           categoriesUsed: breakdownArray.length,
           totalCategories: categories.length
         });
+      } else if (categoryResponse.error) {
+        console.warn('Category data failed:', categoryResponse.error);
+        setCategoryBreakdown([]);
       }
 
       // 3. If specific category is selected, fetch category-specific analysis
@@ -282,13 +282,15 @@ const EnhancedAnalytics = () => {
     }
   };
 
-  const handlePresetChange = (preset) => {
+  const handlePresetChange = (preset, customRange = null) => {
     setSelectedPreset(preset);
-    if (preset !== 'custom') {
+    if (preset !== 'custom' && !customRange) {
       setDateRange({
         startDate: datePresets[preset].startDate,
         endDate: datePresets[preset].endDate
       });
+    } else if (customRange) {
+      setDateRange(customRange);
     }
   };
 
@@ -309,11 +311,6 @@ const EnhancedAnalytics = () => {
     }
   };
 
-  const handleBudgetUpdate = (newBudgetSettings) => {
-    setBudgetSettings(newBudgetSettings);
-    // Refresh analytics data to reflect new budget calculations
-    fetchAnalyticsData();
-  };
 
   if (!isAdmin) {
     return (
@@ -328,7 +325,7 @@ const EnhancedAnalytics = () => {
   return (
     <div className="space-y-6">
       {/* Main Navigation Tabs */}
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Overview & Trends</TabsTrigger>
           <TabsTrigger value="yearly">Yearly Analysis</TabsTrigger>
@@ -338,6 +335,13 @@ const EnhancedAnalytics = () => {
 
         {/* Overview Tab - Original Analytics */}
         <TabsContent value="overview" className="space-y-6">
+          {/* Enhanced Time Range Control */}
+          <TimeRangeSlider
+            onDateRangeChange={handlePresetChange}
+            selectedPreset={selectedPreset}
+            dateRange={dateRange}
+          />
+
           {/* Date Range Filtering */}
           <Card>
         <CardHeader>
@@ -386,7 +390,6 @@ const EnhancedAnalytics = () => {
             </div>
 
             <div className="flex items-end gap-2">
-              <BudgetConfiguration onBudgetUpdate={handleBudgetUpdate} />
               <Button onClick={refreshData} className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4" />
                 Refresh
@@ -395,6 +398,7 @@ const EnhancedAnalytics = () => {
           </div>
         </CardContent>
       </Card>
+
 
       {/* Category-Specific Analysis */}
       <Card>
@@ -582,100 +586,38 @@ const EnhancedAnalytics = () => {
 
           {/* Charts */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Enhanced Spending Trends with Thresholds */}
+            {/* Simplified Spending Trends */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  Monthly Spending Trends
-                  <div className="text-sm text-muted-foreground">
-                    Budget: {formatCurrency(budgetSettings.monthlyBudget)}/month
-                  </div>
-                </CardTitle>
+                <CardTitle>Monthly Spending Trends</CardTitle>
               </CardHeader>
               <CardContent>
                 {trendsData && trendsData.length > 0 ? (
                   <ResponsiveContainer width="100%" height={350}>
-                    <ComposedChart 
-                      data={trendsData.map(item => ({
-                        ...item,
-                        status: item.amount > budgetSettings.monthlyBudget * budgetSettings.emergencyThreshold ? 'emergency' :
-                                 item.amount > budgetSettings.monthlyBudget * budgetSettings.warningThreshold ? 'warning' : 'normal'
-                      }))}
-                    >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="month" />
-                    <YAxis />
-                    <Tooltip 
-                      content={({ active, payload, label }) => {
-                        if (active && payload && payload.length) {
-                          const data = payload[0].payload;
-                          const value = data.amount;
-                          const percentage = (value / budgetSettings.monthlyBudget * 100).toFixed(1);
-                          const status = value > budgetSettings.monthlyBudget * budgetSettings.emergencyThreshold ? 'Over Budget!' :
-                                        value > budgetSettings.monthlyBudget * budgetSettings.warningThreshold ? 'Warning Level' : 'Within Budget';
-                          
-                          return (
-                            <div className="bg-white p-3 border rounded shadow-lg">
-                              <p className="font-semibold">{`Month: ${label}`}</p>
-                              <p className="text-blue-600">{`Spending: ${formatCurrency(value)}`}</p>
-                              <p className="text-gray-600">{`${percentage}% of budget`}</p>
-                              <p className={`font-medium ${
-                                status === 'Over Budget!' ? 'text-red-600' :
-                                status === 'Warning Level' ? 'text-amber-600' : 'text-green-600'
-                              }`}>{status}</p>
-                              <div className="mt-2 text-sm text-gray-500">
-                                <div>Budget: {formatCurrency(budgetSettings.monthlyBudget)}</div>
-                                <div>Warning: {formatCurrency(budgetSettings.monthlyBudget * budgetSettings.warningThreshold)}</div>
+                    <BarChart data={trendsData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis />
+                      <Tooltip 
+                        content={({ active, payload, label }) => {
+                          if (active && payload && payload.length) {
+                            const value = payload[0].value;
+                            return (
+                              <div className="bg-popover p-3 border rounded shadow-lg text-popover-foreground">
+                                <p className="font-semibold">{`Month: ${label}`}</p>
+                                <p className="text-blue-600">{`Spending: ${formatCurrency(value)}`}</p>
                               </div>
-                            </div>
-                          );
-                        }
-                        return null;
-                      }}
-                    />
-                    <Legend />
-                    
-                    {/* Reference lines for budget thresholds */}
-                    <ReferenceLine 
-                      y={budgetSettings.monthlyBudget} 
-                      stroke="#10B981" 
-                      strokeDasharray="5 5" 
-                      strokeWidth={2}
-                      label={{ value: "Budget", position: "topRight" }}
-                    />
-                    <ReferenceLine 
-                      y={budgetSettings.monthlyBudget * budgetSettings.warningThreshold} 
-                      stroke="#F59E0B" 
-                      strokeDasharray="3 3" 
-                      strokeWidth={2}
-                      label={{ value: "Warning", position: "topRight" }}
-                    />
-                    <ReferenceLine 
-                      y={budgetSettings.monthlyBudget * budgetSettings.emergencyThreshold} 
-                      stroke="#EF4444" 
-                      strokeDasharray="2 2" 
-                      strokeWidth={2}
-                      label={{ value: "Emergency", position: "topRight" }}
-                    />
-                    
-                    {/* Actual spending bars */}
-                    <Bar 
-                      dataKey="amount" 
-                      name="Spending"
-                    >
-                      {trendsData.map((entry, index) => {
-                        const value = entry.amount;
-                        let fillColor = '#10B981'; // green for normal
-                        if (value > budgetSettings.monthlyBudget * budgetSettings.emergencyThreshold) {
-                          fillColor = '#EF4444'; // red for emergency
-                        } else if (value > budgetSettings.monthlyBudget * budgetSettings.warningThreshold) {
-                          fillColor = '#F59E0B'; // amber for warning
-                        }
-                        return <Cell key={`cell-${index}`} fill={fillColor} />;
-                      })}
-                    </Bar>
-                  </ComposedChart>
-                </ResponsiveContainer>
+                            );
+                          }
+                          return null;
+                        }}
+                        itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
+                        labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
+                      />
+                      <Legend />
+                      <Bar dataKey="amount" name="Monthly Spending" fill="hsl(var(--primary))" />
+                    </BarChart>
+                  </ResponsiveContainer>
                 ) : (
                   <div className="flex items-center justify-center h-[350px] text-muted-foreground">
                     <div className="text-center">
@@ -684,54 +626,192 @@ const EnhancedAnalytics = () => {
                     </div>
                   </div>
                 )}
-                <div className="mt-4 flex flex-wrap gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-green-500 rounded"></div>
-                    <span>Within Budget</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-amber-500 rounded"></div>
-                    <span>Warning (80%+)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 bg-red-500 rounded"></div>
-                    <span>Over Budget (95%+)</span>
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
-            {/* Category Breakdown */}
+            {/* Enhanced Category Breakdown with Chart Toggle */}
             <Card>
               <CardHeader>
-                <CardTitle>Category Breakdown</CardTitle>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Category Breakdown</span>
+                  {/* Chart Type Toggle */}
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant={categoryChartType === 'donut' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setCategoryChartType('donut')}
+                      className="flex items-center gap-1 text-xs"
+                    >
+                      <PieChartIcon className="h-3 w-3" />
+                      Donut
+                    </Button>
+                    <Button
+                      variant={categoryChartType === 'bar' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setCategoryChartType('bar')}
+                      className="flex items-center gap-1 text-xs"
+                    >
+                      <BarChart3 className="h-3 w-3" />
+                      Bar
+                    </Button>
+                  </div>
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 {categoryBreakdown && categoryBreakdown.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={300}>
-                    <PieChart>
-                      <Pie
-                        data={categoryBreakdown}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                        outerRadius={80}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {categoryBreakdown.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                      </Pie>
-                      <Tooltip formatter={(value) => [formatCurrency(value), 'Amount']} />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  <>
+                    {/* Toggle between Donut Chart and Bar Chart */}
+                    {categoryChartType === 'donut' ? (
+                      /* Donut Chart View */
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="relative">
+                          <ResponsiveContainer width="100%" height={300}>
+                            <PieChart>
+                              <Pie
+                                data={categoryBreakdown}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={false}
+                                outerRadius={100}
+                                innerRadius={60}
+                                fill="#8884d8"
+                                dataKey="value"
+                                stroke="none"
+                              >
+                                {categoryBreakdown.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                              </Pie>
+                              <Tooltip 
+                                formatter={(value, name, props) => [
+                                  formatCurrency(value), 
+                                  props.payload.name
+                                ]}
+                                labelFormatter={() => ''}
+                                contentStyle={{
+                                  backgroundColor: 'hsl(var(--popover))',
+                                  border: '1px solid hsl(var(--border))',
+                                  borderRadius: '8px',
+                                  padding: '12px',
+                                  color: 'hsl(var(--popover-foreground))',
+                                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                                }}
+                                itemStyle={{
+                                  color: 'hsl(var(--popover-foreground))'
+                                }}
+                                labelStyle={{
+                                  color: 'hsl(var(--popover-foreground))'
+                                }}
+                              />
+                            </PieChart>
+                          </ResponsiveContainer>
+                          
+                          {/* Center Total Display */}
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="text-center">
+                              <div className="text-sm font-medium text-muted-foreground">Total Expenses</div>
+                              <div className="text-2xl font-bold text-foreground">
+                                {formatCurrency(kpiData.totalSpent)}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Enhanced Legend */}
+                        <div className="space-y-3">
+                          <h4 className="font-semibold text-sm text-foreground mb-4">Categories</h4>
+                          <div className="space-y-2 max-h-[250px] overflow-y-auto">
+                            {categoryBreakdown
+                              .sort((a, b) => b.value - a.value)
+                              .map((category, index) => {
+                                const percentage = kpiData.totalSpent > 0 ? (category.value / kpiData.totalSpent * 100) : 0;
+                                return (
+                                  <div key={index} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors">
+                                    <div className="flex items-center gap-3">
+                                      <div
+                                        className="w-4 h-4 rounded-full flex-shrink-0"
+                                        style={{ backgroundColor: category.color }}
+                                      />
+                                      <div>
+                                        <div className="font-medium text-sm text-foreground truncate max-w-[120px]">
+                                          {category.name}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {category.count} transaction{category.count !== 1 ? 's' : ''}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="text-right flex-shrink-0">
+                                      <div className="font-semibold text-sm text-foreground">
+                                        {formatCurrency(category.value)}
+                                      </div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {percentage.toFixed(1)}%
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            }
+                          </div>
+                          
+                          {/* Summary Stats */}
+                          <div className="mt-4 pt-3 border-t border-border">
+                            <div className="flex justify-between text-xs text-muted-foreground">
+                              <span>{categoryBreakdown.length} categories</span>
+                              <span>{kpiData.totalExpenses} total transactions</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Bar Chart View */
+                      <ResponsiveContainer width="100%" height={400}>
+                        <BarChart 
+                          data={categoryBreakdown.sort((a, b) => b.value - a.value)}
+                          layout="horizontal"
+                          margin={{ top: 20, right: 30, left: 100, bottom: 5 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis type="number" />
+                          <YAxis 
+                            type="category" 
+                            dataKey="name" 
+                            width={100}
+                            tick={{ fontSize: 12 }}
+                          />
+                          <Tooltip 
+                            formatter={(value, name) => [formatCurrency(value), 'Amount']}
+                            contentStyle={{
+                              backgroundColor: 'hsl(var(--popover))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '8px',
+                              padding: '12px',
+                              color: 'hsl(var(--popover-foreground))'
+                            }}
+                            itemStyle={{
+                              color: 'hsl(var(--popover-foreground))'
+                            }}
+                            labelStyle={{
+                              color: 'hsl(var(--popover-foreground))'
+                            }}
+                          />
+                          <Bar dataKey="value" name="Category Spending">
+                            {categoryBreakdown.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
+                  </>
                 ) : (
                   <div className="flex items-center justify-center h-[300px] text-muted-foreground">
                     <div className="text-center">
                       <PieChartIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
                       <p>No category data available for the selected period</p>
+                      <p className="text-xs mt-2">Try selecting a different date range or add some expenses</p>
                     </div>
                   </div>
                 )}
