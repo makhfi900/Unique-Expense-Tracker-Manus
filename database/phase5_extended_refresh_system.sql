@@ -335,7 +335,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION check_materialized_views_status()
 RETURNS TABLE(
     view_name TEXT,
-    exists BOOLEAN,
+    view_exists BOOLEAN,
     row_count BIGINT,
     last_refresh TIMESTAMP,
     size_pretty TEXT,
@@ -379,7 +379,7 @@ BEGIN
         AND schemaname = view_record.schemaname;
         
         RETURN QUERY SELECT
-            view_record.matviewname,
+            view_record.matviewname::TEXT, -- CORRECTED: Explicitly cast name to text
             true,
             row_count_val,
             now()::TIMESTAMP, -- We don't track individual refresh times yet
@@ -418,7 +418,7 @@ BEGIN
     test_result := test_result || E'\n1. Checking materialized views status:' || E'\n';
     FOR view_status IN SELECT * FROM check_materialized_views_status() LOOP
         test_result := test_result || format('   - %s: exists=%s, rows=%s, size=%s' || E'\n',
-            view_status.view_name, view_status.exists, view_status.row_count, view_status.size_pretty);
+            view_status.view_name, view_status.view_exists, view_status.row_count, view_status.size_pretty);
     END LOOP;
     
     -- Test 2: Test refresh functions

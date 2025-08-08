@@ -23,11 +23,11 @@ CREATE TABLE IF NOT EXISTS insights_cache (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
 
--- Create indexes for insights cache
-CREATE INDEX idx_insights_cache_user ON insights_cache(user_id, is_active);
-CREATE INDEX idx_insights_cache_type ON insights_cache(insight_type, insight_category);
-CREATE INDEX idx_insights_cache_date ON insights_cache(applicable_from, applicable_to);
-CREATE INDEX idx_insights_cache_severity ON insights_cache(severity, confidence_score);
+-- Create indexes for insights cache (FIXED: Added IF NOT EXISTS)
+CREATE INDEX IF NOT EXISTS idx_insights_cache_user ON insights_cache(user_id, is_active);
+CREATE INDEX IF NOT EXISTS idx_insights_cache_type ON insights_cache(insight_type, insight_category);
+CREATE INDEX IF NOT EXISTS idx_insights_cache_date ON insights_cache(applicable_from, applicable_to);
+CREATE INDEX IF NOT EXISTS idx_insights_cache_severity ON insights_cache(severity, confidence_score);
 
 -- =====================================================
 -- INTELLIGENT INSIGHTS FUNCTIONS
@@ -462,7 +462,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER update_insights_cache_updated_at
+CREATE OR REPLACE TRIGGER update_insights_cache_updated_at
     BEFORE UPDATE ON insights_cache
     FOR EACH ROW
     EXECUTE FUNCTION update_insights_updated_at();

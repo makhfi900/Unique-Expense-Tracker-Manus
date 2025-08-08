@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { formatCurrency } from '../utils/currency';
 import { Button } from './ui/button';
@@ -19,6 +19,7 @@ import MonthlyYearlyView from './MonthlyYearlyView';
 import YearComparisonView from './YearComparisonView';
 import InsightsDashboard from './InsightsDashboard';
 import TimeRangeSlider from './TimeRangeSlider';
+import ExpenseViewer from './ExpenseViewer';
 import {
   LineChart,
   Line,
@@ -51,17 +52,21 @@ import {
   ToggleLeft,
   ToggleRight,
   Play,
-  Pause
+  Pause,
+  List
 } from 'lucide-react';
 
 const EnhancedAnalytics = () => {
-  const { apiCall, user, isAdmin } = useAuth();
+  const { apiCall, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
   
-  // Chart display preferences
-  const [categoryChartType, setCategoryChartType] = useState('donut'); // 'bar' or 'donut' for category breakdown
+  // Chart display preferences - restored chart toggle functionality
+  const [categoryChartType, setCategoryChartType] = useState('donut');
+  const [monthlyChartType, setMonthlyChartType] = useState('stacked'); // Toggle for monthly spending chart
+  
+  // No additional filtering states needed - ExpenseViewer handles its own filtering
 
   // Date range filtering - Set to "All Time" by default to show all existing data
   const [dateRange, setDateRange] = useState({
@@ -88,9 +93,12 @@ const EnhancedAnalytics = () => {
   });
 
 
-  const [trendsData, setTrendsData] = useState([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState([]);
-  const [monthlyTrends, setMonthlyTrends] = useState([]);
+  
+  // New state for combined monthly-category data
+  const [monthlyCategoryData, setMonthlyCategoryData] = useState([]);
+  const [categoryColors, setCategoryColors] = useState({});
+  const [categoryList, setCategoryList] = useState([]);
 
   // Phase 2: Yearly Analysis State
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -139,17 +147,7 @@ const EnhancedAnalytics = () => {
     }
   };
 
-  useEffect(() => {
-    fetchCategories();
-  }, []); // Only run once on mount
-
-  useEffect(() => {
-    if (categories.length > 0) { // Only fetch analytics after categories are loaded
-      fetchAnalyticsData();
-    }
-  }, [dateRange, selectedCategory, categories.length]); // Properly trigger on date/category changes
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const response = await apiCall('/categories');
       if (response.categories) {
@@ -158,9 +156,9 @@ const EnhancedAnalytics = () => {
     } catch (err) {
       console.error('Failed to fetch categories:', err);
     }
-  };
+  }, [apiCall]);
 
-  const fetchAnalyticsData = async () => {
+  const fetchAnalyticsData = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
@@ -179,20 +177,19 @@ const EnhancedAnalytics = () => {
         apiCall(`/analytics/category-breakdown?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`)
           .catch(err => ({ error: err.message, type: 'categories' }))
       );
+      
+      // 3. Fetch combined monthly-category breakdown for stacked chart
+      requests.push(
+        apiCall(`/analytics/monthly-category-breakdown?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`)
+          .catch(err => ({ error: err.message, type: 'monthly-category' }))
+      );
 
       // Execute all requests in parallel
-      const [trendsResponse, categoryResponse] = await Promise.all(requests);
+      const [trendsResponse, categoryResponse, monthlyCategoryResponse] = await Promise.all(requests);
       
-      // Handle trends data
-      if (trendsResponse.trends && !trendsResponse.error) {
-        const trendsArray = Object.entries(trendsResponse.trends).map(([month, amount]) => ({
-          month: new Date(month + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-          amount: parseFloat(amount)
-        }));
-        setTrendsData(trendsArray);
-      } else if (trendsResponse.error) {
+      // Handle trends data - now only used for logging, main chart uses monthlyCategoryData
+      if (trendsResponse.error) {
         console.warn('Trends data failed:', trendsResponse.error);
-        setTrendsData([]);
       }
 
       // Handle category breakdown
@@ -201,7 +198,7 @@ const EnhancedAnalytics = () => {
           name,
           value: parseFloat(data.total),
           count: data.count,
-          color: data.color
+          color: data.color || '#3B82F6' // Default color if none provided
         }));
         setCategoryBreakdown(breakdownArray);
         
@@ -225,7 +222,18 @@ const EnhancedAnalytics = () => {
         });
       } else if (categoryResponse.error) {
         console.warn('Category data failed:', categoryResponse.error);
-        setCategoryBreakdown([]);
+        // Try fallback: fetch expenses directly and create category breakdown
+        await fetchCategoryFallback();
+      }
+
+      // Handle combined monthly-category data
+      if (monthlyCategoryResponse.breakdown && !monthlyCategoryResponse.error) {
+        setMonthlyCategoryData(monthlyCategoryResponse.breakdown);
+        setCategoryColors(monthlyCategoryResponse.categoryColors || {});
+        setCategoryList(monthlyCategoryResponse.categoryList || []);
+      } else if (monthlyCategoryResponse.error) {
+        console.warn('Monthly category data failed:', monthlyCategoryResponse.error);
+        setMonthlyCategoryData([]);
       }
 
       // 3. If specific category is selected, fetch category-specific analysis
@@ -240,6 +248,76 @@ const EnhancedAnalytics = () => {
       console.error('Analytics error:', err);
     } finally {
       setLoading(false);
+    }
+  }, [apiCall, dateRange, selectedCategory, categories]);
+
+  const fetchCategoryFallback = async () => {
+    try {
+      console.log('Using category fallback approach...');
+      // Fetch expenses directly
+      const expensesResponse = await apiCall(
+        `/expenses?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}${
+          selectedCategory !== 'all' ? `&category_id=${selectedCategory}` : ''
+        }`
+      );
+
+      if (expensesResponse.expenses && expensesResponse.expenses.length > 0) {
+        // Group expenses by category
+        const categoryTotals = {};
+        const categoryCounts = {};
+        
+        expensesResponse.expenses.forEach(expense => {
+          const categoryName = expense.category_name || 'Uncategorized';
+          const amount = parseFloat(expense.amount) || 0;
+          
+          categoryTotals[categoryName] = (categoryTotals[categoryName] || 0) + amount;
+          categoryCounts[categoryName] = (categoryCounts[categoryName] || 0) + 1;
+        });
+
+        // Create breakdown array
+        const breakdownArray = Object.entries(categoryTotals).map(([name, total], index) => {
+          // Find category color from categories list
+          const category = categories.find(cat => cat.name === name);
+          const colors = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
+          
+          return {
+            name,
+            value: total,
+            count: categoryCounts[name],
+            color: category?.color || colors[index % colors.length]
+          };
+        });
+
+        setCategoryBreakdown(breakdownArray);
+        
+        // Calculate KPIs from fallback data
+        const totalSpent = breakdownArray.reduce((sum, cat) => sum + cat.value, 0);
+        const totalExpenses = breakdownArray.reduce((sum, cat) => sum + cat.count, 0);
+        const averageExpense = totalExpenses > 0 ? totalSpent / totalExpenses : 0;
+        
+        // Find top category
+        const topCategory = breakdownArray.length > 0 
+          ? breakdownArray.reduce((max, cat) => cat.value > max.value ? cat : max)
+          : null;
+
+        setKpiData({
+          totalSpent,
+          totalExpenses,
+          averageExpense,
+          topCategory: topCategory ? { name: topCategory.name, amount: topCategory.value } : null,
+          categoriesUsed: breakdownArray.length,
+          totalCategories: categories.length
+        });
+        
+        setError(''); // Clear error since fallback worked
+        console.log('Category fallback successful:', breakdownArray);
+      } else {
+        setCategoryBreakdown([]);
+        console.warn('No expenses found for category fallback');
+      }
+    } catch (err) {
+      console.error('Category fallback failed:', err);
+      setCategoryBreakdown([]);
     }
   };
 
@@ -282,6 +360,18 @@ const EnhancedAnalytics = () => {
     }
   };
 
+
+  // useEffect hooks - must come after useCallback definitions
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]); // Only run once on mount
+
+  useEffect(() => {
+    if (categories.length > 0) { // Only fetch analytics after categories are loaded
+      fetchAnalyticsData();
+    }
+  }, [fetchAnalyticsData, categories.length]); // Properly trigger on date/category changes
+
   const handlePresetChange = (preset, customRange = null) => {
     setSelectedPreset(preset);
     if (preset !== 'custom' && !customRange) {
@@ -312,22 +402,15 @@ const EnhancedAnalytics = () => {
   };
 
 
-  if (!isAdmin) {
-    return (
-      <Alert>
-        <AlertDescription>
-          Access denied. Enhanced analytics are only available to administrators.
-        </AlertDescription>
-      </Alert>
-    );
-  }
+  // Both admin and account officers see the full analytics dashboard with role-based tab differences
 
   return (
     <div className="space-y-6">
       {/* Main Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-5'}`}>
           <TabsTrigger value="overview">Overview & Trends</TabsTrigger>
+          {!isAdmin && <TabsTrigger value="expenses">View Expenses</TabsTrigger>}
           <TabsTrigger value="yearly">Yearly Analysis</TabsTrigger>
           <TabsTrigger value="comparison">Year Comparison</TabsTrigger>
           <TabsTrigger value="insights">AI Insights</TabsTrigger>
@@ -585,242 +668,236 @@ const EnhancedAnalytics = () => {
           </div>
 
           {/* Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Simplified Spending Trends */}
+          <div className="space-y-6">
+            {/* Combined Monthly Spending with Category Breakdown - Stacked Bar Chart */}
             <Card>
               <CardHeader>
-                <CardTitle>Monthly Spending Trends</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {trendsData && trendsData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={350}>
-                    <BarChart data={trendsData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="month" />
-                      <YAxis />
-                      <Tooltip 
-                        content={({ active, payload, label }) => {
-                          if (active && payload && payload.length) {
-                            const value = payload[0].value;
-                            return (
-                              <div className="bg-popover p-3 border rounded shadow-lg text-popover-foreground">
-                                <p className="font-semibold">{`Month: ${label}`}</p>
-                                <p className="text-blue-600">{`Spending: ${formatCurrency(value)}`}</p>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                        itemStyle={{ color: 'hsl(var(--popover-foreground))' }}
-                        labelStyle={{ color: 'hsl(var(--popover-foreground))' }}
-                      />
-                      <Legend />
-                      <Bar dataKey="amount" name="Monthly Spending" fill="hsl(var(--primary))" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-[350px] text-muted-foreground">
-                    <div className="text-center">
-                      <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No spending data available for the selected period</p>
-                    </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      Monthly Spending by Category
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                      {monthlyChartType === 'stacked' 
+                        ? 'Each bar shows the total monthly spending with category breakdown'
+                        : 'Monthly spending data displayed as donut charts'
+                      }
+                    </p>
                   </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Enhanced Category Breakdown with Chart Toggle */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Category Breakdown</span>
                   {/* Chart Type Toggle */}
                   <div className="flex items-center gap-2">
                     <Button
-                      variant={categoryChartType === 'donut' ? 'default' : 'outline'}
+                      variant={monthlyChartType === 'stacked' ? 'default' : 'outline'}
                       size="sm"
-                      onClick={() => setCategoryChartType('donut')}
-                      className="flex items-center gap-1 text-xs"
+                      onClick={() => setMonthlyChartType('stacked')}
+                      className="flex items-center gap-2"
                     >
-                      <PieChartIcon className="h-3 w-3" />
-                      Donut
+                      <BarChart3 className="h-4 w-4" />
+                      STACKED
                     </Button>
                     <Button
-                      variant={categoryChartType === 'bar' ? 'default' : 'outline'}
+                      variant={monthlyChartType === 'donut' ? 'default' : 'outline'}
                       size="sm"
-                      onClick={() => setCategoryChartType('bar')}
-                      className="flex items-center gap-1 text-xs"
+                      onClick={() => setMonthlyChartType('donut')}
+                      className="flex items-center gap-2"
                     >
-                      <BarChart3 className="h-3 w-3" />
-                      Bar
+                      <PieChartIcon className="h-4 w-4" />
+                      DONUT
                     </Button>
                   </div>
-                </CardTitle>
+                </div>
               </CardHeader>
               <CardContent>
-                {categoryBreakdown && categoryBreakdown.length > 0 ? (
+                {monthlyCategoryData && monthlyCategoryData.length > 0 && categoryList.length > 0 ? (
                   <>
-                    {/* Toggle between Donut Chart and Bar Chart */}
-                    {categoryChartType === 'donut' ? (
-                      /* Donut Chart View */
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div className="relative">
-                          <ResponsiveContainer width="100%" height={300}>
-                            <PieChart>
-                              <Pie
-                                data={categoryBreakdown}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                label={false}
-                                outerRadius={100}
-                                innerRadius={60}
-                                fill="#8884d8"
-                                dataKey="value"
-                                stroke="none"
-                              >
-                                {categoryBreakdown.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={entry.color} />
-                                ))}
-                              </Pie>
-                              <Tooltip 
-                                formatter={(value, name, props) => [
-                                  formatCurrency(value), 
-                                  props.payload.name
-                                ]}
-                                labelFormatter={() => ''}
-                                contentStyle={{
-                                  backgroundColor: 'hsl(var(--popover))',
-                                  border: '1px solid hsl(var(--border))',
-                                  borderRadius: '8px',
-                                  padding: '12px',
-                                  color: 'hsl(var(--popover-foreground))',
-                                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                                }}
-                                itemStyle={{
-                                  color: 'hsl(var(--popover-foreground))'
-                                }}
-                                labelStyle={{
-                                  color: 'hsl(var(--popover-foreground))'
-                                }}
-                              />
-                            </PieChart>
-                          </ResponsiveContainer>
-                          
-                          {/* Center Total Display */}
-                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                            <div className="text-center">
-                              <div className="text-sm font-medium text-muted-foreground">Total Expenses</div>
-                              <div className="text-2xl font-bold text-foreground">
-                                {formatCurrency(kpiData.totalSpent)}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Enhanced Legend */}
-                        <div className="space-y-3">
-                          <h4 className="font-semibold text-sm text-foreground mb-4">Categories</h4>
-                          <div className="space-y-2 max-h-[250px] overflow-y-auto">
-                            {categoryBreakdown
-                              .sort((a, b) => b.value - a.value)
-                              .map((category, index) => {
-                                const percentage = kpiData.totalSpent > 0 ? (category.value / kpiData.totalSpent * 100) : 0;
+                    {monthlyChartType === 'stacked' ? (
+                      /* Stacked Bar Chart View */
+                      <ResponsiveContainer width="100%" height={400}>
+                        <BarChart data={monthlyCategoryData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis 
+                            dataKey="month" 
+                            tick={{ fontSize: 12 }}
+                            angle={-45}
+                            textAnchor="end"
+                            height={60}
+                          />
+                          <YAxis 
+                            tickFormatter={(value) => `Rs ${(value / 1000).toFixed(0)}K`}
+                          />
+                          <Tooltip 
+                            content={({ active, payload, label }) => {
+                              if (active && payload && payload.length) {
+                                const monthData = monthlyCategoryData.find(data => data.month === label);
                                 return (
-                                  <div key={index} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors">
-                                    <div className="flex items-center gap-3">
-                                      <div
-                                        className="w-4 h-4 rounded-full flex-shrink-0"
-                                        style={{ backgroundColor: category.color }}
-                                      />
-                                      <div>
-                                        <div className="font-medium text-sm text-foreground truncate max-w-[120px]">
-                                          {category.name}
-                                        </div>
-                                        <div className="text-xs text-muted-foreground">
-                                          {category.count} transaction{category.count !== 1 ? 's' : ''}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="text-right flex-shrink-0">
-                                      <div className="font-semibold text-sm text-foreground">
-                                        {formatCurrency(category.value)}
-                                      </div>
-                                      <div className="text-xs text-muted-foreground">
-                                        {percentage.toFixed(1)}%
-                                      </div>
+                                  <div className="bg-popover p-4 border rounded shadow-lg text-popover-foreground max-w-sm">
+                                    <p className="font-semibold mb-2">{`Month: ${label}`}</p>
+                                    <p className="font-medium mb-2 text-green-600">
+                                      {`Total: ${formatCurrency(monthData?.total || 0)}`}
+                                    </p>
+                                    <div className="space-y-1">
+                                      {payload.map((entry, index) => (
+                                        <p key={index} style={{ color: entry.color }} className="text-sm">
+                                          {`${entry.dataKey}: ${formatCurrency(entry.value)}`}
+                                        </p>
+                                      ))}
                                     </div>
                                   </div>
                                 );
-                              })
-                            }
+                              }
+                              return null;
+                            }}
+                          />
+                          <Legend 
+                            wrapperStyle={{ paddingTop: '20px' }}
+                            iconType="rect"
+                          />
+                          {/* Dynamic bars for each category */}
+                          {categoryList.map((category, index) => (
+                            <Bar
+                              key={category}
+                              dataKey={category}
+                              stackId="spending"
+                              fill={categoryColors[category] || `hsl(${(index * 137) % 360}, 70%, 50%)`}
+                              name={category}
+                            />
+                          ))}
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      /* Category Breakdown Donut Chart */
+                      categoryBreakdown && categoryBreakdown.length > 0 ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          <div className="relative">
+                            <ResponsiveContainer width="100%" height={300}>
+                              <PieChart>
+                                <Pie
+                                  data={categoryBreakdown}
+                                  cx="50%"
+                                  cy="50%"
+                                  labelLine={false}
+                                  label={false}
+                                  outerRadius={100}
+                                  innerRadius={60}
+                                  fill="#8884d8"
+                                  dataKey="value"
+                                  stroke="none"
+                                >
+                                  {categoryBreakdown.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                  ))}
+                                </Pie>
+                                <Tooltip 
+                                  formatter={(value, name, props) => [
+                                    formatCurrency(value), 
+                                    props.payload.name
+                                  ]}
+                                  labelFormatter={() => ''}
+                                  contentStyle={{
+                                    backgroundColor: 'hsl(var(--popover))',
+                                    border: '1px solid hsl(var(--border))',
+                                    borderRadius: '8px',
+                                    padding: '12px',
+                                    color: 'hsl(var(--popover-foreground))',
+                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                                  }}
+                                  itemStyle={{
+                                    color: 'hsl(var(--popover-foreground))'
+                                  }}
+                                  labelStyle={{
+                                    color: 'hsl(var(--popover-foreground))'
+                                  }}
+                                />
+                              </PieChart>
+                            </ResponsiveContainer>
+                            
+                            {/* Center Total Display */}
+                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                              <div className="text-center">
+                                <div className="text-sm font-medium text-muted-foreground">Total Expenses</div>
+                                <div className="text-2xl font-bold text-foreground">
+                                  {formatCurrency(kpiData.totalSpent)}
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          
-                          {/* Summary Stats */}
-                          <div className="mt-4 pt-3 border-t border-border">
-                            <div className="flex justify-between text-xs text-muted-foreground">
-                              <span>{categoryBreakdown.length} categories</span>
-                              <span>{kpiData.totalExpenses} total transactions</span>
+
+                          {/* Enhanced Legend */}
+                          <div className="space-y-3">
+                            <h4 className="font-semibold text-sm text-foreground mb-4">Categories</h4>
+                            <div className="space-y-2 max-h-[250px] overflow-y-auto">
+                              {categoryBreakdown
+                                .sort((a, b) => b.value - a.value)
+                                .map((category, index) => {
+                                  const percentage = kpiData.totalSpent > 0 ? (category.value / kpiData.totalSpent * 100) : 0;
+                                  return (
+                                    <div key={index} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors">
+                                      <div className="flex items-center gap-3">
+                                        <div
+                                          className="w-4 h-4 rounded-full flex-shrink-0"
+                                          style={{ backgroundColor: category.color }}
+                                        />
+                                        <div>
+                                          <div className="font-medium text-sm text-foreground truncate max-w-[120px]">
+                                            {category.name}
+                                          </div>
+                                          <div className="text-xs text-muted-foreground">
+                                            {category.count} transaction{category.count !== 1 ? 's' : ''}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="text-right flex-shrink-0">
+                                        <div className="font-semibold text-sm text-foreground">
+                                          {formatCurrency(category.value)}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">
+                                          {percentage.toFixed(1)}%
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })
+                              }
                             </div>
                           </div>
                         </div>
-                      </div>
-                    ) : (
-                      /* Bar Chart View */
-                      <ResponsiveContainer width="100%" height={400}>
-                        <BarChart 
-                          data={categoryBreakdown.sort((a, b) => b.value - a.value)}
-                          layout="horizontal"
-                          margin={{ top: 20, right: 30, left: 100, bottom: 5 }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis type="number" />
-                          <YAxis 
-                            type="category" 
-                            dataKey="name" 
-                            width={100}
-                            tick={{ fontSize: 12 }}
-                          />
-                          <Tooltip 
-                            formatter={(value, name) => [formatCurrency(value), 'Amount']}
-                            contentStyle={{
-                              backgroundColor: 'hsl(var(--popover))',
-                              border: '1px solid hsl(var(--border))',
-                              borderRadius: '8px',
-                              padding: '12px',
-                              color: 'hsl(var(--popover-foreground))'
-                            }}
-                            itemStyle={{
-                              color: 'hsl(var(--popover-foreground))'
-                            }}
-                            labelStyle={{
-                              color: 'hsl(var(--popover-foreground))'
-                            }}
-                          />
-                          <Bar dataKey="value" name="Category Spending">
-                            {categoryBreakdown.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                      ) : (
+                        <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                          <div className="text-center">
+                            <PieChartIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                            <p>No category data available for the selected period</p>
+                          </div>
+                        </div>
+                      )
                     )}
                   </>
                 ) : (
-                  <div className="flex items-center justify-center h-[300px] text-muted-foreground">
+                  <div className="flex items-center justify-center h-[400px] text-muted-foreground">
                     <div className="text-center">
-                      <PieChartIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No category data available for the selected period</p>
+                      <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No spending data available for the selected period</p>
                       <p className="text-xs mt-2">Try selecting a different date range or add some expenses</p>
                     </div>
                   </div>
                 )}
               </CardContent>
             </Card>
+
+            {/* ExpenseViewer Component - Only for Admins under charts */}
+            {isAdmin && <ExpenseViewer />}
+
           </div>
         </div>
       )}
         </TabsContent>
+
+        {/* View Expenses Tab - Only for Account Officers */}
+        {!isAdmin && (
+          <TabsContent value="expenses" className="space-y-6">
+            <ExpenseViewer />
+          </TabsContent>
+        )}
 
         {/* Yearly Analysis Tab */}
         <TabsContent value="yearly" className="space-y-6">

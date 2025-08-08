@@ -1,14 +1,20 @@
 -- Phase 2: Yearly Monthly Analysis Enhancement
--- Run this in Supabase SQL Editor after the main schema
+-- CORRECTED SCRIPT: Fixes data type mismatch for top_category (varchar -> text).
+-- This script is idempotent and safe to re-run.
+
+-- =====================================================
+-- PRE-CLEANUP: Drop existing functions to avoid conflicts
+-- =====================================================
+DROP FUNCTION IF EXISTS get_available_years();
+DROP FUNCTION IF EXISTS get_yearly_breakdown(INTEGER, UUID);
+DROP FUNCTION IF EXISTS refresh_analytics_views(BOOLEAN);
 
 -- =====================================================
 -- YEARLY MONTHLY BREAKDOWN MATERIALIZED VIEW
 -- =====================================================
 
--- Drop existing view if it exists
 DROP MATERIALIZED VIEW IF EXISTS mv_yearly_monthly_breakdown CASCADE;
 
--- Create yearly monthly breakdown view
 CREATE MATERIALIZED VIEW mv_yearly_monthly_breakdown AS
 SELECT 
     EXTRACT(YEAR FROM e.expense_date) as year,
@@ -27,7 +33,6 @@ SELECT
     AVG(e.amount) as avg_amount,
     MIN(e.amount) as min_amount,
     MAX(e.amount) as max_amount,
-    -- Calculate monthly metrics
     ROW_NUMBER() OVER (PARTITION BY EXTRACT(YEAR FROM e.expense_date), e.created_by ORDER BY SUM(e.amount) DESC) as spending_rank,
     PERCENT_RANK() OVER (PARTITION BY EXTRACT(YEAR FROM e.expense_date), e.created_by ORDER BY SUM(e.amount)) as spending_percentile
 FROM expenses e
@@ -36,16 +41,14 @@ LEFT JOIN users u ON e.created_by = u.id
 WHERE e.is_active = true
 GROUP BY 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11;
 
--- Create indexes for fast lookups
-CREATE INDEX idx_mv_yearly_monthly_lookup ON mv_yearly_monthly_breakdown(year, month, created_by);
-CREATE INDEX idx_mv_yearly_monthly_category ON mv_yearly_monthly_breakdown(year, category_id);
-CREATE INDEX idx_mv_yearly_monthly_user ON mv_yearly_monthly_breakdown(created_by, year);
+CREATE INDEX IF NOT EXISTS idx_mv_yearly_monthly_lookup ON mv_yearly_monthly_breakdown(year, month, created_by);
+CREATE INDEX IF NOT EXISTS idx_mv_yearly_monthly_category ON mv_yearly_monthly_breakdown(year, category_id);
+CREATE INDEX IF NOT EXISTS idx_mv_yearly_monthly_user ON mv_yearly_monthly_breakdown(created_by, year);
 
 -- =====================================================
 -- YEARLY SUMMARY FUNCTIONS
 -- =====================================================
 
--- Function to get available years with data
 CREATE OR REPLACE FUNCTION get_available_years()
 RETURNS TABLE(
     year INTEGER,
@@ -73,10 +76,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to get yearly breakdown with metrics
 CREATE OR REPLACE FUNCTION get_yearly_breakdown(
-    target_year INTEGER,
-    user_id UUID DEFAULT NULL
+    p_target_year INTEGER,
+    p_user_id UUID DEFAULT NULL
 )
 RETURNS TABLE(
     month INTEGER,
@@ -88,7 +90,6 @@ RETURNS TABLE(
     top_category TEXT,
     top_category_amount NUMERIC,
     categories_used BIGINT,
-    -- Comparative metrics
     vs_previous_month NUMERIC,
     vs_same_month_last_year NUMERIC,
     is_highest_month BOOLEAN,
@@ -98,12 +99,11 @@ DECLARE
     year_total NUMERIC;
     year_avg NUMERIC;
 BEGIN
-    -- Get year totals for comparison
-    SELECT SUM(total_amount), AVG(total_amount) 
+    SELECT SUM(v.total_amount), AVG(v.total_amount) 
     INTO year_total, year_avg
-    FROM mv_yearly_monthly_breakdown
-    WHERE year = target_year
-    AND (user_id IS NULL OR created_by = user_id);
+    FROM mv_yearly_monthly_breakdown v
+    WHERE v.year = p_target_year
+    AND (p_user_id IS NULL OR v.created_by = p_user_id);
 
     RETURN QUERY
     WITH monthly_data AS (
@@ -112,41 +112,41 @@ BEGIN
             ymb.month_name,
             ymb.month_short,
             SUM(ymb.total_amount) as total_amount,
-            SUM(ymb.expense_count) as expense_count,
+            SUM(ymb.expense_count)::BIGINT as expense_count,
             AVG(ymb.avg_amount) as avg_amount,
             COUNT(DISTINCT ymb.category_id) as categories_used
         FROM mv_yearly_monthly_breakdown ymb
-        WHERE ymb.year = target_year
-        AND (user_id IS NULL OR ymb.created_by = user_id)
+        WHERE ymb.year = p_target_year
+        AND (p_user_id IS NULL OR ymb.created_by = p_user_id)
         GROUP BY 1, 2, 3
     ),
     monthly_with_top_category AS (
         SELECT 
             md.*,
-            -- Get top category for each month
             (
-                SELECT ymb.category_name
-                FROM mv_yearly_monthly_breakdown ymb
-                WHERE ymb.year = target_year 
-                AND ymb.month = md.month
-                AND (user_id IS NULL OR ymb.created_by = user_id)
-                GROUP BY ymb.category_name
-                ORDER BY SUM(ymb.total_amount) DESC
+                -- FIX: Cast the category_name from VARCHAR to TEXT to match the function's return type.
+                SELECT sub.category_name::TEXT
+                FROM mv_yearly_monthly_breakdown sub
+                WHERE sub.year = p_target_year 
+                AND sub.month = md.month
+                AND (p_user_id IS NULL OR sub.created_by = p_user_id)
+                GROUP BY sub.category_name
+                ORDER BY SUM(sub.total_amount) DESC
                 LIMIT 1
             ) as top_category,
             (
-                SELECT SUM(ymb.total_amount)
-                FROM mv_yearly_monthly_breakdown ymb
-                WHERE ymb.year = target_year 
-                AND ymb.month = md.month
-                AND (user_id IS NULL OR ymb.created_by = user_id)
-                AND ymb.category_name = (
-                    SELECT category_name
-                    FROM mv_yearly_monthly_breakdown
-                    WHERE year = target_year AND month = md.month
-                    AND (user_id IS NULL OR created_by = user_id)
-                    GROUP BY category_name
-                    ORDER BY SUM(total_amount) DESC
+                SELECT SUM(sub.total_amount)
+                FROM mv_yearly_monthly_breakdown sub
+                WHERE sub.year = p_target_year 
+                AND sub.month = md.month
+                AND (p_user_id IS NULL OR sub.created_by = p_user_id)
+                AND sub.category_name = (
+                    SELECT sub2.category_name
+                    FROM mv_yearly_monthly_breakdown sub2
+                    WHERE sub2.year = p_target_year AND sub2.month = md.month
+                    AND (p_user_id IS NULL OR sub2.created_by = p_user_id)
+                    GROUP BY sub2.category_name
+                    ORDER BY SUM(sub2.total_amount) DESC
                     LIMIT 1
                 )
             ) as top_category_amount
@@ -155,17 +155,14 @@ BEGIN
     monthly_with_comparisons AS (
         SELECT 
             mwtc.*,
-            -- Previous month comparison
-            mwtc.total_amount - LAG(mwtc.total_amount) OVER (ORDER BY mwtc.month) as vs_previous_month,
-            -- Previous year same month comparison
+            mwtc.total_amount - LAG(mwtc.total_amount, 1, 0) OVER (ORDER BY mwtc.month) as vs_previous_month,
             mwtc.total_amount - COALESCE((
-                SELECT SUM(total_amount)
-                FROM mv_yearly_monthly_breakdown
-                WHERE year = target_year - 1 
-                AND month = mwtc.month
-                AND (user_id IS NULL OR created_by = user_id)
+                SELECT SUM(prev_year.total_amount)
+                FROM mv_yearly_monthly_breakdown prev_year
+                WHERE prev_year.year = p_target_year - 1 
+                AND prev_year.month = mwtc.month
+                AND (p_user_id IS NULL OR prev_year.created_by = p_user_id)
             ), 0) as vs_same_month_last_year,
-            -- Highest/lowest indicators
             mwtc.total_amount = MAX(mwtc.total_amount) OVER () as is_highest_month,
             mwtc.total_amount = MIN(mwtc.total_amount) OVER () as is_lowest_month
         FROM monthly_with_top_category mwtc
@@ -193,19 +190,16 @@ $$ LANGUAGE plpgsql;
 -- UPDATE REFRESH FUNCTION TO INCLUDE NEW VIEW
 -- =====================================================
 
--- Update the refresh function to include yearly breakdown
 CREATE OR REPLACE FUNCTION refresh_analytics_views(concurrent_refresh BOOLEAN DEFAULT TRUE)
 RETURNS void AS $$
 DECLARE
     refresh_start TIMESTAMP;
-    refresh_method TEXT;
 BEGIN
     refresh_start := clock_timestamp();
-    refresh_method := CASE WHEN concurrent_refresh THEN 'CONCURRENTLY' ELSE '' END;
     
-    -- Try concurrent refresh first (non-blocking)
     IF concurrent_refresh THEN
         BEGIN
+            RAISE NOTICE 'Attempting to refresh views concurrently...';
             REFRESH MATERIALIZED VIEW CONCURRENTLY mv_monthly_spending;
             REFRESH MATERIALIZED VIEW CONCURRENTLY mv_daily_spending;
             REFRESH MATERIALIZED VIEW CONCURRENTLY mv_category_spending;
@@ -216,12 +210,11 @@ BEGIN
                 EXTRACT(MILLISECOND FROM clock_timestamp() - refresh_start);
         EXCEPTION
             WHEN OTHERS THEN
-                -- Fall back to regular refresh
-                RAISE NOTICE 'Concurrent refresh failed, using regular refresh: %', SQLERRM;
+                RAISE NOTICE 'Concurrent refresh failed, falling back to regular refresh. Reason: %', SQLERRM;
                 PERFORM refresh_analytics_views(FALSE);
         END;
     ELSE
-        -- Regular refresh (blocking but always works)
+        RAISE NOTICE 'Refreshing views with blocking method...';
         REFRESH MATERIALIZED VIEW mv_monthly_spending;
         REFRESH MATERIALIZED VIEW mv_daily_spending;
         REFRESH MATERIALIZED VIEW mv_category_spending;
@@ -235,23 +228,16 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =====================================================
--- INITIAL DATA POPULATION
+-- INITIAL DATA POPULATION & USAGE
 -- =====================================================
 
--- Populate the new materialized view
 REFRESH MATERIALIZED VIEW mv_yearly_monthly_breakdown;
-
--- Analyze for better query planning
 ANALYZE mv_yearly_monthly_breakdown;
-
--- =====================================================
--- USAGE EXAMPLES
--- =====================================================
 
 COMMENT ON FUNCTION get_available_years() IS 'Returns all years that have expense data with summary statistics';
 COMMENT ON FUNCTION get_yearly_breakdown(INTEGER, UUID) IS 'Returns detailed monthly breakdown for a specific year with comparative metrics';
 COMMENT ON MATERIALIZED VIEW mv_yearly_monthly_breakdown IS 'Pre-computed yearly and monthly expense breakdowns with ranking and percentile data';
 
--- Test the functions
--- SELECT * FROM get_available_years();
--- SELECT * FROM get_yearly_breakdown(2024);
+-- Test the functions (uncomment to run)
+SELECT * FROM get_available_years();
+SELECT * FROM get_yearly_breakdown(2024);

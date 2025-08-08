@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
+import AnalyticsErrorFallback from './AnalyticsErrorFallback';
+import ChartErrorBoundary from './ChartErrorBoundary';
 import {
   BarChart,
   Bar,
@@ -14,7 +16,8 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  ReferenceLine
+  ReferenceLine,
+  Cell
 } from 'recharts';
 import {
   TrendingUp,
@@ -27,76 +30,30 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '../utils/currency';
 
-const MonthlyYearlyView = ({ selectedYear }) => {
+const MonthlyYearlyView = React.memo(({ selectedYear }) => {
   const { apiCall } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [yearlyData, setYearlyData] = useState(null);
 
-  useEffect(() => {
-    if (selectedYear) {
-      fetchYearlyBreakdown();
-    }
-  }, [selectedYear]);
+  // Prepare chart data with memoization - moved to top to ensure consistent hook order
+  const chartData = useMemo(() => {
+    if (!yearlyData?.breakdown) return [];
+    return yearlyData.breakdown.map(month => ({
+      month: month.month_short,
+      amount: parseFloat(month.total_amount || 0),
+      expenses: month.expense_count,
+      avgExpense: parseFloat(month.avg_amount || 0),
+      topCategory: month.top_category,
+      vsLastMonth: parseFloat(month.vs_previous_month || 0),
+      vsLastYear: parseFloat(month.vs_same_month_last_year || 0),
+      isHighest: month.is_highest_month,
+      isLowest: month.is_lowest_month
+    }));
+  }, [yearlyData?.breakdown]);
 
-  const fetchYearlyBreakdown = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const response = await apiCall(`/analytics/yearly-breakdown?year=${selectedYear}`);
-      if (response.breakdown && response.metrics) {
-        setYearlyData(response);
-      }
-    } catch (err) {
-      setError('Failed to fetch yearly breakdown data');
-      console.error('Yearly breakdown error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="h-8 w-8 animate-spin mr-2" />
-        <span>Loading yearly analysis...</span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <Alert>
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
-    );
-  }
-
-  if (!yearlyData || !yearlyData.breakdown) {
-    return (
-      <Alert>
-        <AlertDescription>No data available for {selectedYear}</AlertDescription>
-      </Alert>
-    );
-  }
-
-  const { breakdown, metrics } = yearlyData;
-
-  // Prepare chart data
-  const chartData = breakdown.map(month => ({
-    month: month.month_short,
-    amount: parseFloat(month.total_amount || 0),
-    expenses: month.expense_count,
-    avgExpense: parseFloat(month.avg_amount || 0),
-    topCategory: month.top_category,
-    vsLastMonth: parseFloat(month.vs_previous_month || 0),
-    vsLastYear: parseFloat(month.vs_same_month_last_year || 0),
-    isHighest: month.is_highest_month,
-    isLowest: month.is_lowest_month
-  }));
-
-  // Custom tooltip for detailed information
-  const CustomTooltip = ({ active, payload, label }) => {
+  // Custom tooltip for detailed information - memoized for performance
+  const CustomTooltip = useCallback(({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
@@ -132,7 +89,136 @@ const MonthlyYearlyView = ({ selectedYear }) => {
       );
     }
     return null;
+  }, [selectedYear]);
+
+  useEffect(() => {
+    if (selectedYear) {
+      fetchYearlyBreakdown();
+    }
+  }, [selectedYear]);
+
+  const fetchYearlyBreakdown = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await apiCall(`/analytics/yearly-breakdown?year=${selectedYear}`);
+      if (response.breakdown && response.metrics) {
+        setYearlyData(response);
+      } else {
+        // Fallback: try to get basic expense data for the year
+        console.warn('Yearly breakdown function not available, using fallback...');
+        const fallbackResponse = await apiCall(`/expenses?year=${selectedYear}`);
+        if (fallbackResponse.expenses) {
+          const monthlyData = generateMonthlyFallbackData(fallbackResponse.expenses);
+          setYearlyData({
+            breakdown: monthlyData,
+            metrics: calculateFallbackMetrics(monthlyData)
+          });
+        }
+      }
+    } catch (err) {
+      // Try fallback approach
+      try {
+        console.warn('Primary API failed, trying fallback approach...');
+        const fallbackResponse = await apiCall(`/expenses?start_date=${selectedYear}-01-01&end_date=${selectedYear}-12-31`);
+        if (fallbackResponse.expenses) {
+          const monthlyData = generateMonthlyFallbackData(fallbackResponse.expenses);
+          setYearlyData({
+            breakdown: monthlyData,
+            metrics: calculateFallbackMetrics(monthlyData)
+          });
+          setError(''); // Clear error since fallback worked
+        } else {
+          setError('No yearly data available for ' + selectedYear);
+        }
+      } catch (fallbackErr) {
+        setError('Failed to fetch yearly breakdown data');
+        console.error('Yearly breakdown error:', err, fallbackErr);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const generateMonthlyFallbackData = (expenses) => {
+    const monthlyBreakdown = {};
+    
+    expenses.forEach(expense => {
+      const date = new Date(expense.expense_date);
+      const month = date.getMonth() + 1;
+      const monthKey = month;
+      
+      if (!monthlyBreakdown[monthKey]) {
+        monthlyBreakdown[monthKey] = {
+          month,
+          month_name: date.toLocaleDateString('en-US', { month: 'long' }),
+          month_short: date.toLocaleDateString('en-US', { month: 'short' }),
+          total_amount: 0,
+          expense_count: 0,
+          expenses: []
+        };
+      }
+      
+      monthlyBreakdown[monthKey].total_amount += parseFloat(expense.amount);
+      monthlyBreakdown[monthKey].expense_count += 1;
+      monthlyBreakdown[monthKey].expenses.push(expense);
+    });
+    
+    // Convert to array and add calculated fields
+    return Object.values(monthlyBreakdown).map(month => ({
+      ...month,
+      avg_amount: month.total_amount / month.expense_count,
+      vs_previous_month: 0, // Can't calculate without more complex logic
+      vs_same_month_last_year: 0,
+      is_highest_month: false,
+      is_lowest_month: false
+    })).sort((a, b) => a.month - b.month);
+  };
+
+  const calculateFallbackMetrics = (monthlyData) => {
+    const totalAmount = monthlyData.reduce((sum, month) => sum + month.total_amount, 0);
+    const totalExpenses = monthlyData.reduce((sum, month) => sum + month.expense_count, 0);
+    
+    return {
+      totalSpent: totalAmount,
+      totalExpenses,
+      averageMonthly: totalAmount / 12,
+      highestMonth: monthlyData.reduce((max, month) => 
+        month.total_amount > max.total_amount ? month : max, monthlyData[0] || {}),
+      lowestMonth: monthlyData.reduce((min, month) => 
+        month.total_amount < min.total_amount ? month : min, monthlyData[0] || {})
+    };
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="h-8 w-8 animate-spin mr-2" />
+        <span>Loading yearly analysis...</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <AnalyticsErrorFallback
+        error={{ message: error }}
+        onRetry={fetchYearlyBreakdown}
+        componentName="Yearly Analysis"
+        showDatabaseSetupHelp={true}
+      />
+    );
+  }
+
+  if (!yearlyData || !yearlyData.breakdown) {
+    return (
+      <Alert>
+        <AlertDescription>No data available for {selectedYear}</AlertDescription>
+      </Alert>
+    );
+  }
+
+  const { breakdown, metrics } = yearlyData;
 
   return (
     <div className="space-y-6">
@@ -214,36 +300,38 @@ const MonthlyYearlyView = ({ selectedYear }) => {
             <CardTitle>Monthly Spending Pattern - {selectedYear}</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                
-                {/* Average spending line */}
-                <ReferenceLine 
-                  y={metrics.avgMonthlySpending} 
-                  stroke="#10B981"
-                  strokeDasharray="5 5"
-                  label={{ value: "Average", position: "topRight" }}
-                />
-                
-                <Bar dataKey="amount" name="Monthly Spending">
-                  {chartData.map((entry, index) => (
-                    <Bar 
-                      key={`cell-${index}`} 
-                      fill={
-                        entry.isHighest ? '#EF4444' : 
-                        entry.isLowest ? '#64748B' :
-                        entry.amount > metrics.avgMonthlySpending ? '#F59E0B' : '#10B981'
-                      } 
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <ChartErrorBoundary chartName="Monthly Spending Pattern" onRetry={fetchYearlyBreakdown}>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend />
+                  
+                  {/* Average spending line */}
+                  <ReferenceLine 
+                    y={metrics.avgMonthlySpending} 
+                    stroke="#10B981"
+                    strokeDasharray="5 5"
+                    label={{ value: "Average", position: "topRight" }}
+                  />
+                  
+                  <Bar dataKey="amount" name="Monthly Spending">
+                    {chartData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={
+                          entry.isHighest ? '#EF4444' : 
+                          entry.isLowest ? '#64748B' :
+                          entry.amount > metrics.avgMonthlySpending ? '#F59E0B' : '#10B981'
+                        } 
+                      />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartErrorBoundary>
           </CardContent>
         </Card>
 
@@ -252,38 +340,40 @@ const MonthlyYearlyView = ({ selectedYear }) => {
             <CardTitle>Monthly Trends & Comparisons</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip 
-                  formatter={(value, name) => [
-                    name === 'amount' ? formatCurrency(value) : value,
-                    name === 'amount' ? 'Spending' : 'Expenses'
-                  ]}
-                />
-                <Legend />
-                
-                <Line
-                  type="monotone"
-                  dataKey="amount"
-                  stroke="#3B82F6"
-                  strokeWidth={3}
-                  name="Monthly Spending"
-                  dot={{ r: 6 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="expenses"
-                  stroke="#8B5CF6"
-                  strokeWidth={2}
-                  name="Number of Expenses"
-                  yAxisId="right"
-                  dot={{ r: 4 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <ChartErrorBoundary chartName="Monthly Trends" onRetry={fetchYearlyBreakdown}>
+              <ResponsiveContainer width="100%" height={350}>
+                <LineChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip 
+                    formatter={(value, name) => [
+                      name === 'amount' ? formatCurrency(value) : value,
+                      name === 'amount' ? 'Spending' : 'Expenses'
+                    ]}
+                  />
+                  <Legend />
+                  
+                  <Line
+                    type="monotone"
+                    dataKey="amount"
+                    stroke="#3B82F6"
+                    strokeWidth={3}
+                    name="Monthly Spending"
+                    dot={{ r: 6 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="expenses"
+                    stroke="#8B5CF6"
+                    strokeWidth={2}
+                    name="Number of Expenses"
+                    yAxisId="right"
+                    dot={{ r: 4 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </ChartErrorBoundary>
           </CardContent>
         </Card>
       </div>
@@ -359,6 +449,8 @@ const MonthlyYearlyView = ({ selectedYear }) => {
       </Card>
     </div>
   );
-};
+});
+
+MonthlyYearlyView.displayName = 'MonthlyYearlyView';
 
 export default MonthlyYearlyView;

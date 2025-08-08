@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
+import AnalyticsErrorFallback from './AnalyticsErrorFallback';
+import ChartErrorBoundary from './ChartErrorBoundary';
 import {
   Brain,
   AlertTriangle,
@@ -24,7 +26,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '../utils/currency';
 
-const InsightsDashboard = () => {
+const InsightsDashboard = React.memo(() => {
   const { apiCall, user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -47,14 +49,120 @@ const InsightsDashboard = () => {
       const response = await apiCall(`/analytics/insights?limit=20${forceRefresh ? '&refresh=true' : ''}`);
       if (response.insights) {
         setInsightsData(response);
+      } else {
+        // Fallback: generate basic insights from expense data
+        console.warn('Insights function not available, using fallback...');
+        await generateBasicInsights();
       }
     } catch (err) {
-      setError('Failed to fetch insights data');
-      console.error('Insights error:', err);
+      // Try fallback approach
+      try {
+        console.warn('Primary insights API failed, generating basic insights...');
+        await generateBasicInsights();
+      } catch (fallbackErr) {
+        setError('Failed to fetch insights data');
+        console.error('Insights error:', err, fallbackErr);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
+  };
+
+  const generateBasicInsights = async () => {
+    // Get recent expenses for analysis
+    const expensesResponse = await apiCall('/expenses?limit=100');
+    if (!expensesResponse.expenses) {
+      setError('No data available for insights');
+      return;
+    }
+
+    const expenses = expensesResponse.expenses;
+    const insights = {
+      critical: [],
+      alerts: [],
+      warnings: [],
+      recommendations: []
+    };
+
+    // Generate basic insights
+    const currentMonth = new Date().getMonth();
+    const currentMonthExpenses = expenses.filter(e => 
+      new Date(e.expense_date).getMonth() === currentMonth
+    );
+    
+    const currentMonthTotal = currentMonthExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+    const averageExpense = currentMonthExpenses.length > 0 ? 
+      currentMonthTotal / currentMonthExpenses.length : 0;
+
+    // Budget check insight
+    if (currentMonthTotal > 50000) { // Default budget
+      insights.critical.push({
+        id: 'budget-exceeded',
+        title: 'Monthly Budget Alert',
+        description: `Current month spending (₹${currentMonthTotal.toLocaleString()}) may exceed your budget.`,
+        severity: 'critical',
+        category: 'budget_management',
+        actionRequired: true,
+        metadata: { amount: currentMonthTotal }
+      });
+    }
+
+    // High spending pattern
+    if (averageExpense > 5000) {
+      insights.warnings.push({
+        id: 'high-avg-spending',
+        title: 'High Average Spending',
+        description: `Your average expense this month is ₹${averageExpense.toFixed(0)}, which is higher than typical.`,
+        severity: 'warning',
+        category: 'spending_pattern',
+        metadata: { average: averageExpense }
+      });
+    }
+
+    // Category analysis
+    const categoryTotals = {};
+    currentMonthExpenses.forEach(expense => {
+      const category = expense.category_name || 'Uncategorized';
+      categoryTotals[category] = (categoryTotals[category] || 0) + parseFloat(expense.amount);
+    });
+
+    const topCategory = Object.entries(categoryTotals).reduce((max, [cat, amount]) => 
+      amount > max.amount ? { category: cat, amount } : max, 
+      { category: '', amount: 0 }
+    );
+
+    if (topCategory.amount > currentMonthTotal * 0.4) {
+      insights.alerts.push({
+        id: 'category-dominance',
+        title: `High ${topCategory.category} Spending`,
+        description: `${topCategory.category} accounts for ${((topCategory.amount/currentMonthTotal)*100).toFixed(1)}% of monthly spending.`,
+        severity: 'alert',
+        category: 'category_analysis',
+        metadata: { category: topCategory.category, percentage: (topCategory.amount/currentMonthTotal)*100 }
+      });
+    }
+
+    // General recommendation
+    insights.recommendations.push({
+      id: 'general-tip',
+      title: 'Spending Review',
+      description: 'Consider reviewing your expense categories to identify potential savings opportunities.',
+      severity: 'info',
+      category: 'general_advice',
+      metadata: { totalExpenses: expenses.length }
+    });
+
+    setInsightsData({
+      insights,
+      summary: {
+        totalInsights: Object.values(insights).flat().length,
+        criticalCount: insights.critical.length,
+        alertCount: insights.alerts.length,
+        warningCount: insights.warnings.length
+      }
+    });
+    setError(''); // Clear error since fallback worked
   };
 
   const handleRefresh = () => {
@@ -110,7 +218,7 @@ const InsightsDashboard = () => {
     }
   };
 
-  const InsightCard = ({ insight, showMetadata = false }) => (
+  const InsightCard = useCallback(({ insight, showMetadata = false }) => (
     <Card className={`transition-all duration-300 hover:shadow-md ${getSeverityColor(insight.severity)}`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
@@ -173,7 +281,7 @@ const InsightsDashboard = () => {
         </div>
       </CardContent>
     </Card>
-  );
+  ), []);
 
   if (loading) {
     return (
@@ -186,10 +294,12 @@ const InsightsDashboard = () => {
 
   if (error) {
     return (
-      <Alert>
-        <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>{error}</AlertDescription>
-      </Alert>
+      <AnalyticsErrorFallback
+        error={{ message: error }}
+        onRetry={() => fetchInsights(false)}
+        componentName="AI Insights"
+        showDatabaseSetupHelp={true}
+      />
     );
   }
 
@@ -203,6 +313,15 @@ const InsightsDashboard = () => {
   }
 
   const { insights, summary } = insightsData;
+
+  // Ensure insights object has all required arrays
+  const safeInsights = {
+    critical: insights?.critical || [],
+    alerts: insights?.alerts || [],
+    warnings: insights?.warnings || [],
+    recommendations: insights?.recommendations || [],
+    systemwide: insights?.systemwide || []
+  };
 
   return (
     <div className="space-y-6">
@@ -302,7 +421,7 @@ const InsightsDashboard = () => {
             </Card>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {[...insights.critical, ...insights.alerts, ...insights.warnings, ...insights.recommendations]
+              {[...safeInsights.critical, ...safeInsights.alerts, ...safeInsights.warnings, ...safeInsights.recommendations]
                 .sort((a, b) => {
                   const severityOrder = { critical: 1, alert: 2, warning: 3, info: 4 };
                   if (severityOrder[a.severity] !== severityOrder[b.severity]) {
@@ -319,7 +438,7 @@ const InsightsDashboard = () => {
         </TabsContent>
 
         <TabsContent value="critical" className="space-y-4">
-          {insights.critical.length === 0 ? (
+          {safeInsights.critical.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <AlertTriangle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -329,7 +448,7 @@ const InsightsDashboard = () => {
             </Card>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {insights.critical.map((insight) => (
+              {safeInsights.critical.map((insight) => (
                 <InsightCard key={insight.id} insight={insight} showMetadata={true} />
               ))}
             </div>
@@ -337,7 +456,7 @@ const InsightsDashboard = () => {
         </TabsContent>
 
         <TabsContent value="alerts" className="space-y-4">
-          {insights.alerts.length === 0 ? (
+          {safeInsights.alerts.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -347,7 +466,7 @@ const InsightsDashboard = () => {
             </Card>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {insights.alerts.map((insight) => (
+              {safeInsights.alerts.map((insight) => (
                 <InsightCard key={insight.id} insight={insight} showMetadata={true} />
               ))}
             </div>
@@ -355,7 +474,7 @@ const InsightsDashboard = () => {
         </TabsContent>
 
         <TabsContent value="warnings" className="space-y-4">
-          {insights.warnings.length === 0 ? (
+          {safeInsights.warnings.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <Info className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -365,7 +484,7 @@ const InsightsDashboard = () => {
             </Card>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {insights.warnings.map((insight) => (
+              {safeInsights.warnings.map((insight) => (
                 <InsightCard key={insight.id} insight={insight} showMetadata={true} />
               ))}
             </div>
@@ -373,7 +492,7 @@ const InsightsDashboard = () => {
         </TabsContent>
 
         <TabsContent value="recommendations" className="space-y-4">
-          {insights.recommendations.length === 0 ? (
+          {safeInsights.recommendations.length === 0 ? (
             <Card>
               <CardContent className="p-8 text-center">
                 <Lightbulb className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -383,7 +502,7 @@ const InsightsDashboard = () => {
             </Card>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {insights.recommendations.map((insight) => (
+              {safeInsights.recommendations.map((insight) => (
                 <InsightCard key={insight.id} insight={insight} showMetadata={true} />
               ))}
             </div>
@@ -392,7 +511,7 @@ const InsightsDashboard = () => {
       </Tabs>
 
       {/* System-wide Insights for Admins */}
-      {isAdmin && insights.systemwide && insights.systemwide.length > 0 && (
+      {isAdmin && safeInsights.systemwide && safeInsights.systemwide.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -402,7 +521,7 @@ const InsightsDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {insights.systemwide.map((insight) => (
+              {safeInsights.systemwide.map((insight) => (
                 <InsightCard key={insight.id} insight={insight} showMetadata={true} />
               ))}
             </div>
@@ -411,6 +530,6 @@ const InsightsDashboard = () => {
       )}
     </div>
   );
-};
+});
 
 export default InsightsDashboard;

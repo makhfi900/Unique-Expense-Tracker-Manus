@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import AnalyticsErrorFallback from './AnalyticsErrorFallback';
+import ChartErrorBoundary from './ChartErrorBoundary';
 import {
   Select,
   SelectContent,
@@ -39,71 +41,227 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '../utils/currency';
 
-const YearComparisonView = () => {
+const YearComparisonView = React.memo(() => {
   const { apiCall } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [comparisonData, setComparisonData] = useState(null);
   const [availableYears, setAvailableYears] = useState([]);
-
+  
+  // FIXED: Initialize with explicit state to avoid blank page on mount
   const currentYear = new Date().getFullYear();
   const [baseYear, setBaseYear] = useState(currentYear - 1);
   const [compareYear, setCompareYear] = useState(currentYear);
+  const [hasInitialized, setHasInitialized] = useState(false);
 
   useEffect(() => {
-    fetchAvailableYears();
+    const initializeComponent = async () => {
+      await fetchAvailableYears();
+      setHasInitialized(true);
+    };
+    initializeComponent();
   }, []);
 
   useEffect(() => {
-    if (baseYear && compareYear && baseYear !== compareYear) {
+    // FIXED: Auto-fetch data when component initializes with valid default years
+    if (hasInitialized && baseYear && compareYear && baseYear !== compareYear) {
       fetchComparisonData();
     }
-  }, [baseYear, compareYear]);
+  }, [baseYear, compareYear, hasInitialized]);
 
   const fetchAvailableYears = async () => {
     try {
+      console.log('Fetching available years...');
       const response = await apiCall('/analytics/available-years');
       if (response.years) {
         setAvailableYears(response.years);
+        console.log('Available years loaded:', response.years.length);
+      } else {
+        console.warn('No years data in response:', response);
+        // Set a default year range if no data
+        const currentYear = new Date().getFullYear();
+        setAvailableYears([
+          { year: currentYear - 1, total_amount: 0 },
+          { year: currentYear, total_amount: 0 }
+        ]);
       }
     } catch (err) {
       console.error('Failed to fetch available years:', err);
+      // Fallback: provide current and previous year
+      const currentYear = new Date().getFullYear();
+      setAvailableYears([
+        { year: currentYear - 1, total_amount: 0 },
+        { year: currentYear, total_amount: 0 }
+      ]);
+      // Don't set error state here to allow component to work with fallback data
     }
   };
 
   const fetchComparisonData = async () => {
+    if (!baseYear || !compareYear || baseYear === compareYear) {
+      console.log('Skipping fetch: invalid year selection');
+      return;
+    }
+    
+    console.log(`Fetching comparison data: ${baseYear} vs ${compareYear}`);
     setLoading(true);
     setError('');
     try {
       const response = await apiCall(`/analytics/year-comparison?base_year=${baseYear}&compare_year=${compareYear}`);
-      if (response.monthlyComparison) {
+      if (response && response.monthlyComparison) {
+        console.log('Comparison data loaded successfully');
         setComparisonData(response);
+      } else {
+        // Fallback: fetch data for both years separately
+        console.warn('Year comparison function not available, using fallback...');
+        await fetchComparisonFallback();
       }
     } catch (err) {
-      setError('Failed to fetch comparison data');
-      console.error('Year comparison error:', err);
+      console.error('Primary API failed:', err);
+      // Try fallback approach
+      try {
+        console.warn('Trying fallback approach...');
+        await fetchComparisonFallback();
+      } catch (fallbackErr) {
+        console.error('Fallback also failed:', fallbackErr);
+        setError(`Unable to load year comparison data. This may indicate missing database functions. Error: ${err.message || err}`);
+      }
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchComparisonFallback = async () => {
+    // Fetch expenses for both years
+    const [baseYearResponse, compareYearResponse] = await Promise.all([
+      apiCall(`/expenses?start_date=${baseYear}-01-01&end_date=${baseYear}-12-31`),
+      apiCall(`/expenses?start_date=${compareYear}-01-01&end_date=${compareYear}-12-31`)
+    ]);
+
+    if (baseYearResponse.expenses || compareYearResponse.expenses) {
+      const baseExpenses = baseYearResponse.expenses || [];
+      const compareExpenses = compareYearResponse.expenses || [];
+      
+      const comparisonData = generateComparisonFallback(baseExpenses, compareExpenses);
+      setComparisonData({
+        monthlyComparison: comparisonData,
+        summary: {
+          baseYearTotal: baseExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0),
+          compareYearTotal: compareExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+        }
+      });
+      setError(''); // Clear error since fallback worked
+    } else {
+      setError(`No data available for ${baseYear} or ${compareYear}`);
+    }
+  };
+
+  const generateComparisonFallback = (baseExpenses, compareExpenses) => {
+    const baseMonthly = groupExpensesByMonth(baseExpenses);
+    const compareMonthly = groupExpensesByMonth(compareExpenses);
+    
+    const comparison = [];
+    
+    for (let month = 1; month <= 12; month++) {
+      const baseAmount = baseMonthly[month] || 0;
+      const compareAmount = compareMonthly[month] || 0;
+      const difference = compareAmount - baseAmount;
+      const percentageChange = baseAmount > 0 ? (difference / baseAmount) * 100 : 0;
+      
+      comparison.push({
+        month,
+        month_name: new Date(2000, month - 1, 1).toLocaleDateString('en-US', { month: 'long' }),
+        month_short: new Date(2000, month - 1, 1).toLocaleDateString('en-US', { month: 'short' }),
+        base_year_amount: baseAmount,
+        compare_year_amount: compareAmount,
+        amount_difference: difference,
+        amount_percentage_change: percentageChange,
+        status: difference > 0 ? 'increased' : difference < 0 ? 'decreased' : 'unchanged',
+        trend_direction: percentageChange > 10 ? 'up' : percentageChange < -10 ? 'down' : 'stable'
+      });
+    }
+    
+    return comparison;
+  };
+
+  const groupExpensesByMonth = (expenses) => {
+    const monthly = {};
+    expenses.forEach(expense => {
+      const month = new Date(expense.expense_date).getMonth() + 1;
+      monthly[month] = (monthly[month] || 0) + parseFloat(expense.amount);
+    });
+    return monthly;
   };
 
   const handleRefresh = () => {
     fetchComparisonData();
   };
 
-  if (!comparisonData && !loading && !error) {
-    return (
-      <div className="space-y-6">
-        <YearSelector />
-        <Alert>
-          <AlertDescription>
-            Select two different years to view comparison analysis.
-          </AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
+  // Debug: Add console logging to help identify blank page issues
+  React.useEffect(() => {
+    console.log('YearComparisonView Debug:', {
+      loading,
+      error,
+      comparisonData: !!comparisonData,
+      availableYears: availableYears.length,
+      baseYear,
+      compareYear,
+      hasInitialized,
+      willFetchData: hasInitialized && baseYear && compareYear && baseYear !== compareYear
+    });
+  }, [loading, error, comparisonData, availableYears, baseYear, compareYear, hasInitialized]);
 
+  // FIXED: ALL HOOKS MUST BE CALLED BEFORE CONDITIONAL RETURNS
+  // Prepare chart data with memoization - moved to top to fix hooks order
+  const chartData = useMemo(() => {
+    if (!comparisonData || !comparisonData.monthlyComparison) return [];
+    return comparisonData.monthlyComparison.map(month => ({
+      month: month.month_short,
+      baseYear: parseFloat(month.base_year_amount || 0),
+      compareYear: parseFloat(month.compare_year_amount || 0),
+      difference: parseFloat(month.amount_difference || 0),
+      percentageChange: parseFloat(month.amount_percentage_change || 0),
+      significance: month.significance_level,
+      trend: month.trend_direction,
+      status: month.status
+    }));
+  }, [comparisonData]);
+
+  // Custom tooltip for comparison chart - memoized - moved to top
+  const ComparisonTooltip = useCallback(({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-white p-4 border rounded-lg shadow-lg">
+          <p className="font-semibold text-lg">{label}</p>
+          <div className="space-y-2 mt-2">
+            <p className="text-blue-600">
+              <span className="font-medium">{baseYear}:</span> {formatCurrency(data.baseYear)}
+            </p>
+            <p className="text-green-600">
+              <span className="font-medium">{compareYear}:</span> {formatCurrency(data.compareYear)}
+            </p>
+            <p className={`font-semibold ${data.difference >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+              <span className="font-medium">Difference:</span> {data.difference >= 0 ? '+' : ''}{formatCurrency(data.difference)}
+            </p>
+            <p className={`${Math.abs(data.percentageChange) > 10 ? 'font-bold' : ''} ${data.percentageChange >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+              <span className="font-medium">Change:</span> {data.percentageChange >= 0 ? '+' : ''}{data.percentageChange.toFixed(1)}%
+            </p>
+            <Badge variant={
+              data.significance === 'very_high' ? 'destructive' :
+              data.significance === 'high' ? 'destructive' :
+              data.significance === 'medium' ? 'default' : 'secondary'
+            }>
+              {data.significance?.replace('_', ' ')} significance
+            </Badge>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }, [baseYear, compareYear]);
+
+  // FIXED: Define YearSelector component BEFORE it's used to avoid hoisting error
   const YearSelector = () => (
     <Card>
       <CardHeader>
@@ -181,6 +339,21 @@ const YearComparisonView = () => {
     </Card>
   );
 
+  // Early return conditions after YearSelector is defined
+  // FIXED: Only show "select years" message if years are the same, not when data is loading
+  if (baseYear === compareYear) {
+    return (
+      <div className="space-y-6">
+        <YearSelector />
+        <Alert>
+          <AlertDescription>
+            Please select two different years to view comparison analysis.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="space-y-6">
@@ -194,71 +367,37 @@ const YearComparisonView = () => {
   }
 
   if (error) {
+    console.log('Rendering error state:', error);
+    return (
+      <div className="space-y-6">
+        <YearSelector />
+        <AnalyticsErrorFallback
+          error={{ message: error }}
+          onRetry={fetchComparisonData}
+          componentName="Year Comparison"
+          showDatabaseSetupHelp={true}
+        />
+      </div>
+    );
+  }
+
+  // FIXED: Provide better feedback when no comparison data is available
+  if (!comparisonData) {
     return (
       <div className="space-y-6">
         <YearSelector />
         <Alert>
-          <AlertDescription>{error}</AlertDescription>
+          <AlertDescription>
+            No comparison data available for {baseYear} vs {compareYear}. 
+            Try selecting different years or ensure you have expense data for both years.
+          </AlertDescription>
         </Alert>
       </div>
     );
   }
 
-  if (!comparisonData) {
-    return (
-      <div className="space-y-6">
-        <YearSelector />
-      </div>
-    );
-  }
-
-  const { monthlyComparison, summary, categoryComparison } = comparisonData;
-
-  // Prepare chart data
-  const chartData = monthlyComparison.map(month => ({
-    month: month.month_short,
-    baseYear: parseFloat(month.base_year_amount || 0),
-    compareYear: parseFloat(month.compare_year_amount || 0),
-    difference: parseFloat(month.amount_difference || 0),
-    percentageChange: parseFloat(month.amount_percentage_change || 0),
-    significance: month.significance_level,
-    trend: month.trend_direction,
-    status: month.status
-  }));
-
-  // Custom tooltip for comparison chart
-  const ComparisonTooltip = ({ active, payload, label }) => {
-    if (active && payload && payload.length) {
-      const data = payload[0].payload;
-      return (
-        <div className="bg-white p-4 border rounded-lg shadow-lg">
-          <p className="font-semibold text-lg">{label}</p>
-          <div className="space-y-2 mt-2">
-            <p className="text-blue-600">
-              <span className="font-medium">{baseYear}:</span> {formatCurrency(data.baseYear)}
-            </p>
-            <p className="text-green-600">
-              <span className="font-medium">{compareYear}:</span> {formatCurrency(data.compareYear)}
-            </p>
-            <p className={`font-semibold ${data.difference >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-              <span className="font-medium">Difference:</span> {data.difference >= 0 ? '+' : ''}{formatCurrency(data.difference)}
-            </p>
-            <p className={`${Math.abs(data.percentageChange) > 10 ? 'font-bold' : ''} ${data.percentageChange >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-              <span className="font-medium">Change:</span> {data.percentageChange >= 0 ? '+' : ''}{data.percentageChange.toFixed(1)}%
-            </p>
-            <Badge variant={
-              data.significance === 'very_high' ? 'destructive' :
-              data.significance === 'high' ? 'destructive' :
-              data.significance === 'medium' ? 'default' : 'secondary'
-            }>
-              {data.significance.replace('_', ' ')} significance
-            </Badge>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
+  // Data destructuring after hooks are called
+  const { monthlyComparison, summary, categoryComparison } = comparisonData || {};
 
   return (
     <div className="space-y-6">
@@ -351,8 +490,9 @@ const YearComparisonView = () => {
             <CardTitle>Monthly Spending Comparison</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <ComposedChart data={chartData}>
+            <ChartErrorBoundary chartName="Monthly Spending Comparison" onRetry={fetchComparisonData}>
+              <ResponsiveContainer width="100%" height={350}>
+                <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
@@ -381,8 +521,9 @@ const YearComparisonView = () => {
                   yAxisId="right"
                   dot={{ r: 6 }}
                 />
-              </ComposedChart>
-            </ResponsiveContainer>
+                </ComposedChart>
+              </ResponsiveContainer>
+            </ChartErrorBoundary>
           </CardContent>
         </Card>
 
@@ -392,8 +533,9 @@ const YearComparisonView = () => {
             <CardTitle>Percentage Change Analysis</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={chartData}>
+            <ChartErrorBoundary chartName="Percentage Change Analysis" onRetry={fetchComparisonData}>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
                 <YAxis />
@@ -418,8 +560,9 @@ const YearComparisonView = () => {
                     />
                   ))}
                 </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartErrorBoundary>
           </CardContent>
         </Card>
       </div>
@@ -491,6 +634,6 @@ const YearComparisonView = () => {
       )}
     </div>
   );
-};
+});
 
 export default YearComparisonView;

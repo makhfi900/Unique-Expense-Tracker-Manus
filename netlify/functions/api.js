@@ -983,6 +983,148 @@ const routes = {
       body: csvData,
     };
   },
+
+  // =====================================================
+  // BUDGET SETTINGS ROUTES
+  // =====================================================
+
+  // Get user budget settings
+  'GET /budget/settings': async (body, user, params, query) => {
+    if (!user) {
+      return { statusCode: 401, body: { error: 'Authentication required' } };
+    }
+
+    try {
+      // First try to get existing settings
+      const { data: settings, error } = await supabaseAdmin
+        .from('user_budget_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Budget settings fetch error:', error);
+        return { statusCode: 500, body: { error: 'Failed to fetch budget settings' } };
+      }
+
+      // If no settings exist, return default ones
+      if (!settings) {
+        return {
+          statusCode: 200,
+          body: {
+            settings: {
+              monthly_budget: 50000,
+              warning_threshold: 0.8,
+              emergency_threshold: 0.95,
+              currency_code: 'INR'
+            }
+          }
+        };
+      }
+
+      return { statusCode: 200, body: { settings } };
+    } catch (error) {
+      console.error('Budget settings error:', error);
+      return { statusCode: 500, body: { error: 'Internal server error' } };
+    }
+  },
+
+  // Update user budget settings
+  'PUT /budget/settings': async (body, user, params, query) => {
+    if (!user) {
+      return { statusCode: 401, body: { error: 'Authentication required' } };
+    }
+
+    try {
+      const {
+        monthly_budget,
+        warning_threshold,
+        emergency_threshold,
+        currency_code
+      } = body;
+
+      // Validate input
+      if (!monthly_budget || monthly_budget <= 0) {
+        return { statusCode: 400, body: { error: 'Monthly budget must be greater than 0' } };
+      }
+
+      if (warning_threshold !== undefined && (warning_threshold < 0 || warning_threshold > 1)) {
+        return { statusCode: 400, body: { error: 'Warning threshold must be between 0 and 1' } };
+      }
+
+      if (emergency_threshold !== undefined && (emergency_threshold < 0 || emergency_threshold > 1)) {
+        return { statusCode: 400, body: { error: 'Emergency threshold must be between 0 and 1' } };
+      }
+
+      if (warning_threshold && emergency_threshold && warning_threshold >= emergency_threshold) {
+        return { statusCode: 400, body: { error: 'Warning threshold must be less than emergency threshold' } };
+      }
+
+      // Try to update existing settings or insert new ones
+      const { data: settings, error } = await supabaseAdmin
+        .from('user_budget_settings')
+        .upsert({
+          user_id: user.id,
+          monthly_budget,
+          warning_threshold: warning_threshold || 0.8,
+          emergency_threshold: emergency_threshold || 0.95,
+          currency_code: currency_code || 'INR',
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Budget settings update error:', error);
+        return { statusCode: 500, body: { error: 'Failed to update budget settings' } };
+      }
+
+      return {
+        statusCode: 200,
+        body: {
+          success: true,
+          message: 'Budget settings updated successfully',
+          settings
+        }
+      };
+    } catch (error) {
+      console.error('Budget settings update error:', error);
+      return { statusCode: 500, body: { error: 'Internal server error' } };
+    }
+  },
+
+  // Delete user budget settings (reset to defaults)
+  'DELETE /budget/settings': async (body, user, params, query) => {
+    if (!user) {
+      return { statusCode: 401, body: { error: 'Authentication required' } };
+    }
+
+    try {
+      const { error } = await supabaseAdmin
+        .from('user_budget_settings')
+        .update({ is_active: false })
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error('Budget settings delete error:', error);
+        return { statusCode: 500, body: { error: 'Failed to reset budget settings' } };
+      }
+
+      return {
+        statusCode: 200,
+        body: {
+          success: true,
+          message: 'Budget settings reset to defaults'
+        }
+      };
+    } catch (error) {
+      console.error('Budget settings delete error:', error);
+      return { statusCode: 500, body: { error: 'Internal server error' } };
+    }
+  },
 };
 
 // Helper function to parse user agent

@@ -1,232 +1,415 @@
-# CLAUDE.md
+# Claude Code Configuration - SPARC Development Environment (Batchtools Optimized)
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 🚨 CRITICAL: CONCURRENT EXECUTION FOR ALL ACTIONS
 
-## Development Commands
+**ABSOLUTE RULE**: ALL operations MUST be concurrent/parallel in a single message:
 
-### Installation
-```bash
-# Install all dependencies (root and frontend)
-npm run install-all
+### 🔴 MANDATORY CONCURRENT PATTERNS:
+1. **TodoWrite**: ALWAYS batch ALL todos in ONE call (5-10+ todos minimum)
+2. **Task tool**: ALWAYS spawn ALL agents in ONE message with full instructions
+3. **File operations**: ALWAYS batch ALL reads/writes/edits in ONE message
+4. **Bash commands**: ALWAYS batch ALL terminal operations in ONE message
+5. **Memory operations**: ALWAYS batch ALL memory store/retrieve in ONE message
 
-# Install frontend dependencies only
-cd frontend && pnpm install
+### ⚡ GOLDEN RULE: "1 MESSAGE = ALL RELATED OPERATIONS"
+
+**Examples of CORRECT concurrent execution:**
+```javascript
+// ✅ CORRECT: Everything in ONE message
+[Single Message]:
+  - TodoWrite { todos: [10+ todos with all statuses/priorities] }
+  - Task("Agent 1 with full instructions and hooks")
+  - Task("Agent 2 with full instructions and hooks")
+  - Task("Agent 3 with full instructions and hooks")
+  - Read("file1.js")
+  - Read("file2.js")
+  - Write("output1.js", content)
+  - Write("output2.js", content)
+  - Bash("npm install")
+  - Bash("npm test")
+  - Bash("npm run build")
 ```
 
-### Development
-```bash
-# Quick start - both API and frontend
-npm run dev:full
-
-# Or start separately:
-npm run api              # Start Express API server (port 3001)
-npm run dev:api          # Start API server with auto-reload
-npm run dev              # Start frontend only (port 5173)
-
-# Legacy Netlify development (for production testing)
-netlify dev
+**Examples of WRONG sequential execution:**
+```javascript
+// ❌ WRONG: Multiple messages (NEVER DO THIS)
+Message 1: TodoWrite { todos: [single todo] }
+Message 2: Task("Agent 1")
+Message 3: Task("Agent 2")
+Message 4: Read("file1.js")
+Message 5: Write("output1.js")
+Message 6: Bash("npm install")
+// This is 6x slower and breaks coordination!
 ```
 
-### Build and Deploy
+## Project Overview
+This project uses the SPARC (Specification, Pseudocode, Architecture, Refinement, Completion) methodology for systematic Test-Driven Development with AI assistance through Claude-Flow orchestration.
+
+## SPARC Development Commands
+
+### Core SPARC Commands
+- `npx claude-flow sparc modes`: List all available SPARC development modes
+- `npx claude-flow sparc run <mode> "<task>"`: Execute specific SPARC mode for a task
+- `npx claude-flow sparc tdd "<feature>"`: Run complete TDD workflow using SPARC methodology
+- `npx claude-flow sparc info <mode>`: Get detailed information about a specific mode
+
+### Batchtools Commands (Optimized)
+- `npx claude-flow sparc batch <modes> "<task>"`: Execute multiple SPARC modes in parallel
+- `npx claude-flow sparc pipeline "<task>"`: Execute full SPARC pipeline with parallel processing
+- `npx claude-flow sparc concurrent <mode> "<tasks-file>"`: Process multiple tasks concurrently
+
+### Standard Build Commands
+- `npm run build`: Build the project
+- `npm run test`: Run the test suite
+- `npm run lint`: Run linter and format checks
+- `npm run typecheck`: Run TypeScript type checking
+
+## 🚀 CRITICAL: Claude Code Does ALL Real Work
+
+### 🎯 CLAUDE CODE IS THE ONLY EXECUTOR
+
+**ABSOLUTE RULE**: Claude Code performs ALL actual work:
+
+### ✅ Claude Code ALWAYS Handles:
+- 🔧 **ALL file operations** (Read, Write, Edit, MultiEdit, Glob, Grep)
+- 💻 **ALL code generation** and programming tasks
+- 🖥️ **ALL bash commands** and system operations
+- 🏗️ **ALL actual implementation** work
+- 🔍 **ALL project navigation** and code analysis
+- 📝 **ALL TodoWrite** and task management
+- 🔄 **ALL git operations** (commit, push, merge)
+- 📦 **ALL package management** (npm, pip, etc.)
+- 🧪 **ALL testing** and validation
+- 🔧 **ALL debugging** and troubleshooting
+
+### 🧠 Claude Flow MCP Tools ONLY Handle:
+- 🎯 **Coordination only** - Planning Claude Code's actions
+- 💾 **Memory management** - Storing decisions and context
+- 🤖 **Neural features** - Learning from Claude Code's work
+- 📊 **Performance tracking** - Monitoring Claude Code's efficiency
+- 🐝 **Swarm orchestration** - Coordinating multiple Claude Code instances
+- 🔗 **GitHub integration** - Advanced repository coordination
+
+### 🔄 WORKFLOW EXECUTION PATTERN:
+
+**✅ CORRECT Workflow:**
+1. **MCP**: `mcp__claude-flow__swarm_init` (coordination setup)
+2. **MCP**: `mcp__claude-flow__agent_spawn` (planning agents)
+3. **MCP**: `mcp__claude-flow__task_orchestrate` (task coordination)
+4. **Claude Code**: `Task` tool to spawn agents with coordination instructions
+5. **Claude Code**: `TodoWrite` with ALL todos batched (5-10+ in ONE call)
+6. **Claude Code**: `Read`, `Write`, `Edit`, `Bash` (actual work)
+7. **MCP**: `mcp__claude-flow__memory_usage` (store results)
+
+## 🚀 Quick Setup (Stdio MCP - Recommended)
+
+### 1. Add MCP Server (Stdio - No Port Needed)
 ```bash
-# Build frontend for production
-npm run build
-
-# Lint frontend code
-cd frontend && pnpm run lint
-
-# Preview production build locally
-cd frontend && pnpm run preview
+# Add Claude Flow MCP server to Claude Code using stdio
+claude mcp add claude-flow npx claude-flow@alpha mcp start
 ```
 
-### Database Setup
+### 2. Use MCP Tools for Coordination in Claude Code
+Once configured, Claude Flow MCP tools enhance Claude Code's coordination:
+
+**Initialize a swarm:**
+- Use the `mcp__claude-flow__swarm_init` tool to set up coordination topology
+- Choose: mesh, hierarchical, ring, or star
+- This creates a coordination framework for Claude Code's work
+
+**Spawn agents:**
+- Use `mcp__claude-flow__agent_spawn` tool to create specialized coordinators
+- Agent types represent different thinking patterns, not actual coders
+- They help Claude Code approach problems from different angles
+
+**Orchestrate tasks:**
+- Use `mcp__claude-flow__task_orchestrate` tool to coordinate complex workflows
+- This breaks down tasks for Claude Code to execute systematically
+- The agents don't write code - they coordinate Claude Code's actions
+
+## Available MCP Tools for Coordination
+
+### Coordination Tools:
+- `mcp__claude-flow__swarm_init` - Set up coordination topology for Claude Code
+- `mcp__claude-flow__agent_spawn` - Create cognitive patterns to guide Claude Code
+- `mcp__claude-flow__task_orchestrate` - Break down and coordinate complex tasks
+
+### Monitoring Tools:
+- `mcp__claude-flow__swarm_status` - Monitor coordination effectiveness
+- `mcp__claude-flow__agent_list` - View active cognitive patterns
+- `mcp__claude-flow__agent_metrics` - Track coordination performance
+- `mcp__claude-flow__task_status` - Check workflow progress
+- `mcp__claude-flow__task_results` - Review coordination outcomes
+
+### Memory & Neural Tools:
+- `mcp__claude-flow__memory_usage` - Persistent memory across sessions
+- `mcp__claude-flow__neural_status` - Neural pattern effectiveness
+- `mcp__claude-flow__neural_train` - Improve coordination patterns
+- `mcp__claude-flow__neural_patterns` - Analyze thinking approaches
+
+### GitHub Integration Tools (NEW!):
+- `mcp__claude-flow__github_swarm` - Create specialized GitHub management swarms
+- `mcp__claude-flow__repo_analyze` - Deep repository analysis with AI
+- `mcp__claude-flow__pr_enhance` - AI-powered pull request improvements
+- `mcp__claude-flow__issue_triage` - Intelligent issue classification
+- `mcp__claude-flow__code_review` - Automated code review with swarms
+
+### System Tools:
+- `mcp__claude-flow__benchmark_run` - Measure coordination efficiency
+- `mcp__claude-flow__features_detect` - Available capabilities
+- `mcp__claude-flow__swarm_monitor` - Real-time coordination tracking
+
+### Decentralized Autonomous Agents (DAA) Tools:
+- `mcp__claude-flow__daa_init` - Initialize DAA service
+- `mcp__claude-flow__daa_agent_create` - Create autonomous agent
+- `mcp__claude-flow__daa_agent_adapt` - Trigger agent adaptation
+- `mcp__claude-flow__daa_workflow_create` - Create autonomous workflow
+- `mcp__claude-flow__daa_workflow_execute` - Execute DAA workflow
+- `mcp__claude-flow__daa_knowledge_share` - Share knowledge between agents
+- `mcp__claude-flow__daa_learning_status` - Get learning progress
+- `mcp__claude-flow__daa_cognitive_pattern` - Analyze/change cognitive patterns
+- `mcp__claude-flow__daa_meta_learning` - Enable meta-learning capabilities
+- `mcp__claude-flow__daa_performance_metrics` - Get performance metrics
+
+## 🧠 SWARM ORCHESTRATION PATTERN
+
+### 🚨 CRITICAL INSTRUCTION: You are the SWARM ORCHESTRATOR
+
+**MANDATORY**: When using swarms, you MUST:
+1. **SPAWN ALL AGENTS IN ONE BATCH** - Use multiple tool calls in a SINGLE message
+2. **EXECUTE TASKS IN PARALLEL** - Never wait for one task before starting another
+3. **USE BATCHTOOL FOR EVERYTHING** - Multiple operations = Single message with multiple tools
+4. **ALL AGENTS MUST USE COORDINATION TOOLS** - Every spawned agent MUST use claude-flow hooks and memory
+
+### 🎯 AGENT COUNT CONFIGURATION
+
+**CRITICAL: Dynamic Agent Count Rules**
+1. **Check CLI Arguments First**: If user runs `npx claude-flow@alpha --agents 5`, use 5 agents
+2. **Auto-Decide if No Args**: Without CLI args, analyze task complexity:
+   - Simple tasks (1-3 components): 3-4 agents
+   - Medium tasks (4-6 components): 5-7 agents
+   - Complex tasks (7+ components): 8-12 agents
+3. **Agent Type Distribution**: Balance agent types based on task:
+   - Always include 1 task-orchestrator
+   - For code-heavy tasks: more coders
+   - For design tasks: more system-architects/code-analyzers
+   - For quality tasks: more testers/reviewers
+
+## 📋 MANDATORY AGENT COORDINATION PROTOCOL
+
+### 🔴 CRITICAL: Every Agent MUST Follow This Protocol
+
+When you spawn an agent using the Task tool, that agent MUST:
+
+**1️⃣ BEFORE Starting Work:**
 ```bash
-# IMPORTANT: Execute the database schema via Supabase dashboard in this order:
-
-# 1. Main Schema Setup:
-# File: database/supabase_auth_schema_fixed.sql
-# This includes complete schema, RLS policies, triggers, and test users
-
-# 2. Performance Optimizations (optional but recommended):
-# File: database/performance_optimizations.sql
-# This includes materialized views, composite indexes, and analytics functions
-
-# Steps to apply schema:
-# 1. Go to Supabase Dashboard → SQL Editor
-# 2. Copy contents of database/supabase_auth_schema_fixed.sql
-# 3. Paste and execute the SQL
-# 4. Copy contents of database/performance_optimizations.sql  
-# 5. Paste and execute the SQL
-# 6. Verify success messages in output
-# 7. Test creating users via Dashboard → Authentication → Users
-
-# Test Credentials (created by schema):
-# Admin: admin1@test.com / admin1
-# Officer: officer1@test.com / officer1
+# Check previous work and load context
+npx claude-flow@alpha hooks pre-task --description "[agent task]" --auto-spawn-agents false
+npx claude-flow@alpha hooks session-restore --session-id "swarm-[id]" --load-memory true
 ```
 
-## Project Architecture
-
-### Authentication System Evolution
-**IMPORTANT**: The application has migrated from custom JWT to Supabase Auth:
-- **Current Implementation**: Uses `SupabaseApp.jsx` and `SupabaseAuthContext.jsx`
-- **Legacy Implementation**: `App.jsx` and `AuthContext.jsx` (deprecated but preserved)
-- **Main Entry Point**: `frontend/src/main.jsx` imports `SupabaseApp.jsx`
-- **Backend Compatibility**: Express server maintains JWT endpoints for development testing
-
-### Dual-Environment Setup
-- **Development**: Express.js server for fast local development
-- **Production**: Netlify Functions for serverless deployment
-- **Environment Detection**: Automatic switching based on NODE_ENV
-
-### Frontend Structure
-- **React 19** with Vite build tool and React.lazy() for component lazy loading
-- **shadcn/ui** components with Radix UI primitives
-- **Tailwind CSS v4** with @tailwindcss/vite plugin for styling
-- **Context API** for state management (SupabaseAuthContext with analytics methods)
-- **React Router v7** for navigation (single-page app architecture)
-- **Recharts** for data visualization and analytics charts
-- **Performance Optimizations**: React.memo(), useMemo(), and Suspense for optimal rendering
-
-### Backend Architecture
-- **Development**: Express.js server (`api-server.js`) on port 3001
-- **Production**: Netlify Serverless Functions (`netlify/functions/api.js`)
-- **Database**: Supabase PostgreSQL with Row Level Security (RLS) and materialized views
-- **Authentication**: **Supabase Auth** (migrated from custom JWT) with automatic user profile creation
-- **API Architecture**: Identical endpoint logic in both Express and Netlify function implementations
-- **Environment Detection**: Automatic API_BASE_URL switching based on `import.meta.env.DEV`
-
-### Key Components
-- `frontend/src/SupabaseApp.jsx` - **Main app entry point** (Supabase Auth implementation)
-- `frontend/src/App.jsx` - Legacy app component (custom JWT - deprecated)
-- `frontend/src/main.jsx` - React root with SupabaseApp as primary component
-- `frontend/src/context/SupabaseAuthContext.jsx` - **Primary auth context** with analytics methods
-- `frontend/src/components/Dashboard.jsx` - Main dashboard with lazy-loaded tabbed interface
-- `frontend/src/lib/supabase.js` - Supabase client configuration
-- `netlify/functions/api.js` - All backend API routes in single serverless function
-- `api-server.js` - Express.js development server with identical API logic
-
-### Database Schema
-- **users** - User accounts linked to `auth.users` with role-based access (admin/account_officer)
-- **categories** - Expense categories with color coding, ownership tracking, and soft deletes
-- **expenses** - Expense records with foreign keys, constraints, and soft deletes (`is_active` flag)
-- **login_activities** - Login tracking for audit purposes with device/browser detection
-- **Schema Files**: 
-  - `database/supabase_auth_schema_fixed.sql` - Complete schema with RLS policies and test users
-  - `database/performance_optimizations.sql` - Materialized views and performance indexes
-- **Security**: Row Level Security (RLS) policies for role-based data access
-- **Performance**: Comprehensive indexes and materialized views for analytics
-
-### Analytics & Materialized Views
-- **Materialized Views**: Pre-computed analytics data for fast queries
-  - `mv_monthly_spending` - Monthly spending summaries by user/category
-  - `mv_daily_spending` - Daily spending trends for detailed analysis
-  - `mv_category_spending` - Category-wise spending breakdown with totals
-  - `mv_user_spending` - User-wise spending summaries and statistics
-- **Automatic Refresh**: Smart refresh after expense CREATE/UPDATE/DELETE operations
-  - Uses `smart_refresh_analytics()` function with 5-minute cooldown
-  - Prevents performance impact from excessive refreshes
-  - Graceful error handling - expense operations won't fail if refresh fails
-- **Manual Refresh**: `SELECT refresh_analytics_views(FALSE);` for immediate updates
-- **Performance Monitoring**: Built-in views for index usage and table sizes
-
-### Role-Based Access Control
-- **Admin**: Full system access, user management, analytics, category creation
-- **Account Officer**: Personal expense management with date-specific filtering
-
-### API Endpoint Structure
-All API routes are handled through `/.netlify/functions/api` with path-based routing:
-- `POST /auth/login` - User authentication
-- `GET|POST /users` - User management (Admin only)
-- `GET|POST|PUT /categories` - Category management
-- `GET|POST|PUT|DELETE /expenses` - Expense CRUD operations
-- `GET /analytics/*` - Analytics endpoints (Admin only)
-
-### Environment Variables Required
+**2️⃣ DURING Work (After EVERY Major Step):**
 ```bash
-# Backend/Development Environment
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
-JWT_SECRET=your_jwt_secret_key  # Legacy - used by Express server
+# Store progress in memory after each file operation
+npx claude-flow@alpha hooks post-edit --file "[filepath]" --memory-key "swarm/[agent]/[step]"
 
-# Frontend Environment (Vite)
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+# Store decisions and findings
+npx claude-flow@alpha hooks notify --message "[what was done]" --telemetry true
 
-# Production (Netlify)
-# Set same variables in Netlify Dashboard → Site Settings → Environment Variables
+# Check coordination with other agents
+npx claude-flow@alpha hooks pre-search --query "[what to check]" --cache-results true
 ```
 
-### Key Features Implementation
-- **CSV Import/Export**: Handled in `CSVImportExport.jsx` component
-- **Analytics**: Date-range filtering with Recharts visualizations
-- **Authentication**: Supabase Auth tokens with automatic session management and refresh
-- **Responsive Design**: Mobile-first approach with Tailwind breakpoints
+**3️⃣ AFTER Completing Work:**
+```bash
+# Save all results and learnings
+npx claude-flow@alpha hooks post-task --task-id "[task]" --analyze-performance true
+npx claude-flow@alpha hooks session-end --export-metrics true --generate-summary true
+```
 
-### Testing Accounts
-- Admin: admin1@test.com / admin1
-- Account Officer: officer1@test.com / officer1
+### 🎯 AGENT PROMPT TEMPLATE
 
-### TypeScript Configuration
-- **Frontend**: Configured with Vite TypeScript support
-- **Components**: JSX files with PropTypes for type checking
-- **API**: TypeScript-style JSDoc comments for better IDE support
+When spawning agents, ALWAYS include these coordination instructions:
+```
+You are the [Agent Type] agent in a coordinated swarm.
 
-### Package Managers
-- Root project: npm
-- Frontend: pnpm (configured via packageManager field)
+MANDATORY COORDINATION:
+1. START: Run `npx claude-flow@alpha hooks pre-task --description "[your task]"`
+2. DURING: After EVERY file operation, run `npx claude-flow@alpha hooks post-edit --file "[file]" --memory-key "agent/[step]"`
+3. MEMORY: Store ALL decisions using `npx claude-flow@alpha hooks notify --message "[decision]"`
+4. END: Run `npx claude-flow@alpha hooks post-task --task-id "[task]" --analyze-performance true`
 
-### Deployment
-- **Frontend**: Netlify static hosting from `frontend/dist`
-- **Backend**: Netlify Functions auto-deploy
-- **Database**: Supabase managed PostgreSQL
-- Build command: `cd frontend && pnpm install && pnpm run build`
-- Publish directory: `frontend/dist`
-- **Configuration**: `netlify.toml` handles redirects and CORS headers
+Your specific task: [detailed task description]
 
-### Troubleshooting & Common Issues
+REMEMBER: Coordinate with other agents by checking memory BEFORE making decisions!
+```
 
-#### **Analytics Showing Zero Values**
-- **Cause**: Materialized views need refreshing after new data is added
-- **Solution**: Run `SELECT refresh_analytics_views(FALSE);` in Supabase SQL Editor
-- **Prevention**: Automatic refresh is now implemented in expense operations
+## Available Agents (54 Total)
 
-#### **SelectItem "Blank Page on Filter" Error**
-- **Cause**: Radix UI SelectItem components cannot have empty string values
-- **Fixed**: Changed `<SelectItem value="">` to `<SelectItem value="all">` in OptimizedExpenseList.jsx
-- **Location**: `frontend/src/components/OptimizedExpenseList.jsx:392`
+### Core Development Agents
+- `coder` - Implementation specialist
+- `reviewer` - Code quality assurance
+- `tester` - Test creation and validation
+- `planner` - Strategic planning
+- `researcher` - Information gathering
 
-#### **Sample Data for Testing**
-- **Scripts Available**: 
-  - `tools/add-sample-expenses.js` - Adds diverse expense data across categories/dates
-  - `tools/add-sample-login-activity.js` - Adds login activity for audit testing
-  - `tools/create-demo-users.js` - Creates admin and officer demo accounts
+### Swarm Coordination Agents
+- `hierarchical-coordinator` - Queen-led coordination
+- `mesh-coordinator` - Peer-to-peer networks
+- `adaptive-coordinator` - Dynamic topology
+- `collective-intelligence-coordinator` - Hive-mind intelligence
+- `swarm-memory-manager` - Distributed memory
 
-### Development Workflow & Important Notes
+### Consensus & Distributed Systems
+- `byzantine-coordinator` - Byzantine fault tolerance
+- `raft-manager` - Leader election protocols
+- `gossip-coordinator` - Epidemic dissemination
+- `consensus-builder` - Decision-making algorithms
+- `crdt-synchronizer` - Conflict-free replication
+- `quorum-manager` - Dynamic quorum management
+- `security-manager` - Cryptographic security
 
-#### **File Structure Priority**
-- **Main App**: `frontend/src/SupabaseApp.jsx` (current)
-- **Auth Context**: `frontend/src/context/SupabaseAuthContext.jsx` (current)
-- **Database Schemas**: 
-  - `database/supabase_auth_schema_fixed.sql` (main schema)
-  - `database/performance_optimizations.sql` (performance enhancements)
-- **API Implementation**: Both `api-server.js` and `netlify/functions/api.js` must be kept in sync
+### Performance & Optimization
+- `perf-analyzer` - Bottleneck identification
+- `performance-benchmarker` - Performance testing
+- `task-orchestrator` - Workflow optimization
+- `memory-coordinator` - Memory management
+- `smart-agent` - Intelligent coordination
 
-#### **Environment-Specific Behavior**
-- **Development**: Frontend connects to Express server on localhost:3001
-- **Production**: Frontend connects to Netlify functions via /.netlify/functions/api
-- **API Detection**: Automatic based on `import.meta.env.DEV` in SupabaseAuthContext
+### GitHub & Repository Management
+- `github-modes` - Comprehensive GitHub integration
+- `pr-manager` - Pull request management
+- `code-review-swarm` - Multi-agent code review
+- `issue-tracker` - Issue management
+- `release-manager` - Release coordination
+- `workflow-automation` - CI/CD automation
+- `project-board-sync` - Project tracking
+- `repo-architect` - Repository optimization
+- `multi-repo-swarm` - Cross-repository coordination
 
-#### **Performance Considerations**
-- **Component Loading**: Uses React.lazy() and Suspense for code splitting
-- **Re-rendering**: React.memo() and useMemo() prevent unnecessary updates
-- **Database**: Materialized views and indexes for analytics queries
-- **Automatic Analytics Refresh**: Smart refresh of materialized views after expense changes (5-minute cooldown)
-- **Package Management**: pnpm for faster dependency management
+### SPARC Methodology Agents
+- `sparc-coord` - SPARC orchestration
+- `sparc-coder` - TDD implementation
+- `specification` - Requirements analysis
+- `pseudocode` - Algorithm design
+- `architecture` - System design
+- `refinement` - Iterative improvement
 
-#### **Security Architecture**
-- **Database Level**: Row Level Security (RLS) policies enforce permissions
-- **Application Level**: Role-based component rendering and API filtering
-- **Authentication**: Supabase Auth handles tokens, sessions, and security
-- **API Security**: All endpoints require valid Supabase Auth tokens
+### Specialized Development
+- `backend-dev` - API development
+- `mobile-dev` - React Native development
+- `ml-developer` - Machine learning
+- `cicd-engineer` - CI/CD pipelines
+- `api-docs` - OpenAPI documentation
+- `system-architect` - High-level design
+- `code-analyzer` - Code quality analysis
+- `base-template-generator` - Boilerplate creation
+
+### Testing & Validation
+- `tdd-london-swarm` - Mock-driven TDD
+- `production-validator` - Real implementation validation
+
+### Migration & Planning
+- `migration-planner` - System migrations
+- `swarm-init` - Topology initialization
+
+## 📝 CRITICAL: TODOWRITE AND TASK TOOL BATCHING
+
+### 🚨 MANDATORY BATCHING RULES FOR TODOS AND TASKS
+
+**TodoWrite Tool Requirements:**
+1. **ALWAYS** include 5-10+ todos in a SINGLE TodoWrite call
+2. **NEVER** call TodoWrite multiple times in sequence
+3. **BATCH** all todo updates together - status changes, new todos, completions
+4. **INCLUDE** all priority levels (high, medium, low) in one call
+
+**Task Tool Requirements:**
+1. **SPAWN** all agents using Task tool in ONE message
+2. **NEVER** spawn agents one by one across multiple messages
+3. **INCLUDE** full task descriptions and coordination instructions
+4. **BATCH** related Task calls together for parallel execution
+
+## Performance Benefits
+
+When using Claude Flow coordination with Claude Code:
+- **84.8% SWE-Bench solve rate** - Better problem-solving through coordination
+- **32.3% token reduction** - Efficient task breakdown reduces redundancy
+- **2.8-4.4x speed improvement** - Parallel coordination strategies
+- **27+ neural models** - Diverse cognitive approaches
+- **GitHub automation** - Streamlined repository management
+
+## Claude Code Hooks Integration
+
+Claude Flow includes powerful hooks that automate coordination:
+
+### Pre-Operation Hooks
+- **Auto-assign agents** before file edits based on file type
+- **Validate commands** before execution for safety
+- **Prepare resources** automatically for complex operations
+- **Optimize topology** based on task complexity analysis
+- **Cache searches** for improved performance
+- **GitHub context** loading for repository operations
+
+### Post-Operation Hooks
+- **Auto-format code** using language-specific formatters
+- **Train neural patterns** from successful operations
+- **Update memory** with operation context
+- **Analyze performance** and identify bottlenecks
+- **Track token usage** for efficiency metrics
+- **Sync GitHub** state for consistency
+
+### Session Management
+- **Generate summaries** at session end
+- **Persist state** across Claude Code sessions
+- **Track metrics** for continuous improvement
+- **Restore previous** session context automatically
+- **Export workflows** for reuse
+
+### Advanced Features (v2.0.0!)
+- **🚀 Automatic Topology Selection** - Optimal swarm structure for each task
+- **⚡ Parallel Execution** - 2.8-4.4x speed improvements
+- **🧠 Neural Training** - Continuous learning from operations
+- **📊 Bottleneck Analysis** - Real-time performance optimization
+- **🤖 Smart Auto-Spawning** - Zero manual agent management
+- **🛡️ Self-Healing Workflows** - Automatic error recovery
+- **💾 Cross-Session Memory** - Persistent learning & context
+- **🔗 GitHub Integration** - Repository-aware swarms
+
+### Configuration
+Hooks are pre-configured in `.claude/settings.json`. Key features:
+- Automatic agent assignment for different file types
+- Code formatting on save
+- Neural pattern learning from edits
+- Session state persistence
+- Performance tracking and optimization
+- Intelligent caching and token reduction
+- GitHub workflow automation
+
+## Integration Tips
+1. **Start Simple**: Begin with basic swarm init and single agent
+2. **Scale Gradually**: Add more agents as task complexity increases
+3. **Use Memory**: Store important decisions and context
+4. **Monitor Progress**: Regular status checks ensure effective coordination
+5. **Train Patterns**: Let neural agents learn from successful coordinations
+6. **Enable Hooks**: Use the pre-configured hooks for automation
+7. **GitHub First**: Use GitHub tools for repository management
+
+## Code Style and Best Practices
+- **Modular Design**: Keep files under 500 lines, optimize with parallel analysis
+- **Environment Safety**: Never hardcode secrets, validate with concurrent checks
+- **Test-First**: Always write tests before implementation using parallel generation
+- **Clean Architecture**: Separate concerns with concurrent validation
+- **Parallel Documentation**: Maintain clear, up-to-date documentation with concurrent updates
+
+## Important Notes
+- Always run tests before committing with parallel execution (`npm run test --parallel`)
+- Use SPARC memory system with concurrent operations to maintain context across sessions
+- Follow the Red-Green-Refactor cycle with parallel test generation during TDD phases
+- Document architectural decisions with concurrent validation in memory
+- Regular security reviews with parallel analysis for authentication or data handling code
+- Claude Code slash commands provide quick access to batchtools-optimized SPARC modes
+- Monitor system resources during parallel operations for optimal performance
+
+---
+
+**Remember: Claude Flow coordinates, Claude Code creates!** Start with `mcp__claude-flow__swarm_init` to enhance your development workflow.

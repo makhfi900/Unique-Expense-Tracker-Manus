@@ -26,12 +26,16 @@
   "devDependencies": {
     "@netlify/functions": "^2.4.1",
     "concurrently": "^9.2.0",
-    "nodemon": "^3.1.10"
+    "jsdom": "^26.1.0",
+    "nodemon": "^3.1.10",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.4",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
+    "csv-parse": "^6.1.0",
     "csv-parser": "^3.0.0",
     "csv-writer": "^1.6.0",
     "dotenv": "^17.2.0",

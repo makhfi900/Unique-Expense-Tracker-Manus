@@ -1,15 +1,22 @@
 -- Phase 3: Year-over-Year Comparison Enhancement
--- Run this in Supabase SQL Editor after Phase 2
+-- CORRECTED SCRIPT: Fixes the final ambiguous column reference in get_category_year_comparison.
+-- This script is idempotent and safe to re-run.
+
+-- =====================================================
+-- PRE-CLEANUP: Drop existing functions to avoid parameter name conflicts
+-- =====================================================
+DROP FUNCTION IF EXISTS calculate_year_comparison(INTEGER, INTEGER, UUID);
+DROP FUNCTION IF EXISTS get_year_comparison_summary(INTEGER, INTEGER, UUID);
+DROP FUNCTION IF EXISTS get_category_year_comparison(INTEGER, INTEGER, UUID);
 
 -- =====================================================
 -- YEAR-OVER-YEAR COMPARISON FUNCTIONS
 -- =====================================================
 
--- Function to calculate detailed year-over-year comparison
 CREATE OR REPLACE FUNCTION calculate_year_comparison(
-    base_year INTEGER,
-    compare_year INTEGER,
-    user_id UUID DEFAULT NULL
+    p_base_year INTEGER,
+    p_compare_year INTEGER,
+    p_user_id UUID DEFAULT NULL
 )
 RETURNS TABLE(
     month INTEGER,
@@ -27,43 +34,31 @@ RETURNS TABLE(
     trend_direction TEXT,
     significance_level TEXT
 ) AS $$
-DECLARE
-    base_total NUMERIC;
-    compare_total NUMERIC;
 BEGIN
-    -- Get total spending for each year for context
-    SELECT 
-        COALESCE(SUM(CASE WHEN year = base_year THEN total_amount END), 0),
-        COALESCE(SUM(CASE WHEN year = compare_year THEN total_amount END), 0)
-    INTO base_total, compare_total
-    FROM mv_yearly_monthly_breakdown
-    WHERE year IN (base_year, compare_year)
-    AND (user_id IS NULL OR created_by = user_id);
-
     RETURN QUERY
     WITH base_data AS (
         SELECT 
-            month,
-            month_name,
-            month_short,
-            COALESCE(SUM(total_amount), 0) as amount,
-            COALESCE(SUM(expense_count), 0) as expenses
-        FROM mv_yearly_monthly_breakdown
-        WHERE year = base_year
-        AND (user_id IS NULL OR created_by = user_id)
-        GROUP BY month, month_name, month_short
+            ymb.month,
+            ymb.month_name,
+            ymb.month_short,
+            COALESCE(SUM(ymb.total_amount), 0) as amount,
+            COALESCE(SUM(ymb.expense_count), 0)::BIGINT as expenses
+        FROM mv_yearly_monthly_breakdown ymb
+        WHERE ymb.year = p_base_year
+        AND (p_user_id IS NULL OR ymb.created_by = p_user_id)
+        GROUP BY ymb.month, ymb.month_name, ymb.month_short
     ),
     compare_data AS (
         SELECT 
-            month,
-            month_name,
-            month_short,
-            COALESCE(SUM(total_amount), 0) as amount,
-            COALESCE(SUM(expense_count), 0) as expenses
-        FROM mv_yearly_monthly_breakdown
-        WHERE year = compare_year
-        AND (user_id IS NULL OR created_by = user_id)
-        GROUP BY month, month_name, month_short
+            ymb.month,
+            ymb.month_name,
+            ymb.month_short,
+            COALESCE(SUM(ymb.total_amount), 0) as amount,
+            COALESCE(SUM(ymb.expense_count), 0)::BIGINT as expenses
+        FROM mv_yearly_monthly_breakdown ymb
+        WHERE ymb.year = p_compare_year
+        AND (p_user_id IS NULL OR ymb.created_by = p_user_id)
+        GROUP BY ymb.month, ymb.month_name, ymb.month_short
     ),
     all_months AS (
         SELECT generate_series(1, 12) as month
@@ -105,13 +100,11 @@ BEGIN
         mc.amount_percentage_change,
         mc.expense_count_difference,
         mc.expense_percentage_change,
-        -- Status classification
         CASE 
             WHEN mc.amount_difference > 0 THEN 'increased'
             WHEN mc.amount_difference < 0 THEN 'decreased'
             ELSE 'unchanged'
         END as status,
-        -- Trend direction
         CASE 
             WHEN mc.amount_percentage_change > 20 THEN 'strongly_up'
             WHEN mc.amount_percentage_change > 5 THEN 'up'
@@ -119,7 +112,6 @@ BEGIN
             WHEN mc.amount_percentage_change > -20 THEN 'down'
             ELSE 'strongly_down'
         END as trend_direction,
-        -- Significance level
         CASE 
             WHEN ABS(mc.amount_percentage_change) > 50 THEN 'very_high'
             WHEN ABS(mc.amount_percentage_change) > 25 THEN 'high'
@@ -132,7 +124,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to get year comparison summary statistics
+
 CREATE OR REPLACE FUNCTION get_year_comparison_summary(
     p_base_year INTEGER,
     p_compare_year INTEGER,
@@ -162,11 +154,8 @@ RETURNS TABLE(
     biggest_decrease_amount NUMERIC,
     most_consistent_trend TEXT
 ) AS $$
-DECLARE
-    comparison_data RECORD;
 BEGIN
-    -- Get the detailed comparison data
-    CREATE TEMP TABLE IF NOT EXISTS temp_comparison AS
+    CREATE TEMP TABLE temp_comparison AS
     SELECT * FROM calculate_year_comparison(p_base_year, p_compare_year, p_user_id);
 
     RETURN QUERY
@@ -176,8 +165,8 @@ BEGIN
             p_compare_year as cy,
             SUM(base_year_amount) as base_total,
             SUM(compare_year_amount) as compare_total,
-            SUM(base_year_expenses) as base_expenses,
-            SUM(compare_year_expenses) as compare_expenses,
+            SUM(base_year_expenses)::BIGINT as base_expenses,
+            SUM(compare_year_expenses)::BIGINT as compare_expenses,
             COUNT(CASE WHEN base_year_amount > 0 THEN 1 END) as base_active,
             COUNT(CASE WHEN compare_year_amount > 0 THEN 1 END) as compare_active,
             COUNT(CASE WHEN amount_difference > 0 THEN 1 END) as increases,
@@ -237,12 +226,11 @@ BEGIN
     CROSS JOIN extremes ex
     CROSS JOIN trend_analysis ta;
 
-    -- Clean up temp table
-    DROP TABLE IF EXISTS temp_comparison;
+    DROP TABLE temp_comparison;
 END;
 $$ LANGUAGE plpgsql;
 
--- Function to get category-wise year comparison
+
 CREATE OR REPLACE FUNCTION get_category_year_comparison(
     p_base_year INTEGER,
     p_compare_year INTEGER,
@@ -265,37 +253,38 @@ BEGIN
     RETURN QUERY
     WITH base_categories AS (
         SELECT 
-            category_id,
-            category_name,
-            category_color,
-            SUM(total_amount) as total_amount,
-            SUM(expense_count) as expense_count
-        FROM mv_yearly_monthly_breakdown
-        WHERE year = base_year
-        AND (user_id IS NULL OR created_by = user_id)
-        GROUP BY category_id, category_name, category_color
+            b.category_id,
+            b.category_name,
+            b.category_color,
+            SUM(b.total_amount) as total_amount,
+            SUM(b.expense_count)::BIGINT as expense_count
+        FROM mv_yearly_monthly_breakdown b
+        WHERE b.year = p_base_year
+        AND (p_user_id IS NULL OR b.created_by = p_user_id)
+        GROUP BY b.category_id, b.category_name, b.category_color
     ),
     compare_categories AS (
         SELECT 
-            category_id,
-            category_name,
-            category_color,
-            SUM(total_amount) as total_amount,
-            SUM(expense_count) as expense_count
-        FROM mv_yearly_monthly_breakdown
-        WHERE year = compare_year
-        AND (user_id IS NULL OR created_by = user_id)
-        GROUP BY category_id, category_name, category_color
+            c.category_id,
+            c.category_name,
+            c.category_color,
+            SUM(c.total_amount) as total_amount,
+            SUM(c.expense_count)::BIGINT as expense_count
+        FROM mv_yearly_monthly_breakdown c
+        WHERE c.year = p_compare_year
+        AND (p_user_id IS NULL OR c.created_by = p_user_id)
+        GROUP BY c.category_id, c.category_name, c.category_color
     ),
     all_categories AS (
-        SELECT category_id, category_name, category_color FROM base_categories
+        -- FIX: Added aliases 'b' and 'c' to resolve the ambiguity on category_id, etc.
+        SELECT b.category_id, b.category_name, b.category_color FROM base_categories b
         UNION
-        SELECT category_id, category_name, category_color FROM compare_categories
+        SELECT c.category_id, c.category_name, c.category_color FROM compare_categories c
     )
     SELECT 
         ac.category_id,
-        ac.category_name,
-        ac.category_color,
+        ac.category_name::TEXT,
+        ac.category_color::TEXT,
         COALESCE(bc.total_amount, 0) as base_amount,
         COALESCE(cc.total_amount, 0) as compare_amount,
         COALESCE(cc.total_amount, 0) - COALESCE(bc.total_amount, 0) as amount_diff,
