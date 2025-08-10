@@ -118,3 +118,373 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  /* Modern CSS animations and utilities */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .animate-glow {
+    animation: glow 2s ease-in-out infinite alternate;
+  }
+  
+  .animate-shimmer {
+    animation: shimmer 3s linear infinite;
+  }
+  
+  .animate-gradient {
+    animation: gradient 15s ease infinite;
+    background-size: 400% 400%;
+  }
+  
+  .text-shadow-sm {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+  
+  .text-shadow-md {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .transform-gpu {
+    transform: translate3d(0, 0, 0);
+  }
+  
+  .backdrop-blur-ultra {
+    backdrop-filter: blur(40px) saturate(180%);
+  }
+  
+  .bg-glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  
+  .dark .bg-glass {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+  }
+  to {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.8), 0 0 30px rgba(59, 130, 246, 0.4);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: 200px 0;
+  }
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+/* Enhanced glassmorphism effects */
+.glass-card {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.dark .glass-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.3);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.5);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(75, 85, 99, 0.5);
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(75, 85, 99, 0.7);
+}
+
+/* Improved line-clamp utility */
+.line-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Enhanced focus states for accessibility */
+.focus-ring {
+  @apply focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 focus:ring-offset-background;
+}
+
+/* Creative animations for the modern landing page */
+@keyframes magnetic-pull {
+  0% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-2px) scale(1.02); }
+  100% { transform: translateY(-4px) scale(1.05); }
+}
+
+@keyframes particle-drift {
+  0%, 100% { transform: translateX(0) translateY(0) rotate(0deg); }
+  33% { transform: translateX(20px) translateY(-10px) rotate(120deg); }
+  66% { transform: translateX(-15px) translateY(15px) rotate(240deg); }
+}
+
+@keyframes geometric-pulse {
+  0%, 100% { transform: scale(1) rotate(0deg); opacity: 0.3; }
+  50% { transform: scale(1.1) rotate(180deg); opacity: 0.7; }
+}
+
+@keyframes text-reveal {
+  0% { 
+    transform: translateY(20px); 
+    opacity: 0; 
+    filter: blur(10px); 
+  }
+  100% { 
+    transform: translateY(0); 
+    opacity: 1; 
+    filter: blur(0px); 
+  }
+}
+
+@keyframes aurora {
+  0%, 100% { 
+    background-position: 0% 50%; 
+    transform: rotate(0deg); 
+  }
+  50% { 
+    background-position: 100% 50%; 
+    transform: rotate(180deg); 
+  }
+}
+
+/* Modern utility classes */
+.magnetic-hover {
+  animation: magnetic-pull 0.3s ease-out forwards;
+}
+
+.particle-system {
+  animation: particle-drift 8s ease-in-out infinite;
+}
+
+.geometric-shape {
+  animation: geometric-pulse 4s ease-in-out infinite;
+}
+
+.text-reveal {
+  animation: text-reveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.aurora-bg {
+  animation: aurora 20s ease infinite;
+  background-size: 400% 400%;
+}
+
+/* Glassmorphism 2.0 */
+.glass-ultra {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.dark .glass-ultra {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Neomorphism elements */
+.neomorphic {
+  background: linear-gradient(145deg, #f0f0f0, #cacaca);
+  box-shadow: 
+    20px 20px 60px #bebebe,
+    -20px -20px 60px #ffffff;
+}
+
+.dark .neomorphic {
+  background: linear-gradient(145deg, #2a2a2a, #1e1e1e);
+  box-shadow: 
+    20px 20px 60px #171717,
+    -20px -20px 60px #333333;
+}
+
+/* Interactive elements */
+.interactive-card {
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.interactive-card:hover {
+  transform: translateY(-8px) rotateX(5deg) rotateY(5deg);
+  box-shadow: 
+    0 20px 40px rgba(0, 0, 0, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.1);
+}
+
+/* Smooth transitions for better UX */
+* {
+  transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+/* Logo Performance Optimizations and Custom Animations */
+@layer base {
+  /* Optimized logo animations for better performance */
+  .logo-optimize {
+    transform: translateZ(0);
+    will-change: transform;
+    backface-visibility: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* High-performance glow animation for logo elements */
+  @keyframes logoGlow {
+    0%, 100% {
+      box-shadow: 
+        0 0 5px rgba(59, 130, 246, 0.3),
+        0 0 10px rgba(59, 130, 246, 0.2),
+        0 0 15px rgba(16, 185, 129, 0.1);
+      transform: scale(1) translateZ(0);
+    }
+    50% {
+      box-shadow: 
+        0 0 10px rgba(59, 130, 246, 0.5),
+        0 0 20px rgba(59, 130, 246, 0.3),
+        0 0 30px rgba(16, 185, 129, 0.2);
+      transform: scale(1.02) translateZ(0);
+    }
+  }
+
+  /* Smooth hover transitions for logo containers */
+  .logo-hover-transition {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform: translateZ(0);
+  }
+
+  .logo-hover-transition:hover {
+    animation: logoGlow 2s ease-in-out infinite;
+  }
+
+  /* Mobile-optimized float animation with reduced motion support */
+  @keyframes floatOptimized {
+    0%, 100% { 
+      transform: translateY(0px) translateZ(0) scale(1);
+      opacity: 0.7;
+    }
+    50% { 
+      transform: translateY(-8px) translateZ(0) scale(1.02);
+      opacity: 1;
+    }
+  }
+
+  /* Reduced motion preferences support */
+  @media (prefers-reduced-motion: reduce) {
+    .logo-optimize,
+    .logo-hover-transition {
+      animation: none !important;
+      transition: none !important;
+    }
+    
+    .animate-float {
+      animation: none !important;
+    }
+  }
+
+  /* High contrast mode support for logos */
+  @media (prefers-contrast: high) {
+    .logo-optimize img {
+      filter: contrast(1.2) brightness(1.1);
+    }
+  }
+
+  /* Logo loading skeleton animation */
+  @keyframes logoSkeleton {
+    0% {
+      background-position: -200px 0;
+    }
+    100% {
+      background-position: calc(200px + 100%) 0;
+    }
+  }
+
+  .logo-skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(148, 163, 184, 0.1) 25%,
+      rgba(148, 163, 184, 0.3) 37%,
+      rgba(148, 163, 184, 0.1) 63%
+    );
+    background-size: 400px 100%;
+    animation: logoSkeleton 1.5s ease-in-out infinite;
+  }
+}
+
+/* Dark mode optimizations for logo visibility */
+@layer components {
+  .logo-dark-mode-enhance {
+    @apply dark:brightness-110 dark:contrast-110 dark:saturate-105;
+  }
+
+  /* Logo container with perfect responsive behavior */
+  .logo-container-responsive {
+    @apply relative overflow-hidden rounded-lg;
+    @apply ring-1 ring-white/20 sm:ring-2 sm:ring-white/30;
+    @apply dark:ring-slate-700/40 shadow-md sm:shadow-lg;
+    @apply bg-white/10 dark:bg-slate-800/20 backdrop-blur-sm;
+    @apply transition-all duration-300 logo-hover-transition;
+  }
+
+  /* Mobile-first responsive logo sizing */
+  .logo-size-small { @apply h-6 w-6 xs:h-7 xs:w-7 sm:h-8 sm:w-8; }
+  .logo-size-medium { @apply h-8 w-8 xs:h-9 xs:w-9 sm:h-11 sm:w-11 md:h-12 md:w-12; }
+  .logo-size-large { @apply h-12 w-12 xs:h-14 xs:w-14 sm:h-16 sm:w-16 md:h-20 md:w-20; }
+  .logo-size-hero { @apply h-16 w-16 xs:h-18 xs:w-18 sm:h-24 sm:w-24 md:h-32 md:w-32; }
+}

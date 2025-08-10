@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
+import { useTimeRange } from '../context/TimeRangeContext';
 import { formatCurrency } from '../utils/currency';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -68,14 +69,8 @@ const EnhancedAnalytics = () => {
   
   // No additional filtering states needed - ExpenseViewer handles its own filtering
 
-  // Date range filtering - Set to "All Time" by default to show all existing data
-  const [dateRange, setDateRange] = useState({
-    startDate: '2000-01-01',
-    endDate: new Date().toISOString().split('T')[0]
-  });
-
-  // Quick presets - Set to "All Time" by default to show all existing data  
-  const [selectedPreset, setSelectedPreset] = useState('all_time');
+  // Use shared time range context
+  const { dateRange, selectedPreset, handlePresetChange, handleDateRangeChange } = useTimeRange();
 
   // Category-specific analysis
   const [categories, setCategories] = useState([]);
@@ -103,21 +98,16 @@ const EnhancedAnalytics = () => {
   // Phase 2: Yearly Analysis State
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  // Date presets
-  const datePresets = {
+  // Legacy date presets for the existing select filter (can be removed in future)
+  const legacyDatePresets = {
     today: {
       label: 'Today',
       startDate: new Date().toISOString().split('T')[0],
       endDate: new Date().toISOString().split('T')[0]
     },
     this_week: {
-      label: 'This Week',
+      label: 'This Week',  
       startDate: new Date(new Date().setDate(new Date().getDate() - new Date().getDay())).toISOString().split('T')[0],
-      endDate: new Date().toISOString().split('T')[0]
-    },
-    this_month: {
-      label: 'This Month',
-      startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
       endDate: new Date().toISOString().split('T')[0]
     },
     last_month: {
@@ -138,11 +128,6 @@ const EnhancedAnalytics = () => {
     this_year: {
       label: 'This Year',
       startDate: new Date(new Date().getFullYear(), 0, 1).toISOString().split('T')[0],
-      endDate: new Date().toISOString().split('T')[0]
-    },
-    all_time: {
-      label: 'All Time',
-      startDate: '2000-01-01',
       endDate: new Date().toISOString().split('T')[0]
     }
   };
@@ -250,6 +235,16 @@ const EnhancedAnalytics = () => {
       setLoading(false);
     }
   }, [apiCall, dateRange, selectedCategory, categories]);
+
+  // Legacy preset handler for backward compatibility with existing filter
+  const handleLegacyPresetChange = (preset) => {
+    if (legacyDatePresets[preset]) {
+      handlePresetChange('custom', {
+        startDate: legacyDatePresets[preset].startDate,
+        endDate: legacyDatePresets[preset].endDate
+      });
+    }
+  };
 
   const fetchCategoryFallback = async () => {
     try {
@@ -372,25 +367,6 @@ const EnhancedAnalytics = () => {
     }
   }, [fetchAnalyticsData, categories.length]); // Properly trigger on date/category changes
 
-  const handlePresetChange = (preset, customRange = null) => {
-    setSelectedPreset(preset);
-    if (preset !== 'custom' && !customRange) {
-      setDateRange({
-        startDate: datePresets[preset].startDate,
-        endDate: datePresets[preset].endDate
-      });
-    } else if (customRange) {
-      setDateRange(customRange);
-    }
-  };
-
-  const handleDateRangeChange = (field, value) => {
-    setSelectedPreset('custom');
-    setDateRange(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
 
   const refreshData = async () => {
     setError('');
@@ -418,15 +394,24 @@ const EnhancedAnalytics = () => {
 
         {/* Overview Tab - Original Analytics */}
         <TabsContent value="overview" className="space-y-6">
-          {/* Enhanced Time Range Control */}
-          <TimeRangeSlider
-            onDateRangeChange={handlePresetChange}
-            selectedPreset={selectedPreset}
-            dateRange={dateRange}
-          />
+          {/* Time Range Slider - Single source for all date filtering */}
+          <TimeRangeSlider />
 
-          {/* Date Range Filtering */}
-          <Card>
+          {/* Loading State for Analytics */}
+          {loading && (
+            <Card>
+              <CardContent className="p-6">
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
+                  <span className="ml-3 text-lg font-medium text-gray-600 dark:text-gray-400">Loading analytics data...</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Analytics Filters - Available for All Users */}
+          {!loading && (
+            <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Filter className="h-5 w-5" />
@@ -436,18 +421,17 @@ const EnhancedAnalytics = () => {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
-              <Label htmlFor="preset">Quick Presets</Label>
-              <Select value={selectedPreset} onValueChange={handlePresetChange}>
+              <Label htmlFor="preset">Legacy Presets</Label>
+              <Select onValueChange={handleLegacyPresetChange}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select preset" />
                 </SelectTrigger>
                 <SelectContent>
-                  {Object.entries(datePresets).map(([key, preset]) => (
+                  {Object.entries(legacyDatePresets).map(([key, preset]) => (
                     <SelectItem key={key} value={key}>
                       {preset.label}
                     </SelectItem>
                   ))}
-                  <SelectItem value="custom">Custom Range</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -481,6 +465,7 @@ const EnhancedAnalytics = () => {
           </div>
         </CardContent>
       </Card>
+          )}
 
 
       {/* Category-Specific Analysis */}
@@ -587,9 +572,15 @@ const EnhancedAnalytics = () => {
         </CardContent>
       </Card>
 
+      {/* Error Display - Enhanced */}
       {error && (
-        <Alert>
-          <AlertDescription>{error}</AlertDescription>
+        <Alert variant="destructive" className="border-red-200 dark:border-red-800">
+          <AlertDescription className="text-red-800 dark:text-red-200">
+            <div className="flex items-center gap-2">
+              <span>⚠️</span>
+              {error}
+            </div>
+          </AlertDescription>
         </Alert>
       )}
 
@@ -600,7 +591,34 @@ const EnhancedAnalytics = () => {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Enhanced KPI Cards */}
+          {/* Empty State Check */}
+          {categoryBreakdown.length === 0 && !loading && (
+            <Card className="border-dashed border-2 border-gray-300 dark:border-gray-600">
+              <CardContent className="p-12 text-center">
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="h-16 w-16 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                    <BarChart3 className="h-8 w-8 text-gray-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">No Data Available</h3>
+                    <p className="text-gray-600 dark:text-gray-400 max-w-md">
+                      No expenses found for the selected time period. Try selecting "This Year" or a different date range to see meaningful analytics.
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={() => handlePresetChange('this_year')} 
+                    className="flex items-center gap-2"
+                  >
+                    <Calendar className="h-4 w-4" />
+                    Show This Year's Data
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Enhanced KPI Cards - Only show if data exists */}
+          {categoryBreakdown.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardContent className="p-6">
@@ -666,8 +684,10 @@ const EnhancedAnalytics = () => {
               </CardContent>
             </Card>
           </div>
+          )}
 
-          {/* Charts */}
+          {/* Charts - Only show if data exists */}
+          {categoryBreakdown.length > 0 && (
           <div className="space-y-6">
             {/* Combined Monthly Spending with Category Breakdown - Stacked Bar Chart */}
             <Card>
@@ -888,6 +908,7 @@ const EnhancedAnalytics = () => {
             {isAdmin && <ExpenseViewer />}
 
           </div>
+          )}
         </div>
       )}
         </TabsContent>
@@ -895,6 +916,33 @@ const EnhancedAnalytics = () => {
         {/* View Expenses Tab - Only for Account Officers */}
         {!isAdmin && (
           <TabsContent value="expenses" className="space-y-6">
+            {/* Enhanced Time Range Slider for Account Officers */}
+            <Card className="border-2 border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5 text-green-600" />
+                  Account Officer - Expense View Controls
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  This section provides essential date filtering controls specifically designed for account officers to manage and view expense records effectively.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <TimeRangeSlider />
+                <div className="mt-3 p-3 bg-green-100 dark:bg-green-900/30 rounded-lg border border-green-300 dark:border-green-700">
+                  <div className="flex items-start gap-2 text-sm">
+                    <Info className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-medium text-green-800 dark:text-green-200">Account Officer Features</p>
+                      <p className="text-green-700 dark:text-green-300 mt-1">
+                        Use the time range controls above, then scroll down to access detailed expense filtering with start/end date pickers, 
+                        category filters, search functionality, and export capabilities.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
             <ExpenseViewer />
           </TabsContent>
         )}

@@ -46,7 +46,7 @@ const InsightsDashboard = React.memo(() => {
     setError('');
     
     try {
-      const response = await apiCall(`/analytics/insights?limit=20${forceRefresh ? '&refresh=true' : ''}`);
+      const response = await apiCall(`/analytics/insights${forceRefresh ? '?refresh=true' : ''}`);
       if (response.insights) {
         setInsightsData(response);
       } else {
@@ -70,8 +70,8 @@ const InsightsDashboard = React.memo(() => {
   };
 
   const generateBasicInsights = async () => {
-    // Get recent expenses for analysis
-    const expensesResponse = await apiCall('/expenses?limit=100');
+    // Get recent expenses for analysis - remove hardcoded limit
+    const expensesResponse = await apiCall('/expenses');
     if (!expensesResponse.expenses) {
       setError('No data available for insights');
       return;

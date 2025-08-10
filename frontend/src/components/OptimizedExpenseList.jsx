@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
+import { useTimeRange } from '../context/TimeRangeContext';
 import { formatCurrency as formatCurrencyPKR } from '../utils/currency';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -7,6 +8,7 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Alert, AlertDescription } from './ui/alert';
+import TimeRangeSlider from './TimeRangeSlider';
 import { 
   Table,
   TableBody,
@@ -136,11 +138,11 @@ const OptimizedExpenseList = () => {
   const [editingExpense, setEditingExpense] = useState(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
   
-  // Filters and search
+  // Use shared time range context instead of local date filters
+  const { dateRange } = useTimeRange();
+  
+  // Filters and search (removed local date filters)
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
-  const [startDateFilter, setStartDateFilter] = useState('');
-  const [endDateFilter, setEndDateFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
 
@@ -182,16 +184,15 @@ const OptimizedExpenseList = () => {
         queryParams.append('search', filters.search || debouncedSearchTerm);
       }
       
-      // Add filters
-      if (filters.date || dateFilter) {
-        queryParams.append('date', filters.date || dateFilter);
+      // Add date range from shared context
+      if (dateRange.startDate) {
+        queryParams.append('start_date', dateRange.startDate);
       }
-      if (filters.start_date || startDateFilter) {
-        queryParams.append('start_date', filters.start_date || startDateFilter);
+      if (dateRange.endDate) {
+        queryParams.append('end_date', dateRange.endDate);
       }
-      if (filters.end_date || endDateFilter) {
-        queryParams.append('end_date', filters.end_date || endDateFilter);
-      }
+      
+      // Add category filter
       if ((filters.category_id && filters.category_id !== 'all') || (categoryFilter && categoryFilter !== 'all')) {
         queryParams.append('category_id', filters.category_id || categoryFilter);
       }
@@ -208,7 +209,7 @@ const OptimizedExpenseList = () => {
     } finally {
       setLoading(false);
     }
-  }, [apiCall, debouncedSearchTerm, dateFilter, startDateFilter, endDateFilter, categoryFilter, itemsPerPage]);
+  }, [apiCall, debouncedSearchTerm, dateRange, categoryFilter, itemsPerPage]);
 
   // Fetch categories
   const fetchCategories = useCallback(async () => {
@@ -260,22 +261,12 @@ const OptimizedExpenseList = () => {
     fetchExpenses({}, currentPage);
   }, [fetchExpenses, currentPage]);
 
-  // Apply filters
-  const applyFilters = useCallback(() => {
-    setCurrentPage(1);
-    fetchExpenses({}, 1);
-  }, [fetchExpenses]);
-
-  // Clear filters
+  // Clear filters (only search and category now)
   const clearFilters = useCallback(() => {
     setSearchTerm('');
-    setDateFilter('');
-    setStartDateFilter('');
-    setEndDateFilter('');
     setCategoryFilter('all');
     setCurrentPage(1);
-    fetchExpenses({}, 1);
-  }, [fetchExpenses]);
+  }, []);
 
   // Pagination calculations
   const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -315,6 +306,9 @@ const OptimizedExpenseList = () => {
         </Alert>
       )}
 
+      {/* Time Range Slider - Available for all roles */}
+      <TimeRangeSlider />
+
       {/* Search and Filters */}
       <Card>
         <CardHeader>
@@ -345,43 +339,7 @@ const OptimizedExpenseList = () => {
           {/* Filters */}
           {showFilters && (
             <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {isAccountOfficer && (
-                  <div className="space-y-2">
-                    <Label htmlFor="date-filter">Specific Date</Label>
-                    <Input
-                      id="date-filter"
-                      type="date"
-                      value={dateFilter}
-                      onChange={(e) => setDateFilter(e.target.value)}
-                    />
-                  </div>
-                )}
-
-                {isAdmin && (
-                  <div className="space-y-2">
-                    <Label htmlFor="start-date-filter">Start Date</Label>
-                    <Input
-                      id="start-date-filter"
-                      type="date"
-                      value={startDateFilter}
-                      onChange={(e) => setStartDateFilter(e.target.value)}
-                    />
-                  </div>
-                )}
-
-                {isAdmin && (
-                  <div className="space-y-2">
-                    <Label htmlFor="end-date-filter">End Date</Label>
-                    <Input
-                      id="end-date-filter"
-                      type="date"
-                      value={endDateFilter}
-                      onChange={(e) => setEndDateFilter(e.target.value)}
-                    />
-                  </div>
-                )}
-
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="category-filter">Category</Label>
                   <Select value={categoryFilter} onValueChange={setCategoryFilter}>
@@ -398,15 +356,22 @@ const OptimizedExpenseList = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                
+                <div className="flex items-center space-x-2 pt-7">
+                  <Button variant="outline" onClick={clearFilters} disabled={loading}>
+                    Clear Filters
+                  </Button>
+                </div>
               </div>
-
-              <div className="flex items-center space-x-2">
-                <Button onClick={applyFilters} disabled={loading}>
-                  Apply Filters
-                </Button>
-                <Button variant="outline" onClick={clearFilters} disabled={loading}>
-                  Clear
-                </Button>
+              
+              <div className="text-sm text-muted-foreground p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4" />
+                  <span>Date range is controlled by the Time Range Slider above</span>
+                </div>
+                <div className="mt-1">
+                  Current range: {new Date(dateRange.startDate).toLocaleDateString()} - {new Date(dateRange.endDate).toLocaleDateString()}
+                </div>
               </div>
             </div>
           )}
@@ -440,8 +405,8 @@ const OptimizedExpenseList = () => {
               </div>
               <h3 className="text-lg font-medium text-gray-900 mb-2">No expenses found</h3>
               <p className="text-gray-500">
-                {searchTerm || dateFilter || startDateFilter || endDateFilter || (categoryFilter && categoryFilter !== 'all')
-                  ? "No expenses match your search criteria. Try adjusting your filters."
+                {searchTerm || (categoryFilter && categoryFilter !== 'all')
+                  ? "No expenses match your search criteria. Try adjusting your filters or date range."
                   : isAccountOfficer 
                     ? "You haven't recorded any expenses yet."
                     : "No expenses have been recorded yet."

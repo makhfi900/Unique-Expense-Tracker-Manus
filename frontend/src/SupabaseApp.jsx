@@ -1,13 +1,23 @@
 import React from 'react';
 import { AuthProvider, useAuth } from './context/SupabaseAuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { TimeRangeProvider } from './context/TimeRangeContext';
+import { DemoProvider, useDemo } from './context/DemoContext';
 import SupabaseLogin from './components/SupabaseLogin';
 import Dashboard from './components/Dashboard';
+import DemoDashboard from './components/DemoDashboard';
 import { Loader2 } from 'lucide-react';
 import './App.css';
 
 function AppContent() {
   const { user, loading } = useAuth();
+  const { isDemoMode } = useDemo();
+  
+  // Check for demo mode via URL parameters or environment variable
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlDemoMode = urlParams.get('demo') === 'true' || 
+                     urlParams.get('preview') === 'true' || 
+                     import.meta.env.VITE_DEMO_MODE === 'true';
 
   if (loading) {
     return (
@@ -21,15 +31,25 @@ function AppContent() {
     );
   }
 
+  // Show demo dashboard if in demo mode (from context or URL)
+  if (isDemoMode || (urlDemoMode && !user)) {
+    return <DemoDashboard />;
+  }
+
+  // Otherwise, use normal authentication flow
   return user ? <Dashboard /> : <SupabaseLogin />;
 }
 
 function SupabaseApp() {
   return (
     <ThemeProvider>
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <DemoProvider>
+        <AuthProvider>
+          <TimeRangeProvider>
+            <AppContent />
+          </TimeRangeProvider>
+        </AuthProvider>
+      </DemoProvider>
     </ThemeProvider>
   );
 }

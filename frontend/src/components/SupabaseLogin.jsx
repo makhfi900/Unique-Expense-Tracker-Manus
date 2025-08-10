@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
+import { useDemo } from '../context/DemoContext';
 import { getPlainErrorMessage } from '../utils/errorMessages';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
@@ -7,7 +8,7 @@ import { Label } from './ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
 import { Checkbox } from './ui/checkbox';
-import { Loader2, Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { Loader2, Eye, EyeOff, Lock, Mail, Play, Sparkles } from 'lucide-react';
 
 const SupabaseLogin = () => {
   const [email, setEmail] = useState('');
@@ -17,6 +18,7 @@ const SupabaseLogin = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const { signIn } = useAuth();
+  const { enableDemoMode } = useDemo();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -30,6 +32,10 @@ const SupabaseLogin = () => {
     }
 
     setLoading(false);
+  };
+
+  const handleDemoMode = () => {
+    enableDemoMode();
   };
 
 
@@ -137,7 +143,7 @@ const SupabaseLogin = () => {
               </button>
             </div>
 
-            <div className="pt-4">
+            <div className="pt-4 space-y-4">
               <Button 
                 type="submit" 
                 className="w-full h-14 text-base font-semibold transition-all hover:scale-[1.02] shadow-lg hover:shadow-xl" 
@@ -153,6 +159,33 @@ const SupabaseLogin = () => {
                   'Sign In to Continue'
                 )}
               </Button>
+              
+              {/* Demo Mode Button */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-muted" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">or</span>
+                </div>
+              </div>
+              
+              <Button 
+                type="button"
+                onClick={handleDemoMode}
+                variant="outline"
+                className="w-full h-12 text-base font-medium transition-all hover:scale-[1.02] border-2 border-blue-200 hover:border-blue-300 bg-gradient-to-r from-blue-50/50 to-purple-50/30 hover:from-blue-100/60 hover:to-purple-100/40 dark:from-blue-950/30 dark:to-purple-950/20 dark:border-blue-800 dark:hover:border-blue-700 text-blue-700 dark:text-blue-300 shadow-md hover:shadow-lg"
+                disabled={loading}
+              >
+                <Play className="mr-3 h-5 w-5" />
+                View Live Demo
+                <Sparkles className="ml-2 h-4 w-4" />
+              </Button>
+              
+              <p className="text-xs text-center text-muted-foreground leading-relaxed">
+                Preview the full dashboard interface and features without login.<br />
+                <span className="font-medium text-blue-600 dark:text-blue-400">Experience the ultra-modern design and college branding.</span>
+              </p>
             </div>
           </form>
 
