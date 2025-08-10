@@ -79,3 +79,10 @@ claude-flow
 claude-flow.bat
 claude-flow.ps1
 hive-mind-prompt-*.txt
+
+# Local development and debug files
+.claude-flow/
+frontend/.claude-flow/
+debug-expense-actions.js
+frontend/debug-account-officer-fixes.js
+frontend/drag-test-debug.html
