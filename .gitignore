@@ -86,3 +86,4 @@ frontend/.claude-flow/
 debug-expense-actions.js
 frontend/debug-account-officer-fixes.js
 frontend/drag-test-debug.html
+node_modules
