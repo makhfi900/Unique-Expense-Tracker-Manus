@@ -302,17 +302,6 @@ const DemoLanding = () => {
                     </span>
                   </h1>
                   
-                  <motion.p 
-                    initial={{ y: 15, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ duration: 0.6, delay: 0.3 }}
-                    className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed font-['Inter','system-ui','-apple-system','sans-serif'] font-normal"
-                  >
-                    Empowering Unique Graduate College with 
-                    <span className="font-medium text-blue-600 dark:text-blue-400"> intelligent expense management</span>, 
-                    <span className="font-medium text-purple-600 dark:text-purple-400"> institutional insights</span>, and 
-                    <span className="font-medium text-emerald-600 dark:text-emerald-400"> streamlined financial oversight</span>
-                  </motion.p>
                 </motion.div>
                 
                 {/* Professional Call-to-Action */}
