@@ -239,21 +239,8 @@ const Dashboard = React.memo(() => {
         {/* Compact Modern Hero Section */}
         {showMainNavigation && (
           <div className="relative overflow-hidden">
-            {/* Sophisticated Geometric Background with Logo Watermark */}
+            {/* Clean Geometric Background */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
-              {/* Elegant Background Logo Watermark */}
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 1.2, ease: "easeOut" }}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 opacity-[0.015] dark:opacity-[0.02] pointer-events-none"
-              >
-                <img 
-                  src="/new_logo_capital1.PNG" 
-                  alt="College Logo Watermark" 
-                  className="w-full h-full object-contain filter grayscale contrast-200"
-                />
-              </motion.div>
               
               {/* Optimized gradient particles with better mobile performance */}
               <div className="hidden sm:block absolute top-20 left-1/4 w-24 sm:w-32 h-24 sm:h-32 bg-gradient-to-r from-blue-400/6 to-cyan-400/4 rounded-full blur-xl sm:blur-2xl animate-float will-change-transform"></div>
@@ -352,102 +339,21 @@ const Dashboard = React.memo(() => {
                     </span>
                   </h1>
                   
-                  <motion.p 
-                    initial={{ y: 15, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    transition={{ duration: 0.6, delay: 0.3 }}
-                    className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed"
-                  >
-                    Empowering Unique Graduate College with 
-                    <span className="font-medium text-blue-600 dark:text-blue-400"> intelligent expense management</span>, 
-                    <span className="font-medium text-purple-600 dark:text-purple-400"> institutional insights</span>, and 
-                    <span className="font-medium text-emerald-600 dark:text-emerald-400"> streamlined financial oversight</span> for academic success
-                  </motion.p>
                 </motion.div>
                 
-                {/* Floating Metrics Cards with Logo Integration */}
+                {/* Professional Call-to-Action */}
                 <motion.div 
                   initial={{ y: 30, opacity: 0 }}
                   animate={{ y: 0, opacity: 1 }}
                   transition={{ duration: 0.6, delay: 0.5 }}
-                  className="flex flex-wrap justify-center gap-3 mt-8 max-w-4xl mx-auto"
+                  className="flex flex-col items-center gap-4 mt-8 max-w-lg mx-auto"
                 >
-                  {/* Enhanced First Card with Mini Logo */}
-                  <div className="group relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-cyan-500 rounded-2xl blur opacity-0 group-hover:opacity-20 transition-all duration-500 group-hover:scale-110"></div>
-                    <div className="relative bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-white/50 dark:border-slate-700/50 rounded-2xl p-4 shadow-lg shadow-blue-500/5 hover:shadow-blue-500/20 transition-all duration-500 hover:scale-105 hover:-translate-y-1 cursor-pointer">
-                      <div className="flex items-center space-x-3">
-                        <div className="relative p-2 bg-blue-500/10 rounded-xl group-hover:bg-blue-500/20 transition-colors overflow-hidden">
-                          <div className="absolute top-0 right-0 w-3 h-3 opacity-20 group-hover:opacity-40 transition-opacity">
-                            <img src="/new_logo_capital1.PNG" alt="" className="w-full h-full object-contain" />
-                          </div>
-                          <Zap className="h-4 w-4 text-blue-600 dark:text-blue-400 relative z-10" />
-                        </div>
-                        <div>
-                          <div className="text-lg font-bold text-foreground">{userInfo.isAdmin ? 'Unlimited' : 'Instant'}</div>
-                          <div className="text-xs text-muted-foreground">Processing</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* College-Branded Analytics Card */}
-                  <div className="group relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-2xl blur opacity-0 group-hover:opacity-20 transition-all duration-500 group-hover:scale-110"></div>
-                    <div className="relative bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-white/50 dark:border-slate-700/50 rounded-2xl p-4 shadow-lg shadow-emerald-500/5 hover:shadow-emerald-500/20 transition-all duration-500 hover:scale-105 hover:-translate-y-1 cursor-pointer overflow-hidden">
-                      {/* Background Logo Pattern */}
-                      <div className="absolute -top-2 -right-2 w-8 h-8 opacity-5 group-hover:opacity-10 transition-opacity rotate-12">
-                        <img src="/new_logo_capital1.PNG" alt="" className="w-full h-full object-contain" />
-                      </div>
-                      <div className="flex items-center space-x-3 relative z-10">
-                        <div className="p-2 bg-emerald-500/10 rounded-xl group-hover:bg-emerald-500/20 transition-colors">
-                          <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                        </div>
-                        <div>
-                          <div className="text-lg font-bold text-foreground">Real-time</div>
-                          <div className="text-xs text-muted-foreground">Analytics</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Institutional Security Card */}
-                  <div className="group relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-pink-500 rounded-2xl blur opacity-0 group-hover:opacity-20 transition-all duration-500 group-hover:scale-110"></div>
-                    <div className="relative bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-white/50 dark:border-slate-700/50 rounded-2xl p-4 shadow-lg shadow-purple-500/5 hover:shadow-purple-500/20 transition-all duration-500 hover:scale-105 hover:-translate-y-1 cursor-pointer overflow-hidden">
-                      {/* Subtle Logo Watermark */}
-                      <div className="absolute -bottom-1 -left-1 w-6 h-6 opacity-8 group-hover:opacity-15 transition-opacity -rotate-12">
-                        <img src="/new_logo_capital1.PNG" alt="" className="w-full h-full object-contain filter grayscale" />
-                      </div>
-                      <div className="flex items-center space-x-3 relative z-10">
-                        <div className="p-2 bg-purple-500/10 rounded-xl group-hover:bg-purple-500/20 transition-colors">
-                          <Shield className="h-4 w-4 text-purple-600 dark:text-purple-400" />
-                        </div>
-                        <div>
-                          <div className="text-lg font-bold text-foreground">Secure</div>
-                          <div className="text-xs text-muted-foreground">Protected</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Smart Insights with Premium Logo Treatment */}
-                  <div className="group relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-red-500 rounded-2xl blur opacity-0 group-hover:opacity-20 transition-all duration-500 group-hover:scale-110"></div>
-                    <div className="relative bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-white/50 dark:border-slate-700/50 rounded-2xl p-4 shadow-lg shadow-orange-500/5 hover:shadow-orange-500/20 transition-all duration-500 hover:scale-105 hover:-translate-y-1 cursor-pointer overflow-hidden">
-                      {/* Logo Badge Corner */}
-                      <div className="absolute top-1 right-1 w-4 h-4 opacity-10 group-hover:opacity-20 transition-all duration-300 group-hover:scale-110">
-                        <img src="/new_logo_capital1.PNG" alt="" className="w-full h-full object-contain rounded-sm" />
-                      </div>
-                      <div className="flex items-center space-x-3 relative z-10">
-                        <div className="relative p-2 bg-orange-500/10 rounded-xl group-hover:bg-orange-500/20 transition-colors">
-                          <Target className="h-4 w-4 text-orange-600 dark:text-orange-400" />
-                        </div>
-                        <div>
-                          <div className="text-lg font-bold text-foreground">Smart</div>
-                          <div className="text-xs text-muted-foreground">Insights</div>
-                        </div>
-                      </div>
+                  <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-white/50 dark:border-slate-700/50 rounded-2xl p-6 shadow-lg">
+                    <div className="text-center space-y-3">
+                      <div className="text-2xl font-semibold text-foreground font-['Inter','system-ui','-apple-system','sans-serif']">Ready to Begin?</div>
+                      <p className="text-sm text-muted-foreground font-['Inter','system-ui','-apple-system','sans-serif'] font-normal">
+                        Explore our comprehensive financial management system designed for educational institutions.
+                      </p>
                     </div>
                   </div>
                 </motion.div>
