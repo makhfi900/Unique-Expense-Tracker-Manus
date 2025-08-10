@@ -204,7 +204,10 @@ const ExpenseViewer = () => {
 
       // Add filters
       if (selectedCategory !== 'all') {
-        params.append('categories', selectedCategory);
+        // Ensure category ID is converted to string for API consistency
+        const categoryId = String(selectedCategory);
+        params.append('categories', categoryId);
+        console.log(`🏷️  Category Filter Applied: ${categoryId} (type: ${typeof selectedCategory})`);
       }
       
       if (isAdmin && selectedUser !== 'all') {
@@ -220,6 +223,7 @@ const ExpenseViewer = () => {
       console.log(`🌐 API CALL: ${apiUrl}`);
 
       const response = await apiCall(apiUrl);
+      console.log(`📦 API Response: ${response?.expenses?.length || 0} expenses returned`);
       
       if (response.expenses) {
         setExpenses(response.expenses);
@@ -459,7 +463,10 @@ const ExpenseViewer = () => {
       });
 
       if (selectedCategory !== 'all') {
-        params.append('categories', selectedCategory);
+        // Ensure category ID is converted to string for API consistency
+        const categoryId = String(selectedCategory);
+        params.append('categories', categoryId);
+        console.log(`📥 Export Category Filter: ${categoryId} (type: ${typeof selectedCategory})`);
       }
       
       if (isAdmin && selectedUser !== 'all') {
