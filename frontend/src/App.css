@@ -479,12 +479,12 @@
     @apply ring-1 ring-white/20 sm:ring-2 sm:ring-white/30;
     @apply dark:ring-slate-700/40 shadow-md sm:shadow-lg;
     @apply bg-white/10 dark:bg-slate-800/20 backdrop-blur-sm;
-    @apply transition-all duration-300 logo-hover-transition;
+    @apply transition-all duration-300;
   }
 
   /* Mobile-first responsive logo sizing */
-  .logo-size-small { @apply h-6 w-6 xs:h-7 xs:w-7 sm:h-8 sm:w-8; }
-  .logo-size-medium { @apply h-8 w-8 xs:h-9 xs:w-9 sm:h-11 sm:w-11 md:h-12 md:w-12; }
-  .logo-size-large { @apply h-12 w-12 xs:h-14 xs:w-14 sm:h-16 sm:w-16 md:h-20 md:w-20; }
-  .logo-size-hero { @apply h-16 w-16 xs:h-18 xs:w-18 sm:h-24 sm:w-24 md:h-32 md:w-32; }
+  .logo-size-small { @apply h-6 w-6 sm:h-8 sm:w-8; }
+  .logo-size-medium { @apply h-8 w-8 sm:h-11 sm:w-11 md:h-12 md:w-12; }
+  .logo-size-large { @apply h-12 w-12 sm:h-16 sm:w-16 md:h-20 md:w-20; }
+  .logo-size-hero { @apply h-16 w-16 sm:h-24 sm:w-24 md:h-32 md:w-32; }
 }
