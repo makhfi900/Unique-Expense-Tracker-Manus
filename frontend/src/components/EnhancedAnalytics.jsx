@@ -18,7 +18,6 @@ import {
 import YearSelector from './YearSelector';
 import MonthlyYearlyView from './MonthlyYearlyView';
 import YearComparisonView from './YearComparisonView';
-import InsightsDashboard from './InsightsDashboard';
 import TimeRangeSlider from './TimeRangeSlider';
 import ExpenseViewer from './ExpenseViewer';
 import {
@@ -458,12 +457,11 @@ const EnhancedAnalytics = memo(() => {
     <div className="space-y-6">
       {/* Main Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-4' : 'grid-cols-5'}`}>
+        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-4'}`}>
           <TabsTrigger value="overview">Overview & Trends</TabsTrigger>
           {!isAdmin && <TabsTrigger value="expenses">View Expenses</TabsTrigger>}
           <TabsTrigger value="yearly">Yearly Analysis</TabsTrigger>
           <TabsTrigger value="comparison">Year Comparison</TabsTrigger>
-          <TabsTrigger value="insights">AI Insights</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab - Original Analytics */}
@@ -1032,10 +1030,6 @@ const EnhancedAnalytics = memo(() => {
           <YearComparisonView />
         </TabsContent>
 
-        {/* AI Insights Tab - Phase 4 */}
-        <TabsContent value="insights" className="space-y-6">
-          <InsightsDashboard />
-        </TabsContent>
       </Tabs>
     </div>
   );
