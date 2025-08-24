@@ -287,14 +287,61 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
-  // API call helper with automatic auth headers
-  const apiCall = async (endpoint, options = {}) => {
+  // Enhanced API call helper with comprehensive session management and retry logic
+  const apiCall = async (endpoint, options = {}, retryCount = 0) => {
+    const maxRetries = 2;
+    const retryDelay = 1000; // 1 second base delay
+    
     try {
-      // Get current session
-      const { data: { session } } = await supabase.auth.getSession()
+      // Enhanced session validation with detailed logging
+      console.log(`🔐 API CALL: Starting request to ${endpoint} (attempt ${retryCount + 1})`);
+      
+      let session;
+      try {
+        const { data: { session: currentSession }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          console.error('❌ SESSION ERROR:', sessionError);
+          throw new Error(`Session validation failed: ${sessionError.message}`);
+        }
+        
+        session = currentSession;
+      } catch (sessionFetchError) {
+        console.error('❌ SESSION FETCH ERROR:', sessionFetchError);
+        throw new Error(`Failed to retrieve session: ${sessionFetchError.message}`);
+      }
 
+      // Enhanced session validation
       if (!session) {
-        throw new Error('No active session')
+        console.error('❌ NO ACTIVE SESSION: User needs to re-authenticate');
+        throw new Error('Authentication required - no active session found');
+      }
+      
+      // Check token expiry
+      if (session.expires_at && Date.now() / 1000 > session.expires_at) {
+        console.warn('⚠️ TOKEN EXPIRED: Attempting refresh before API call');
+        try {
+          const { data: { session: refreshedSession }, error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError || !refreshedSession) {
+            throw new Error(`Token refresh failed: ${refreshError?.message || 'No refreshed session'}`);
+          }
+          session = refreshedSession;
+          console.log('✅ TOKEN REFRESHED: Using new session for API call');
+        } catch (refreshError) {
+          console.error('❌ TOKEN REFRESH FAILED:', refreshError);
+          throw new Error(`Token refresh failed: ${refreshError.message}`);
+        }
+      }
+      
+      // Validate session components
+      if (!session.access_token) {
+        console.error('❌ INVALID SESSION: No access token found');
+        throw new Error('Invalid session - missing access token');
+      }
+      
+      if (!user?.id) {
+        console.error('❌ INVALID USER: No user ID available');
+        throw new Error('Invalid user state - user ID not available');
       }
 
       const API_BASE_URL = import.meta.env.DEV
@@ -302,12 +349,16 @@ export const AuthProvider = ({ children }) => {
         : '/.netlify/functions/api'
 
       const url = `${API_BASE_URL}${endpoint}`
+      
+      // Enhanced request configuration with better headers
       const config = {
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`,
           'X-User-Role': getUserRole(),
-          'X-User-Id': user?.id,
+          'X-User-Id': user.id,
+          'X-Session-Id': session.access_token.substring(0, 10), // Partial token for debugging
+          'X-Request-Time': new Date().toISOString(),
           ...options.headers,
         },
         ...options,
@@ -316,25 +367,105 @@ export const AuthProvider = ({ children }) => {
       if (config.body && typeof config.body === 'object') {
         config.body = JSON.stringify(config.body)
       }
+      
+      console.log(`🌐 MAKING REQUEST: ${config.method || 'GET'} ${url}`);
+      console.log(`🔑 AUTH HEADERS: User Role: ${config.headers['X-User-Role']}, User ID: ${config.headers['X-User-Id']}`);
 
       const response = await fetch(url, config)
+      
+      console.log(`📡 RESPONSE STATUS: ${response.status} ${response.statusText}`);
 
+      // Enhanced error handling for different status codes
       if (response.status === 401) {
-        // Token might be expired, try to refresh
-        await supabase.auth.refreshSession()
-        throw new Error('Authentication required')
+        console.error('❌ 401 UNAUTHORIZED: Token expired or invalid');
+        
+        // Only retry if we haven't exceeded max retries
+        if (retryCount < maxRetries) {
+          console.log(`🔄 RETRYING: Attempt ${retryCount + 1} of ${maxRetries}`);
+          
+          try {
+            // Force session refresh
+            const { data: { session: newSession }, error: refreshError } = await supabase.auth.refreshSession();
+            if (refreshError || !newSession) {
+              throw new Error(`Session refresh failed during retry: ${refreshError?.message}`);
+            }
+            
+            console.log('✅ SESSION REFRESHED: Retrying API call with new token');
+            
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, retryDelay * (retryCount + 1)));
+            
+            // Recursive retry with incremented count
+            return await apiCall(endpoint, options, retryCount + 1);
+          } catch (refreshError) {
+            console.error('❌ RETRY FAILED: Session refresh error:', refreshError);
+            throw new Error(`Authentication failed after retry: ${refreshError.message}`);
+          }
+        } else {
+          console.error('❌ MAX RETRIES EXCEEDED: Authentication failed permanently');
+          throw new Error(`Authentication failed - maximum retries (${maxRetries}) exceeded`);
+        }
+      }
+      
+      if (response.status === 403) {
+        console.error('❌ 403 FORBIDDEN: Insufficient permissions');
+        throw new Error('Access denied - insufficient permissions for this operation');
+      }
+      
+      if (response.status === 429) {
+        console.warn('⚠️ 429 RATE LIMITED: Too many requests');
+        throw new Error('Rate limited - please wait before making more requests');
       }
 
-      const data = await response.json()
+      let data;
+      try {
+        const responseText = await response.text();
+        if (!responseText) {
+          throw new Error('Empty response from server');
+        }
+        
+        try {
+          data = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('❌ JSON PARSE ERROR:', parseError, 'Response:', responseText);
+          throw new Error(`Invalid JSON response: ${parseError.message}`);
+        }
+      } catch (responseError) {
+        console.error('❌ RESPONSE READ ERROR:', responseError);
+        throw new Error(`Failed to read response: ${responseError.message}`);
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Request failed')
+        const errorMessage = data?.error || data?.message || `HTTP ${response.status}: ${response.statusText}`;
+        console.error(`❌ API ERROR (${response.status}):`, errorMessage);
+        throw new Error(errorMessage);
       }
+      
+      console.log('✅ API CALL SUCCESS:', {
+        endpoint,
+        status: response.status,
+        dataSize: JSON.stringify(data).length,
+        attempt: retryCount + 1
+      });
 
       return data
     } catch (error) {
-      console.error('API call error:', error)
-      throw error
+      // Enhanced error logging with context
+      console.error('❌ API CALL FAILED:', {
+        endpoint,
+        attempt: retryCount + 1,
+        maxRetries,
+        error: error.message,
+        stack: error.stack?.split('\n')[0] // First line of stack for context
+      });
+      
+      // Add context to error message
+      const contextualError = new Error(`API call to ${endpoint} failed: ${error.message}`);
+      contextualError.originalError = error;
+      contextualError.endpoint = endpoint;
+      contextualError.attempt = retryCount + 1;
+      
+      throw contextualError;
     }
   }
 

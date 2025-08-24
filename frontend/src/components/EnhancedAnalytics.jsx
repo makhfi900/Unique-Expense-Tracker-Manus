@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { useTimeRange } from '../context/TimeRangeContext';
 import { formatCurrency } from '../utils/currency';
@@ -57,7 +57,7 @@ import {
   List
 } from 'lucide-react';
 
-const EnhancedAnalytics = () => {
+const EnhancedAnalytics = memo(() => {
   const { apiCall, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -76,7 +76,7 @@ const EnhancedAnalytics = () => {
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [categoryAnalysis, setCategoryAnalysis] = useState(null);
-
+  
   // Analytics data
   const [kpiData, setKpiData] = useState({
     totalSpent: 0,
@@ -87,13 +87,26 @@ const EnhancedAnalytics = () => {
     totalCategories: 0
   });
 
-
   const [categoryBreakdown, setCategoryBreakdown] = useState([]);
   
   // New state for combined monthly-category data
   const [monthlyCategoryData, setMonthlyCategoryData] = useState([]);
   const [categoryColors, setCategoryColors] = useState({});
   const [categoryList, setCategoryList] = useState([]);
+
+  // Memoized expensive calculations - after state declarations
+  const memoizedCategoryBreakdown = useMemo(() => {
+    if (!categoryBreakdown || categoryBreakdown.length === 0) return [];
+    return categoryBreakdown.sort((a, b) => b.value - a.value);
+  }, [categoryBreakdown]);
+  
+  const memoizedChartData = useMemo(() => {
+    if (!monthlyCategoryData || monthlyCategoryData.length === 0) return [];
+    return monthlyCategoryData.map(data => ({
+      ...data,
+      total: Object.values(data).filter(val => typeof val === 'number').reduce((sum, val) => sum + val, 0)
+    }));
+  }, [monthlyCategoryData]);
 
   // Phase 2: Yearly Analysis State
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -143,7 +156,26 @@ const EnhancedAnalytics = () => {
     }
   }, [apiCall]);
 
+  // Cache for analytics data to prevent unnecessary API calls
+  const [analyticsCache, setAnalyticsCache] = useState(new Map());
+  
+  // Memoized cache key generation
+  const cacheKey = useMemo(() => {
+    return `${dateRange.startDate}-${dateRange.endDate}`;
+  }, [dateRange.startDate, dateRange.endDate]);
+
   const fetchAnalyticsData = useCallback(async () => {
+    // Check cache first
+    if (analyticsCache.has(cacheKey)) {
+      const cachedData = analyticsCache.get(cacheKey);
+      setCategoryBreakdown(cachedData.categoryBreakdown);
+      setMonthlyCategoryData(cachedData.monthlyCategoryData);
+      setCategoryColors(cachedData.categoryColors);
+      setCategoryList(cachedData.categoryList);
+      setKpiData(cachedData.kpiData);
+      return;
+    }
+    
     setLoading(true);
     setError('');
     try {
@@ -197,13 +229,33 @@ const EnhancedAnalytics = () => {
           ? breakdownArray.reduce((max, cat) => cat.value > max.value ? cat : max)
           : null;
 
-        setKpiData({
+        const newKpiData = {
           totalSpent,
           totalExpenses,
           averageExpense,
           topCategory: topCategory ? { name: topCategory.name, amount: topCategory.value } : null,
           categoriesUsed: breakdownArray.length,
           totalCategories: categories.length
+        };
+        setKpiData(newKpiData);
+        
+        // Cache the results
+        const cacheData = {
+          categoryBreakdown: breakdownArray,
+          monthlyCategoryData: monthlyCategoryResponse.breakdown || [],
+          categoryColors: monthlyCategoryResponse.categoryColors || {},
+          categoryList: monthlyCategoryResponse.categoryList || [],
+          kpiData: newKpiData
+        };
+        setAnalyticsCache(prev => {
+          const newCache = new Map(prev);
+          newCache.set(cacheKey, cacheData);
+          // Keep only last 5 cache entries to prevent memory leak
+          if (newCache.size > 5) {
+            const firstKey = newCache.keys().next().value;
+            newCache.delete(firstKey);
+          }
+          return newCache;
         });
       } else if (categoryResponse.error) {
         console.warn('Category data failed:', categoryResponse.error);
@@ -221,12 +273,6 @@ const EnhancedAnalytics = () => {
         setMonthlyCategoryData([]);
       }
 
-      // 3. If specific category is selected, fetch category-specific analysis
-      if (selectedCategory !== 'all') {
-        await fetchCategoryAnalysis(selectedCategory);
-      } else {
-        setCategoryAnalysis(null);
-      }
 
     } catch (err) {
       setError('Failed to fetch analytics data: ' + err.message);
@@ -234,19 +280,19 @@ const EnhancedAnalytics = () => {
     } finally {
       setLoading(false);
     }
-  }, [apiCall, dateRange, selectedCategory, categories]);
+  }, [apiCall, dateRange.startDate, dateRange.endDate, categories.length, analyticsCache, cacheKey]);
 
-  // Legacy preset handler for backward compatibility with existing filter
-  const handleLegacyPresetChange = (preset) => {
+  // Legacy preset handler for backward compatibility with existing filter - memoized
+  const handleLegacyPresetChange = useCallback((preset) => {
     if (legacyDatePresets[preset]) {
       handlePresetChange('custom', {
         startDate: legacyDatePresets[preset].startDate,
         endDate: legacyDatePresets[preset].endDate
       });
     }
-  };
+  }, [handlePresetChange]);
 
-  const fetchCategoryFallback = async () => {
+  const fetchCategoryFallback = useCallback(async () => {
     try {
       console.log('Using category fallback approach...');
       // Fetch expenses directly
@@ -314,12 +360,29 @@ const EnhancedAnalytics = () => {
       console.error('Category fallback failed:', err);
       setCategoryBreakdown([]);
     }
-  };
+  }, [apiCall, dateRange.startDate, dateRange.endDate, selectedCategory, categories]);
 
-  const fetchCategoryAnalysis = async (categoryId) => {
+  const fetchCategoryAnalysis = useCallback(async (categoryId) => {
     try {
-      // Fetch expenses for the specific category via API
-      const expensesResponse = await apiCall(`/expenses?category_id=${categoryId}&start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`);
+      // SWARM FIX: Add type validation and handle 'all' category properly
+      if (!categoryId || categoryId === 'all') {
+        console.log('🚫 Category Analysis: Skipping - categoryId is "all" or empty');
+        setCategoryAnalysis(null);
+        return;
+      }
+      
+      // Convert to string and validate for API parameter
+      const validCategoryId = String(categoryId);
+      if (!validCategoryId || validCategoryId === 'undefined' || validCategoryId === 'null') {
+        console.error('❌ Invalid category ID for analysis:', categoryId);
+        setCategoryAnalysis(null);
+        return;
+      }
+      
+      console.log('🔍 Fetching Category Analysis for ID:', validCategoryId, '(type:', typeof validCategoryId, ')');
+      
+      // Fetch expenses for the specific category via API with proper parameter validation
+      const expensesResponse = await apiCall(`/expenses?category_id=${validCategoryId}&start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`);
       
       if (expensesResponse.expenses) {
         const expenses = expensesResponse.expenses;
@@ -353,7 +416,7 @@ const EnhancedAnalytics = () => {
     } catch (err) {
       console.error('Failed to fetch category analysis:', err);
     }
-  };
+  }, [apiCall, dateRange.startDate, dateRange.endDate, categories]);
 
 
   // useEffect hooks - must come after useCallback definitions
@@ -365,17 +428,28 @@ const EnhancedAnalytics = () => {
     if (categories.length > 0) { // Only fetch analytics after categories are loaded
       fetchAnalyticsData();
     }
-  }, [fetchAnalyticsData, categories.length]); // Properly trigger on date/category changes
+  }, [categories.length, dateRange.startDate, dateRange.endDate, fetchAnalyticsData]); // Stabilized dependencies
+
+  // Separate useEffect for category-specific analysis to prevent infinite loop - optimized
+  useEffect(() => {
+    if (selectedCategory !== 'all' && categories.length > 0) {
+      fetchCategoryAnalysis(selectedCategory);
+    } else {
+      setCategoryAnalysis(null);
+    }
+  }, [selectedCategory, dateRange.startDate, dateRange.endDate, categories.length, fetchCategoryAnalysis]); // Stabilized with useCallback
 
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
+    // Clear cache to force fresh data
+    setAnalyticsCache(new Map());
     setError('');
     try {
       await fetchAnalyticsData();
     } catch (err) {
       setError('Failed to refresh data: ' + err.message);
     }
-  };
+  }, [fetchAnalyticsData]);
 
 
   // Both admin and account officers see the full analytics dashboard with role-based tab differences
@@ -394,8 +468,6 @@ const EnhancedAnalytics = () => {
 
         {/* Overview Tab - Original Analytics */}
         <TabsContent value="overview" className="space-y-6">
-          {/* Time Range Slider - Single source for all date filtering */}
-          <TimeRangeSlider />
 
           {/* Loading State for Analytics */}
           {loading && (
@@ -734,7 +806,7 @@ const EnhancedAnalytics = () => {
                     {monthlyChartType === 'stacked' ? (
                       /* Stacked Bar Chart View */
                       <ResponsiveContainer width="100%" height={400}>
-                        <BarChart data={monthlyCategoryData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <BarChart data={memoizedChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis 
                             dataKey="month" 
@@ -749,7 +821,7 @@ const EnhancedAnalytics = () => {
                           <Tooltip 
                             content={({ active, payload, label }) => {
                               if (active && payload && payload.length) {
-                                const monthData = monthlyCategoryData.find(data => data.month === label);
+                                const monthData = memoizedChartData.find(data => data.month === label);
                                 return (
                                   <div className="bg-popover p-4 border rounded shadow-lg text-popover-foreground max-w-sm">
                                     <p className="font-semibold mb-2">{`Month: ${label}`}</p>
@@ -787,13 +859,13 @@ const EnhancedAnalytics = () => {
                       </ResponsiveContainer>
                     ) : (
                       /* Category Breakdown Donut Chart */
-                      categoryBreakdown && categoryBreakdown.length > 0 ? (
+                      memoizedCategoryBreakdown && memoizedCategoryBreakdown.length > 0 ? (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                           <div className="relative">
                             <ResponsiveContainer width="100%" height={300}>
                               <PieChart>
                                 <Pie
-                                  data={categoryBreakdown}
+                                  data={memoizedCategoryBreakdown}
                                   cx="50%"
                                   cy="50%"
                                   labelLine={false}
@@ -804,7 +876,7 @@ const EnhancedAnalytics = () => {
                                   dataKey="value"
                                   stroke="none"
                                 >
-                                  {categoryBreakdown.map((entry, index) => (
+                                  {memoizedCategoryBreakdown.map((entry, index) => (
                                     <Cell key={`cell-${index}`} fill={entry.color} />
                                   ))}
                                 </Pie>
@@ -847,8 +919,7 @@ const EnhancedAnalytics = () => {
                           <div className="space-y-3">
                             <h4 className="font-semibold text-sm text-foreground mb-4">Categories</h4>
                             <div className="space-y-2 max-h-[250px] overflow-y-auto">
-                              {categoryBreakdown
-                                .sort((a, b) => b.value - a.value)
+                              {memoizedCategoryBreakdown
                                 .map((category, index) => {
                                   const percentage = kpiData.totalSpent > 0 ? (category.value / kpiData.totalSpent * 100) : 0;
                                   return (
@@ -905,7 +976,7 @@ const EnhancedAnalytics = () => {
             </Card>
 
             {/* ExpenseViewer Component - Only for Admins under charts */}
-            {isAdmin && <ExpenseViewer />}
+            {isAdmin && <ExpenseViewer selectedCategory={selectedCategory} />}
 
           </div>
           )}
@@ -968,6 +1039,8 @@ const EnhancedAnalytics = () => {
       </Tabs>
     </div>
   );
-};
+});
+
+EnhancedAnalytics.displayName = 'EnhancedAnalytics';
 
 export default EnhancedAnalytics;

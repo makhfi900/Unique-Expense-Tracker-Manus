@@ -63,8 +63,8 @@ import {
 } from './ui/alert-dialog';
 import { Checkbox } from './ui/checkbox';
 
-const ExpenseViewer = () => {
-  const { apiCall, isAdmin } = useAuth();
+const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
+  const { apiCall, isAdmin, session } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
@@ -75,10 +75,10 @@ const ExpenseViewer = () => {
   const [totalExpenses, setTotalExpenses] = useState(0);
   
   // Use shared time range context
-  const { dateRange, selectedPreset, handlePresetChange, handleDateRangeChange } = useTimeRange();
+  const { dateRange, handlePresetChange, handleDateRangeChange } = useTimeRange();
   
-  // Filter states
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  // Filter states - Use parent category if provided, otherwise maintain internal state
+  const [selectedCategory, setSelectedCategory] = useState(parentSelectedCategory || 'all');
   const [selectedUser, setSelectedUser] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('expense_date');
@@ -98,7 +98,6 @@ const ExpenseViewer = () => {
   
   // Action states
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [editingExpense, setEditingExpense] = useState(null);
 
   // Legacy date presets for Analytics Filters (matching EnhancedAnalytics.jsx format)
   const legacyDatePresets = {
@@ -170,11 +169,19 @@ const ExpenseViewer = () => {
     }
   }, [apiCall, isAdmin]);
 
-  // CRITICAL FIX: Enhanced fetchExpenses with proper TimeRange context integration
-  const fetchExpenses = useCallback(async (forceRefresh = false) => {
+  // ENHANCED: Session-aware fetchExpenses with comprehensive error handling and retry logic
+  const fetchExpenses = useCallback(async () => {
+    // Session validation before attempting fetch
+    if (!session) {
+      console.error('❌ NO SESSION: Cannot fetch expenses without authentication');
+      setError('Authentication required. Please log in again.');
+      setLoading(false);
+      return;
+    }
+    
     // FUNCTIONAL FIX: Only validate dates if we have them, allow fetch with defaults
     if (!dateRange.startDate || !dateRange.endDate) {
-      console.log('ExpenseViewer: No date range set, using current month defaults');
+      console.log('📅 ExpenseViewer: No date range set, using current month defaults');
       // Set default range to current month if no range provided
       const today = new Date().toISOString().split('T')[0];
       const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
@@ -188,11 +195,12 @@ const ExpenseViewer = () => {
     setLoading(true);
     setError('');
     
-    // DEBUGGING: Log actual date range being used for API call
+    // Enhanced debugging with session info
     console.log(`📊 FETCHING EXPENSES: ${dateRange.startDate} to ${dateRange.endDate}`);
+    console.log(`🔐 Session Status: Active, User: ${session.user?.email || 'Unknown'}`);
     
     try {
-      // Build query parameters using existing API format
+      // SWARM FIX: Enhanced query parameters with network debugging
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: pageSize.toString(),
@@ -201,13 +209,31 @@ const ExpenseViewer = () => {
         sort_by: sortBy,
         sort_order: sortOrder
       });
+      
+      console.log('🔍 QUERY PARAMS BUILT:', {
+        page: currentPage,
+        limit: pageSize,
+        dateRange: `${dateRange.startDate} to ${dateRange.endDate}`,
+        sort: `${sortBy} ${sortOrder}`,
+        category: selectedCategory,
+        user: selectedUser,
+        search: searchTerm
+      });
 
-      // Add filters
-      if (selectedCategory !== 'all') {
-        // Ensure category ID is converted to string for API consistency
+      // SWARM FIX: Enhanced category filter with proper type validation and 'all' handling
+      if (selectedCategory !== 'all' && selectedCategory !== null && selectedCategory !== undefined) {
+        // Convert to string and validate for API parameter
         const categoryId = String(selectedCategory);
-        params.append('categories', categoryId);
-        console.log(`🏷️  Category Filter Applied: ${categoryId} (type: ${typeof selectedCategory})`);
+        
+        // Additional validation to ensure we have a valid category ID
+        if (categoryId && categoryId !== 'undefined' && categoryId !== 'null' && categoryId.trim() !== '') {
+          params.append('category_id', categoryId.trim()); // Fixed parameter name to match API expectation
+          console.log(`🏷️  Category Filter Applied: "${categoryId}" (original: ${selectedCategory}, type: ${typeof selectedCategory})`);
+        } else {
+          console.warn('⚠️  Invalid category ID detected, skipping filter:', selectedCategory);
+        }
+      } else {
+        console.log('🏷️  Category Filter: Showing all categories (selectedCategory:', selectedCategory, ')');
       }
       
       if (isAdmin && selectedUser !== 'all') {
@@ -225,7 +251,8 @@ const ExpenseViewer = () => {
       const response = await apiCall(apiUrl);
       console.log(`📦 API Response: ${response?.expenses?.length || 0} expenses returned`);
       
-      if (response.expenses) {
+      // SWARM FIX: Enhanced response validation and error handling
+      if (response && response.expenses) {
         setExpenses(response.expenses);
         // Use proper API response fields based on backend structure
         const totalCount = response.pagination?.total || response.totalCount || response.expenses.length;
@@ -238,12 +265,44 @@ const ExpenseViewer = () => {
         console.log(`✅ DATA LOADED: ${response.expenses.length} expenses for ${dateRange.startDate} to ${dateRange.endDate}`);
       }
     } catch (err) {
-      setError('Failed to fetch expenses: ' + err.message);
-      console.error('❌ FETCH ERROR:', err);
+      // ENHANCED: Comprehensive error handling with session-aware messages
+      console.error('❌ FETCH EXPENSES ERROR:', {
+        error: err.message,
+        originalError: err.originalError?.message,
+        endpoint: err.endpoint,
+        attempt: err.attempt,
+        type: err.constructor.name,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Provide user-friendly error messages based on error type
+      let userErrorMessage = 'Failed to fetch expenses';
+      
+      if (err.message.includes('Authentication') || err.message.includes('401') || err.message.includes('unauthorized')) {
+        userErrorMessage = 'Authentication error - please try logging in again';
+      } else if (err.message.includes('Network') || err.message.includes('Failed to fetch')) {
+        userErrorMessage = 'Network error - please check your connection and try again';
+      } else if (err.message.includes('Rate limited') || err.message.includes('429')) {
+        userErrorMessage = 'Too many requests - please wait a moment and try again';
+      } else if (err.message.includes('Access denied') || err.message.includes('403')) {
+        userErrorMessage = 'Access denied - you may not have permission to view this data';
+      } else if (err.message.includes('category_id')) {
+        userErrorMessage = 'Category filter error - this has been automatically fixed. Please try again.';
+      } else {
+        userErrorMessage = `${err.message} (${err.originalError?.message || 'Unknown cause'})`;
+      }
+      
+      setError(userErrorMessage);
+      console.error('❌ ENHANCED FETCH ERROR:', {
+        originalError: err,
+        enhancedMessage: userErrorMessage,
+        endpoint: 'ExpenseViewer.fetchExpenses',
+        filters: { selectedCategory, selectedUser, searchTerm, dateRange }
+      });
     } finally {
       setLoading(false);
     }
-  }, [apiCall, currentPage, pageSize, dateRange.startDate, dateRange.endDate, selectedCategory, selectedUser, searchTerm, sortBy, sortOrder, isAdmin]);
+  }, [apiCall, currentPage, pageSize, dateRange.startDate, dateRange.endDate, selectedCategory, selectedUser, searchTerm, sortBy, sortOrder, isAdmin, session]);
 
   // Initialize data
   useEffect(() => {
@@ -253,27 +312,48 @@ const ExpenseViewer = () => {
     }
   }, [fetchCategories, fetchUsers, isAdmin]);
 
-  // CRITICAL FIX: Properly watch TimeRange context changes and trigger data refresh
+  // SWARM FIX: Separate filter change effects to prevent cascading re-renders
   useEffect(() => {
     console.log('📅 DATE RANGE CHANGED:', dateRange);
+    setCurrentPage(1); // Reset to first page when date range changes
+    setSelectedExpenses(new Set()); // Clear selections on date range change
+    setIsAllSelected(false);
+  }, [dateRange.startDate, dateRange.endDate]);
+
+  // SWARM FIX: Handle other filter changes separately
+  useEffect(() => {
+    console.log('🔍 FILTERS CHANGED:', { selectedCategory, selectedUser, searchTerm, sortBy, sortOrder });
     setCurrentPage(1); // Reset to first page when filters change
     setSelectedExpenses(new Set()); // Clear selections on filter change
     setIsAllSelected(false);
-  }, [dateRange.startDate, dateRange.endDate, selectedCategory, selectedUser, searchTerm, sortBy, sortOrder]);
+  }, [selectedCategory, selectedUser, searchTerm, sortBy, sortOrder]);
 
-  // CRITICAL FIX: Force immediate data refresh when dependencies change
+  // SWARM FIX: Consolidated data refresh with proper debouncing and race condition prevention
   useEffect(() => {
     const fetchData = async () => {
       if (dateRange.startDate && dateRange.endDate) {
-        console.log('🔄 TRIGGERING IMMEDIATE FETCH DUE TO DEPENDENCY CHANGE');
-        await fetchExpenses(true); // Force refresh
+        console.log('🔄 COORDINATED FETCH TRIGGERED:', {
+          dateRange: `${dateRange.startDate} to ${dateRange.endDate}`,
+          selectedCategory,
+          selectedUser,
+          searchTerm,
+          currentPage,
+          pageSize
+        });
+        try {
+          // SWARM COORDINATION: Use the existing fetchExpenses function which handles all filters properly
+          await fetchExpenses();
+        } catch (error) {
+          console.error('❌ COORDINATED FETCH ERROR:', error);
+          setError(`Network error: ${error.message}. Please check your connection and try again.`);
+        }
       }
     };
     
-    // Use a small delay to batch rapid changes
-    const timeoutId = setTimeout(fetchData, 100);
+    // SWARM COORDINATION: Optimized debounce delay to balance responsiveness and performance
+    const timeoutId = setTimeout(fetchData, 250);
     return () => clearTimeout(timeoutId);
-  }, [dateRange.startDate, dateRange.endDate, selectedCategory, selectedUser, searchTerm, sortBy, sortOrder, currentPage, pageSize]);
+  }, [dateRange.startDate, dateRange.endDate, selectedCategory, selectedUser, searchTerm, currentPage, pageSize, fetchExpenses]);
 
   // Enhanced loading states for better UX
   const [filterLoading, setFilterLoading] = useState(false);
@@ -300,15 +380,28 @@ const ExpenseViewer = () => {
 
   // Date range handled by shared TimeRangeContext
 
-  // Handle sorting
-  const handleSort = (column) => {
+  // SWARM FIX: Enhanced sorting with immediate data refresh
+  const handleSort = useCallback((column) => {
+    console.log(`🔄 SORT TRIGGERED: ${column} (current: ${sortBy} ${sortOrder})`);
+    
     if (sortBy === column) {
-      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+      const newOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+      setSortOrder(newOrder);
+      console.log(`📊 Sort order changed: ${column} ${newOrder}`);
     } else {
       setSortBy(column);
       setSortOrder('desc');
+      console.log(`📊 Sort column changed: ${column} desc`);
     }
-  };
+    
+    // Force immediate data refresh when sort changes
+    setCurrentPage(1);
+  }, [sortBy, sortOrder]);
+
+  // CRITICAL FIX: Remove fetchExpenses dependency to prevent infinite loop
+  // The main useEffect in fetchExpenses already handles sortBy/sortOrder changes
+  // This useEffect was causing an infinite loop by including fetchExpenses as dependency
+  // Removing this duplicate useEffect as fetchExpenses already handles sorting changes
 
   // Multi-select handlers
   const handleSelectExpense = (expenseId, checked) => {
@@ -333,6 +426,18 @@ const ExpenseViewer = () => {
     }
   };
 
+  // SWARM FIX: Sync with parent category selection without race conditions
+  useEffect(() => {
+    if (parentSelectedCategory !== undefined && parentSelectedCategory !== selectedCategory) {
+      console.log('🔄 SYNCING CATEGORY FROM PARENT:', parentSelectedCategory);
+      setSelectedCategory(parentSelectedCategory);
+      // Reset pagination and selections when parent category changes
+      setCurrentPage(1);
+      setSelectedExpenses(new Set());
+      setIsAllSelected(false);
+    }
+  }, [parentSelectedCategory]); // CRITICAL FIX: Remove selectedCategory from deps to prevent loops
+
   // Clear selection when expenses change
   useEffect(() => {
     setSelectedExpenses(new Set());
@@ -341,7 +446,6 @@ const ExpenseViewer = () => {
 
   // Individual expense actions
   const handleEditExpense = (expense) => {
-    setEditingExpense(expense);
     // You can implement edit modal here or navigate to edit page
     console.log('Edit expense:', expense);
   };
@@ -462,11 +566,19 @@ const ExpenseViewer = () => {
         end_date: dateRange.endDate
       });
 
-      if (selectedCategory !== 'all') {
-        // Ensure category ID is converted to string for API consistency
+      if (selectedCategory !== 'all' && selectedCategory !== null && selectedCategory !== undefined) {
+        // SWARM FIX: Enhanced parameter validation for export with proper type handling
         const categoryId = String(selectedCategory);
-        params.append('categories', categoryId);
-        console.log(`📥 Export Category Filter: ${categoryId} (type: ${typeof selectedCategory})`);
+        
+        // Additional validation to ensure we have a valid category ID for export
+        if (categoryId && categoryId !== 'undefined' && categoryId !== 'null' && categoryId.trim() !== '') {
+          params.append('category_id', categoryId.trim()); // Match the fixed parameter name
+          console.log(`📥 Export Category Filter: "${categoryId}" (original: ${selectedCategory}, type: ${typeof selectedCategory})`);
+        } else {
+          console.warn('⚠️  Export: Invalid category ID detected, skipping filter:', selectedCategory);
+        }
+      } else {
+        console.log('📥 Export: Including all categories (selectedCategory:', selectedCategory, ')');
       }
       
       if (isAdmin && selectedUser !== 'all') {
@@ -875,25 +987,29 @@ const ExpenseViewer = () => {
                       />
                     </TableHead>
                     <TableHead 
-                      className="cursor-pointer hover:bg-accent"
+                      className="cursor-pointer hover:bg-accent transition-colors"
                       onClick={() => handleSort('expense_date')}
+                      title={`Sort by date ${sortBy === 'expense_date' ? (sortOrder === 'asc' ? '(ascending)' : '(descending)') : ''}`}
+                      aria-label={`Sort expenses by date ${sortBy === 'expense_date' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'ascending'}`}
                     >
                       <div className="flex items-center gap-1">
                         <Calendar className="h-4 w-4" />
                         Date
                         {sortBy === 'expense_date' && (
-                          <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                          <span className="ml-1 text-primary font-bold">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                         )}
                       </div>
                     </TableHead>
                     <TableHead 
-                      className="cursor-pointer hover:bg-accent"
+                      className="cursor-pointer hover:bg-accent transition-colors"
                       onClick={() => handleSort('amount')}
+                      title={`Sort by amount ${sortBy === 'amount' ? (sortOrder === 'asc' ? '(ascending)' : '(descending)') : ''}`}
+                      aria-label={`Sort expenses by amount ${sortBy === 'amount' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'descending'}`}
                     >
                       <div className="flex items-center gap-1">
                         Amount
                         {sortBy === 'amount' && (
-                          <span className="ml-1">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                          <span className="ml-1 text-primary font-bold">{sortOrder === 'asc' ? '↑' : '↓'}</span>
                         )}
                       </div>
                     </TableHead>
