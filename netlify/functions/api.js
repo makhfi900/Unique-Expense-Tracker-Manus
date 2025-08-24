@@ -395,8 +395,30 @@ const routes = {
           .gte('expense_date', query.start_date)
           .lte('expense_date', query.end_date);
       }
-      if (query.category_id) {
-        queryBuilder = queryBuilder.eq('category_id', query.category_id);
+      // CRITICAL FIX: Handle both category_id and categories parameters  
+      const categories = query.categories || query.category_id;
+      if (categories) {
+        console.log('🏷️ CATEGORY FILTER:', categories);
+        
+        // Handle both single UUID and comma-separated UUIDs
+        const categoryIds = Array.isArray(categories) 
+          ? categories 
+          : categories.split(',').map(id => id.trim()).filter(id => id);
+        
+        // Validate UUIDs with enhanced regex pattern
+        const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        const validCategoryIds = categoryIds.filter(id => uuidPattern.test(id));
+        
+        if (validCategoryIds.length > 0) {
+          console.log('✅ VALID CATEGORY IDS:', validCategoryIds);
+          if (validCategoryIds.length === 1) {
+            queryBuilder = queryBuilder.eq('category_id', validCategoryIds[0]);
+          } else {
+            queryBuilder = queryBuilder.in('category_id', validCategoryIds);
+          }
+        } else {
+          console.warn('⚠️ NO VALID CATEGORY IDS FOUND:', categoryIds);
+        }
       }
       if (query.created_by) {
         queryBuilder = queryBuilder.eq('created_by', query.created_by);
@@ -654,6 +676,106 @@ const routes = {
     });
 
     return { statusCode: 200, body: { breakdown } };
+  },
+
+  'GET /analytics/monthly-category-breakdown': async (body, user, params, query) => {
+    if (!user) {
+      return { statusCode: 401, body: { error: 'Authentication required' } };
+    }
+
+    try {
+      const { start_date, end_date, period = 'monthly' } = query;
+      
+      let queryBuilder = supabaseAdmin
+        .from('expenses')
+        .select('amount, expense_date, category:categories(id, name, color)')
+        .eq('is_active', true);
+
+      // Filter by user role
+      if (user.role === 'account_officer') {
+        queryBuilder = queryBuilder.eq('created_by', user.id);
+      }
+
+      // Apply date filters
+      if (start_date) queryBuilder = queryBuilder.gte('expense_date', start_date);
+      if (end_date) queryBuilder = queryBuilder.lte('expense_date', end_date);
+
+      const { data: expenses, error } = await queryBuilder.order('expense_date');
+
+      if (error) {
+        return { statusCode: 500, body: { error: 'Failed to fetch monthly category breakdown' } };
+      }
+
+      // Process data to create monthly breakdown with category details
+      const monthlyData = {};
+      const categoryColors = {};
+
+      expenses.forEach(expense => {
+        const date = new Date(expense.expense_date);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const categoryName = expense.category?.name || 'Uncategorized';
+        const categoryColor = expense.category?.color || '#64748B';
+        const amount = parseFloat(expense.amount);
+
+        // Store category color for consistency
+        if (!categoryColors[categoryName]) {
+          categoryColors[categoryName] = categoryColor;
+        }
+
+        // Initialize month if not exists
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = {
+            month: new Date(monthKey + '-01').toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+            monthKey,
+            total: 0,
+            categories: {}
+          };
+        }
+
+        // Initialize category if not exists
+        if (!monthlyData[monthKey].categories[categoryName]) {
+          monthlyData[monthKey].categories[categoryName] = {
+            value: 0,
+            count: 0,
+            color: categoryColor
+          };
+        }
+
+        // Add expense to month and category
+        monthlyData[monthKey].total += amount;
+        monthlyData[monthKey].categories[categoryName].value += amount;
+        monthlyData[monthKey].categories[categoryName].count += 1;
+      });
+
+      // Convert to array format suitable for stacked bar chart
+      const breakdown = Object.values(monthlyData).map(monthData => {
+        const result = {
+          month: monthData.month,
+          monthKey: monthData.monthKey,
+          total: monthData.total,
+          ...monthData.categories
+        };
+
+        // Add individual category values as direct properties for recharts
+        Object.keys(monthData.categories).forEach(categoryName => {
+          result[categoryName] = monthData.categories[categoryName].value;
+        });
+
+        return result;
+      }).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+
+      return { 
+        statusCode: 200, 
+        body: { 
+          breakdown, 
+          categoryColors,
+          categoryList: Object.keys(categoryColors)
+        } 
+      };
+    } catch (error) {
+      console.error('Monthly category breakdown error:', error);
+      return { statusCode: 500, body: { error: 'Internal server error' } };
+    }
   },
 
   // New Phase 2 Analytics Routes - Yearly Analysis
