@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { useTimeRange } from '../context/TimeRangeContext';
+import { useIsMobile } from '../hooks/use-mobile';
 import { formatCurrency } from '../utils/currency';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -58,6 +59,7 @@ import {
 
 const EnhancedAnalytics = memo(() => {
   const { apiCall, isAdmin } = useAuth();
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
@@ -109,6 +111,25 @@ const EnhancedAnalytics = memo(() => {
 
   // Phase 2: Yearly Analysis State
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  // Dynamic chart heights based on screen size
+  const getChartHeight = (baseHeight) => {
+    return isMobile ? Math.max(baseHeight - 50, 200) : baseHeight;
+  };
+
+  // Dynamic chart margins for mobile optimization
+  const getChartMargins = () => {
+    return isMobile 
+      ? { top: 10, right: 10, left: 10, bottom: 40 }
+      : { top: 20, right: 30, left: 20, bottom: 5 };
+  };
+
+  // Legend positioning based on screen size
+  const getLegendProps = () => {
+    return isMobile 
+      ? { verticalAlign: 'bottom', align: 'center', layout: 'horizontal', wrapperStyle: { paddingTop: '10px', fontSize: '12px' } }
+      : { wrapperStyle: { paddingTop: '20px' }, iconType: 'rect' };
+  };
 
   // Legacy date presets for the existing select filter (can be removed in future)
   const legacyDatePresets = {
@@ -457,11 +478,44 @@ const EnhancedAnalytics = memo(() => {
     <div className="space-y-6">
       {/* Main Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={`grid w-full ${isAdmin ? 'grid-cols-3' : 'grid-cols-4'}`}>
-          <TabsTrigger value="overview">Overview & Trends</TabsTrigger>
-          {!isAdmin && <TabsTrigger value="expenses">View Expenses</TabsTrigger>}
-          <TabsTrigger value="yearly">Yearly Analysis</TabsTrigger>
-          <TabsTrigger value="comparison">Year Comparison</TabsTrigger>
+        <TabsList className={`
+          flex flex-col sm:grid w-full 
+          ${isAdmin 
+            ? 'sm:grid-cols-3 lg:grid-cols-3' 
+            : 'sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4'
+          }
+          gap-1 sm:gap-0 p-1 sm:p-1
+        `}>
+          <TabsTrigger 
+            value="overview" 
+            className="min-h-11 text-xs sm:text-sm whitespace-nowrap overflow-hidden text-ellipsis px-2 sm:px-3"
+          >
+            <span className="block sm:hidden">Overview</span>
+            <span className="hidden sm:block">Overview & Trends</span>
+          </TabsTrigger>
+          {!isAdmin && (
+            <TabsTrigger 
+              value="expenses" 
+              className="min-h-11 text-xs sm:text-sm whitespace-nowrap overflow-hidden text-ellipsis px-2 sm:px-3"
+            >
+              <span className="block sm:hidden">Expenses</span>
+              <span className="hidden sm:block">View Expenses</span>
+            </TabsTrigger>
+          )}
+          <TabsTrigger 
+            value="yearly" 
+            className="min-h-11 text-xs sm:text-sm whitespace-nowrap overflow-hidden text-ellipsis px-2 sm:px-3"
+          >
+            <span className="block sm:hidden">Yearly</span>
+            <span className="hidden sm:block">Yearly Analysis</span>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="comparison" 
+            className="min-h-11 text-xs sm:text-sm whitespace-nowrap overflow-hidden text-ellipsis px-2 sm:px-3"
+          >
+            <span className="block sm:hidden">Compare</span>
+            <span className="hidden sm:block">Year Comparison</span>
+          </TabsTrigger>
         </TabsList>
 
         {/* Overview Tab - Original Analytics */}
@@ -612,19 +666,33 @@ const EnhancedAnalytics = memo(() => {
                     <CardTitle>Monthly Trend - {categoryAnalysis.category?.name}</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={300}>
-                      <BarChart data={categoryAnalysis.monthlyTrend}>
+                    <ResponsiveContainer width="100%" height={getChartHeight(300)}>
+                      <BarChart data={categoryAnalysis.monthlyTrend} margin={getChartMargins()}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="month" />
-                        <YAxis />
+                        <XAxis 
+                          dataKey="month" 
+                          tick={{ fontSize: isMobile ? 10 : 12 }}
+                          angle={isMobile ? -45 : 0}
+                          textAnchor={isMobile ? "end" : "middle"}
+                          height={isMobile ? 50 : 30}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: isMobile ? 10 : 12 }}
+                          tickFormatter={(value) => isMobile ? `${(value / 1000).toFixed(0)}K` : formatCurrency(value)}
+                        />
                         <Tooltip 
                           formatter={(value) => {
                             const avgSpending = categoryAnalysis.totalSpent / categoryAnalysis.monthlyTrend.length;
                             const isAboveAverage = value > avgSpending;
                             return [
-                              formatCurrency(value),
-                              `${isAboveAverage ? 'Above' : 'Below'} Average (${formatCurrency(avgSpending)})`
+                              isMobile ? `Rs ${(value / 1000).toFixed(1)}K` : formatCurrency(value),
+                              `${isAboveAverage ? 'Above' : 'Below'} Average${isMobile ? '' : ` (${formatCurrency(avgSpending)})`}`
                             ];
+                          }}
+                          contentStyle={{
+                            fontSize: isMobile ? '12px' : '14px',
+                            padding: isMobile ? '6px' : '8px',
+                            maxWidth: isMobile ? '150px' : '200px'
                           }}
                         />
                         <Bar
@@ -689,7 +757,7 @@ const EnhancedAnalytics = memo(() => {
 
           {/* Enhanced KPI Cards - Only show if data exists */}
           {categoryBreakdown.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'}`}>
             <Card>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
@@ -803,17 +871,19 @@ const EnhancedAnalytics = memo(() => {
                   <>
                     {monthlyChartType === 'stacked' ? (
                       /* Stacked Bar Chart View */
-                      <ResponsiveContainer width="100%" height={400}>
-                        <BarChart data={memoizedChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <ResponsiveContainer width="100%" height={getChartHeight(400)}>
+                        <BarChart data={memoizedChartData} margin={getChartMargins()}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis 
                             dataKey="month" 
-                            tick={{ fontSize: 12 }}
-                            angle={-45}
+                            tick={{ fontSize: isMobile ? 10 : 12 }}
+                            angle={isMobile ? -60 : -45}
                             textAnchor="end"
-                            height={60}
+                            height={isMobile ? 80 : 60}
+                            interval={isMobile ? 'preserveStartEnd' : 0}
                           />
                           <YAxis 
+                            tick={{ fontSize: isMobile ? 10 : 12 }}
                             tickFormatter={(value) => `Rs ${(value / 1000).toFixed(0)}K`}
                           />
                           <Tooltip 
@@ -821,17 +891,22 @@ const EnhancedAnalytics = memo(() => {
                               if (active && payload && payload.length) {
                                 const monthData = memoizedChartData.find(data => data.month === label);
                                 return (
-                                  <div className="bg-popover p-4 border rounded shadow-lg text-popover-foreground max-w-sm">
-                                    <p className="font-semibold mb-2">{`Month: ${label}`}</p>
-                                    <p className="font-medium mb-2 text-green-600">
-                                      {`Total: ${formatCurrency(monthData?.total || 0)}`}
+                                  <div className={`bg-popover border rounded shadow-lg text-popover-foreground ${isMobile ? 'p-2 max-w-[200px]' : 'p-4 max-w-sm'}`}>
+                                    <p className={`font-semibold mb-2 ${isMobile ? 'text-xs' : 'text-sm'}`}>{`Month: ${label}`}</p>
+                                    <p className={`font-medium mb-2 text-green-600 ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                                      {`Total: ${isMobile ? `Rs ${(monthData?.total / 1000).toFixed(0)}K` : formatCurrency(monthData?.total || 0)}`}
                                     </p>
                                     <div className="space-y-1">
-                                      {payload.map((entry, index) => (
-                                        <p key={index} style={{ color: entry.color }} className="text-sm">
-                                          {`${entry.dataKey}: ${formatCurrency(entry.value)}`}
+                                      {payload.slice(0, isMobile ? 3 : payload.length).map((entry, index) => (
+                                        <p key={index} style={{ color: entry.color }} className={isMobile ? 'text-[10px]' : 'text-sm'}>
+                                          {`${entry.dataKey}: ${isMobile ? `${(entry.value / 1000).toFixed(0)}K` : formatCurrency(entry.value)}`}
                                         </p>
                                       ))}
+                                      {isMobile && payload.length > 3 && (
+                                        <p className="text-[10px] text-muted-foreground">
+                                          +{payload.length - 3} more
+                                        </p>
+                                      )}
                                     </div>
                                   </div>
                                 );
@@ -839,10 +914,7 @@ const EnhancedAnalytics = memo(() => {
                               return null;
                             }}
                           />
-                          <Legend 
-                            wrapperStyle={{ paddingTop: '20px' }}
-                            iconType="rect"
-                          />
+                          <Legend {...getLegendProps()} />
                           {/* Dynamic bars for each category */}
                           {categoryList.map((category, index) => (
                             <Bar
@@ -858,9 +930,9 @@ const EnhancedAnalytics = memo(() => {
                     ) : (
                       /* Category Breakdown Donut Chart */
                       memoizedCategoryBreakdown && memoizedCategoryBreakdown.length > 0 ? (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
                           <div className="relative">
-                            <ResponsiveContainer width="100%" height={300}>
+                            <ResponsiveContainer width="100%" height={getChartHeight(300)}>
                               <PieChart>
                                 <Pie
                                   data={memoizedCategoryBreakdown}
@@ -868,8 +940,8 @@ const EnhancedAnalytics = memo(() => {
                                   cy="50%"
                                   labelLine={false}
                                   label={false}
-                                  outerRadius={100}
-                                  innerRadius={60}
+                                  outerRadius={isMobile ? 70 : 100}
+                                  innerRadius={isMobile ? 40 : 60}
                                   fill="#8884d8"
                                   dataKey="value"
                                   stroke="none"
@@ -888,9 +960,11 @@ const EnhancedAnalytics = memo(() => {
                                     backgroundColor: 'hsl(var(--popover))',
                                     border: '1px solid hsl(var(--border))',
                                     borderRadius: '8px',
-                                    padding: '12px',
+                                    padding: isMobile ? '8px' : '12px',
                                     color: 'hsl(var(--popover-foreground))',
-                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                                    fontSize: isMobile ? '12px' : '14px',
+                                    maxWidth: isMobile ? '200px' : '300px'
                                   }}
                                   itemStyle={{
                                     color: 'hsl(var(--popover-foreground))'
@@ -905,9 +979,9 @@ const EnhancedAnalytics = memo(() => {
                             {/* Center Total Display */}
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                               <div className="text-center">
-                                <div className="text-sm font-medium text-muted-foreground">Total Expenses</div>
-                                <div className="text-2xl font-bold text-foreground">
-                                  {formatCurrency(kpiData.totalSpent)}
+                                <div className={`font-medium text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>Total Expenses</div>
+                                <div className={`font-bold text-foreground ${isMobile ? 'text-lg' : 'text-2xl'}`}>
+                                  {isMobile ? `Rs ${(kpiData.totalSpent / 1000).toFixed(0)}K` : formatCurrency(kpiData.totalSpent)}
                                 </div>
                               </div>
                             </div>
@@ -915,32 +989,32 @@ const EnhancedAnalytics = memo(() => {
 
                           {/* Enhanced Legend */}
                           <div className="space-y-3">
-                            <h4 className="font-semibold text-sm text-foreground mb-4">Categories</h4>
-                            <div className="space-y-2 max-h-[250px] overflow-y-auto">
+                            <h4 className={`font-semibold text-foreground mb-4 ${isMobile ? 'text-xs' : 'text-sm'}`}>Categories</h4>
+                            <div className={`space-y-2 overflow-y-auto ${isMobile ? 'max-h-[200px]' : 'max-h-[250px]'}`}>
                               {memoizedCategoryBreakdown
                                 .map((category, index) => {
                                   const percentage = kpiData.totalSpent > 0 ? (category.value / kpiData.totalSpent * 100) : 0;
                                   return (
-                                    <div key={index} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors">
-                                      <div className="flex items-center gap-3">
+                                    <div key={index} className={`flex items-center justify-between rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors ${isMobile ? 'py-1.5 px-2' : 'py-2 px-3'}`}>
+                                      <div className="flex items-center gap-2">
                                         <div
-                                          className="w-4 h-4 rounded-full flex-shrink-0"
+                                          className={`rounded-full flex-shrink-0 ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`}
                                           style={{ backgroundColor: category.color }}
                                         />
                                         <div>
-                                          <div className="font-medium text-sm text-foreground truncate max-w-[120px]">
+                                          <div className={`font-medium text-foreground truncate ${isMobile ? 'text-xs max-w-[80px]' : 'text-sm max-w-[120px]'}`}>
                                             {category.name}
                                           </div>
-                                          <div className="text-xs text-muted-foreground">
+                                          <div className={`text-muted-foreground ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
                                             {category.count} transaction{category.count !== 1 ? 's' : ''}
                                           </div>
                                         </div>
                                       </div>
                                       <div className="text-right flex-shrink-0">
-                                        <div className="font-semibold text-sm text-foreground">
-                                          {formatCurrency(category.value)}
+                                        <div className={`font-semibold text-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                                          {isMobile ? `Rs ${(category.value / 1000).toFixed(0)}K` : formatCurrency(category.value)}
                                         </div>
-                                        <div className="text-xs text-muted-foreground">
+                                        <div className={`text-muted-foreground ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
                                           {percentage.toFixed(1)}%
                                         </div>
                                       </div>

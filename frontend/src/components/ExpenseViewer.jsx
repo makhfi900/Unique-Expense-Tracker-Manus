@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useIsMobile } from '../hooks/use-mobile';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { useTimeRange } from '../context/TimeRangeContext';
 import { formatCurrency } from '../utils/currency';
@@ -41,7 +42,13 @@ import {
   CheckSquare,
   Square,
   Info,
-  AlertTriangle
+  AlertTriangle,
+  Smartphone,
+  Monitor,
+  ChevronDown,
+  ChevronUp,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -63,8 +70,132 @@ import {
 } from './ui/alert-dialog';
 import { Checkbox } from './ui/checkbox';
 
+// Mobile-responsive expense card component
+const MobileExpenseCard = ({ expense, isSelected, onSelect, onEdit, onDelete, onDuplicate, isAdmin, deleteLoading }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  return (
+    <Card className={`mb-3 border transition-all duration-200 ${
+      isSelected ? 'border-primary bg-primary/5' : 'hover:border-accent-foreground/20'
+    }`}>
+      <CardContent className="p-4">
+        {/* Header with checkbox, date, and amount */}
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={(checked) => onSelect(expense.id, checked)}
+              className="mt-1 flex-shrink-0"
+            />
+            <div>
+              <div className="font-semibold text-base truncate max-w-[180px]">
+                {expense.description}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {new Date(expense.expense_date).toLocaleDateString()}
+              </div>
+            </div>
+          </div>
+          <div className="text-right flex-shrink-0">
+            <div className="font-bold text-lg text-green-600">
+              {formatCurrency(expense.amount)}
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onEdit(expense)}>
+                  <Edit className="mr-2 h-4 w-4" />Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onDuplicate(expense)}>
+                  <Copy className="mr-2 h-4 w-4" />Duplicate
+                </DropdownMenuItem>
+                {expense.receipt_url && (
+                  <DropdownMenuItem onClick={() => window.open(expense.receipt_url, '_blank')}>
+                    <FileText className="mr-2 h-4 w-4" />View Receipt
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="text-destructive">
+                      <Trash2 className="mr-2 h-4 w-4" />Delete
+                    </DropdownMenuItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Expense</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Delete "{expense.description}"? This cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => onDelete(expense.id)}
+                        disabled={deleteLoading}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {deleteLoading ? <><Loader2 className="h-4 w-4 animate-spin" />Deleting...</> : 'Delete'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Category and expand button */}
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div
+              className="w-3 h-3 rounded-full flex-shrink-0"
+              style={{ backgroundColor: expense.category?.color || '#64748B' }}
+            />
+            <span className="text-sm font-medium">{expense.category?.name || 'Uncategorized'}</span>
+          </div>
+          
+          {(expense.notes || (isAdmin && expense.created_by_user)) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="h-6 px-2 text-xs"
+            >
+              {isExpanded ? 'Less' : 'More'}
+            </Button>
+          )}
+        </div>
+
+        {/* Expandable details */}
+        {isExpanded && (
+          <div className="pt-2 border-t border-border space-y-2">
+            {expense.notes && (
+              <div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">Notes</div>
+                <div className="text-sm">{expense.notes}</div>
+              </div>
+            )}
+            {isAdmin && expense.created_by_user && (
+              <div>
+                <div className="text-xs font-medium text-muted-foreground mb-1">User</div>
+                <div className="text-sm">{expense.created_by_user.full_name || 'Unknown User'}</div>
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
 const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
   const { apiCall, isAdmin, session } = useAuth();
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
@@ -98,6 +229,11 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
   
   // Action states
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Mobile responsive states  
+  const [showMobileColumns, setShowMobileColumns] = useState(false);
+  const [expandedCards, setExpandedCards] = useState(new Set());
+  const [swipeStart, setSwipeStart] = useState(null);
 
   // Legacy date presets for Analytics Filters (matching EnhancedAnalytics.jsx format)
   const legacyDatePresets = {
@@ -311,6 +447,63 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
       fetchUsers();
     }
   }, [fetchCategories, fetchUsers, isAdmin]);
+
+  // Mobile detection and resize handler
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Mobile card expansion handler
+  const toggleCardExpansion = (expenseId) => {
+    const newExpanded = new Set(expandedCards);
+    if (newExpanded.has(expenseId)) {
+      newExpanded.delete(expenseId);
+    } else {
+      newExpanded.add(expenseId);
+    }
+    setExpandedCards(newExpanded);
+  };
+
+  // Mobile swipe handler for pagination
+  const handleTouchStart = (e) => {
+    const touch = e.touches[0];
+    setSwipeStart({ x: touch.clientX, y: touch.clientY });
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!swipeStart) return;
+    
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - swipeStart.x;
+    const deltaY = touch.clientY - swipeStart.y;
+    
+    // Only handle horizontal swipes that are longer than vertical
+    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
+      if (deltaX > 0 && currentPage > 1) {
+        // Swipe right - previous page
+        setCurrentPage(currentPage - 1);
+      } else if (deltaX < 0 && currentPage < totalPages) {
+        // Swipe left - next page
+        setCurrentPage(currentPage + 1);
+      }
+    }
+    
+    setSwipeStart(null);
+  };
+
+  // Priority columns for mobile display
+  const mobileColumns = {
+    essential: ['date', 'amount', 'description'], // Always shown on mobile
+    secondary: ['category', 'notes'], // Shown when expanded
+    admin: ['user'], // Admin only, shown when expanded
+    actions: ['actions'] // Always accessible via card action menu
+  };
 
   // SWARM FIX: Separate filter change effects to prevent cascading re-renders
   useEffect(() => {
@@ -608,6 +801,156 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
     }
   };
 
+  // Mobile Card Component for expenses
+  const MobileExpenseCard = ({ expense, onEdit, onDelete, onDuplicate }) => {
+    const isExpanded = expandedCards.has(expense.id);
+    const isSelected = selectedExpenses.has(expense.id);
+
+    return (
+      <div className={`rounded-lg border p-4 space-y-3 transition-all ${
+        isSelected ? 'border-primary bg-primary/5 shadow-md' : 'border-border hover:border-primary/50'
+      }`}>
+        {/* Card Header - Essential Info */}
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3 flex-1">
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={(checked) => handleSelectExpense(expense.id, checked)}
+              aria-label={`Select expense ${expense.description}`}
+              className="mt-1"
+            />
+            <div className="flex-1 min-w-0">
+              {/* Date and Amount - Always visible */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar className="h-3 w-3" />
+                  {new Date(expense.expense_date).toLocaleDateString()}
+                </div>
+                <div className="font-mono font-semibold text-primary text-lg">
+                  {formatCurrency(expense.amount)}
+                </div>
+              </div>
+              
+              {/* Description - Always visible */}
+              <h3 className="font-medium text-foreground mb-2 break-words">
+                {expense.description}
+              </h3>
+              
+              {/* Category - Always visible */}
+              <div className="flex items-center gap-2 mb-2">
+                <div
+                  className="w-3 h-3 rounded-full flex-shrink-0"
+                  style={{ backgroundColor: expense.category?.color || '#64748B' }}
+                />
+                <span className="text-sm text-muted-foreground">
+                  {expense.category?.name || 'Uncategorized'}
+                </span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Actions Menu */}
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => toggleCardExpansion(expense.id)}
+              className="px-2"
+            >
+              {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+            
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="h-8 w-8 p-0">
+                  <span className="sr-only">Open menu</span>
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onEdit(expense)} className="cursor-pointer">
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onDuplicate(expense)} className="cursor-pointer">
+                  <Copy className="mr-2 h-4 w-4" />
+                  Duplicate
+                </DropdownMenuItem>
+                {expense.receipt_url && (
+                  <DropdownMenuItem 
+                    onClick={() => window.open(expense.receipt_url, '_blank')}
+                    className="cursor-pointer"
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    View Receipt
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <DropdownMenuItem 
+                      onSelect={(e) => e.preventDefault()}
+                      className="cursor-pointer text-destructive focus:text-destructive"
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" />
+                      Delete
+                    </DropdownMenuItem>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Delete Expense</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Are you sure you want to delete "{expense.description}"? This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => onDelete(expense.id)}
+                        disabled={deleteLoading}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        {deleteLoading ? (
+                          <><Loader2 className="h-4 w-4 animate-spin" /> Deleting...</>
+                        ) : (
+                          'Delete'
+                        )}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+        
+        {/* Expanded Details */}
+        {isExpanded && (
+          <div className="pt-3 border-t space-y-2">
+            {/* Notes */}
+            {expense.notes && (
+              <div>
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Notes</span>
+                <p className="text-sm mt-1 text-foreground">{expense.notes}</p>
+              </div>
+            )}
+            
+            {/* User (Admin only) */}
+            {isAdmin && expense.created_by_user && (
+              <div>
+                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">User</span>
+                <p className="text-sm mt-1 flex items-center gap-2">
+                  <User className="h-3 w-3" />
+                  {expense.created_by_user.full_name || 'Unknown User'}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       {/* Date Filters - ONLY for Account Officers */}
@@ -891,69 +1234,113 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
       {/* Expenses Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <span>Expenses ({totalExpenses} total)</span>
-              {selectedExpenses.size > 0 && (
+          <CardTitle>
+            <div className="flex flex-col space-y-4">
+              {/* Header row */}
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    {selectedExpenses.size} selected
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleBulkExport}
-                      className="flex items-center gap-1"
-                    >
-                      <Download className="h-3 w-3" />
-                      Export Selected
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          variant="destructive"
-                          size="sm"
+                  <span>Expenses ({totalExpenses} total)</span>
+                  {!isMobile && selectedExpenses.size > 0 && (
+                    <span className="text-sm text-muted-foreground px-2 py-1 bg-primary/10 rounded-full">
+                      {selectedExpenses.size} selected
+                    </span>
+                  )}
+                </div>
+                <div className="text-sm text-muted-foreground hidden sm:block">
+                  Showing {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalExpenses)} of {totalExpenses}
+                </div>
+              </div>
+              
+              {/* Mobile bulk actions */}
+              {selectedExpenses.size > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleBulkExport}
+                    className="flex items-center gap-1"
+                  >
+                    <Download className="h-3 w-3" />
+                    <span className={isMobile ? 'hidden' : ''}>Export</span>
+                    {isMobile && <span className="text-xs">({selectedExpenses.size})</span>}
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        disabled={deleteLoading}
+                        className="flex items-center gap-1"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                        <span className={isMobile ? 'hidden' : ''}>Delete</span>
+                        {isMobile && <span className="text-xs">({selectedExpenses.size})</span>}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Selected Expenses</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete {selectedExpenses.size} selected expense{selectedExpenses.size !== 1 ? 's' : ''}? This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleBulkDelete}
                           disabled={deleteLoading}
-                          className="flex items-center gap-1"
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                          <Trash2 className="h-3 w-3" />
-                          Delete Selected
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Delete Selected Expenses</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            Are you sure you want to delete {selectedExpenses.size} selected expense{selectedExpenses.size !== 1 ? 's' : ''}? This action cannot be undone.
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={handleBulkDelete}
-                            disabled={deleteLoading}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          >
-                            {deleteLoading ? (
-                              <><Loader2 className="h-4 w-4 animate-spin" /> Deleting...</>
-                            ) : (
-                              'Delete'
-                            )}
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                          {deleteLoading ? (
+                            <><Loader2 className="h-4 w-4 animate-spin" /> Deleting...</>
+                          ) : (
+                            'Delete'
+                          )}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  {isMobile && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedExpenses(new Set());
+                        setIsAllSelected(false);
+                      }}
+                      className="flex items-center gap-1 text-muted-foreground"
+                    >
+                      Clear
+                    </Button>
+                  )}
                 </div>
               )}
-            </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              Showing {((currentPage - 1) * pageSize) + 1}-{Math.min(currentPage * pageSize, totalExpenses)} of {totalExpenses}
             </div>
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* Mobile/Desktop View Toggle */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              {isMobile ? (
+                <><Smartphone className="h-4 w-4" /> Mobile View</>
+              ) : (
+                <><Monitor className="h-4 w-4" /> Desktop View</>
+              )}
+            </div>
+            {!isMobile && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMobileColumns(!showMobileColumns)}
+                className="flex items-center gap-2"
+              >
+                {showMobileColumns ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                {showMobileColumns ? 'Hide' : 'Show'} Optional Columns
+              </Button>
+            )}
+          </div>
+
           {(loading || filterLoading || dateRangeLoading) ? (
             <div className="flex flex-col items-center justify-center py-12 space-y-4">
               <div className="relative">
@@ -975,107 +1362,183 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
             </div>
           ) : expenses.length > 0 ? (
             <>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {/* Multi-select column */}
-                    <TableHead className="w-12">
+              {/* Mobile Card Layout */}
+              {isMobile ? (
+                <div 
+                  className="space-y-3 touch-pan-y"
+                  onTouchStart={handleTouchStart}
+                  onTouchEnd={handleTouchEnd}
+                >
+                  {/* Mobile Select All */}
+                  <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                    <div className="flex items-center gap-2">
                       <Checkbox
                         checked={isAllSelected}
                         onCheckedChange={handleSelectAll}
                         aria-label="Select all expenses"
                       />
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-accent transition-colors"
-                      onClick={() => handleSort('expense_date')}
-                      title={`Sort by date ${sortBy === 'expense_date' ? (sortOrder === 'asc' ? '(ascending)' : '(descending)') : ''}`}
-                      aria-label={`Sort expenses by date ${sortBy === 'expense_date' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'ascending'}`}
-                    >
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        Date
-                        {sortBy === 'expense_date' && (
-                          <span className="ml-1 text-primary font-bold">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                        )}
-                      </div>
-                    </TableHead>
-                    <TableHead 
-                      className="cursor-pointer hover:bg-accent transition-colors"
-                      onClick={() => handleSort('amount')}
-                      title={`Sort by amount ${sortBy === 'amount' ? (sortOrder === 'asc' ? '(ascending)' : '(descending)') : ''}`}
-                      aria-label={`Sort expenses by amount ${sortBy === 'amount' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'descending'}`}
-                    >
-                      <div className="flex items-center gap-1">
-                        Amount
-                        {sortBy === 'amount' && (
-                          <span className="ml-1 text-primary font-bold">{sortOrder === 'asc' ? '↑' : '↓'}</span>
-                        )}
-                      </div>
-                    </TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>
-                      <div className="flex items-center gap-1">
-                        <Tag className="h-4 w-4" />
-                        Category
-                      </div>
-                    </TableHead>
-                    {isAdmin && (
-                      <TableHead>
-                        <div className="flex items-center gap-1">
-                          <User className="h-4 w-4" />
-                          User
-                        </div>
-                      </TableHead>
+                      <span className="text-sm font-medium">
+                        Select All ({expenses.length})
+                      </span>
+                    </div>
+                    {selectedExpenses.size > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {selectedExpenses.size} selected
+                      </span>
                     )}
-                    <TableHead>Notes</TableHead>
-                    {/* Actions column */}
-                    <TableHead className="w-16">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+                  </div>
+                  
+                  {/* Mobile Swipe Hint */}
+                  {totalPages > 1 && (
+                    <div className="text-center py-2">
+                      <span className="text-xs text-muted-foreground bg-primary/10 px-3 py-1 rounded-full">
+                        Swipe left/right to navigate pages
+                      </span>
+                    </div>
+                  )}
+                  
                   {expenses.map((expense) => (
-                    <TableRow 
-                      key={expense.id} 
-                      className="hover:bg-accent/50"
-                      data-state={selectedExpenses.has(expense.id) ? "selected" : ""}
-                    >
-                      {/* Multi-select checkbox */}
-                      <TableCell>
-                        <Checkbox
-                          checked={selectedExpenses.has(expense.id)}
-                          onCheckedChange={(checked) => handleSelectExpense(expense.id, checked)}
-                          aria-label={`Select expense ${expense.description}`}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        {new Date(expense.expense_date).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="font-mono">
-                        {formatCurrency(expense.amount)}
-                      </TableCell>
-                      <TableCell className="max-w-xs truncate">
-                        {expense.description}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: expense.category?.color || '#64748B' }}
+                    <MobileExpenseCard
+                      key={expense.id}
+                      expense={expense}
+                      onEdit={handleEditExpense}
+                      onDelete={handleDeleteExpense}
+                      onDuplicate={handleDuplicateExpense}
+                    />
+                  ))}
+                </div>
+              ) : (
+                /* Desktop Table Layout with responsive columns */
+                <div className="overflow-x-auto">
+                  <Table className="min-w-full">
+                    <TableHeader>
+                      <TableRow>
+                        {/* Multi-select column - always visible */}
+                        <TableHead className="w-12 sticky left-0 bg-background">
+                          <Checkbox
+                            checked={isAllSelected}
+                            onCheckedChange={handleSelectAll}
+                            aria-label="Select all expenses"
                           />
-                          {expense.category?.name || 'Uncategorized'}
-                        </div>
-                      </TableCell>
-                      {isAdmin && (
-                        <TableCell>
-                          {expense.created_by_user?.full_name || 'Unknown User'}
-                        </TableCell>
-                      )}
-                      <TableCell className="max-w-xs truncate">
-                        {expense.notes || '-'}
-                      </TableCell>
-                      {/* Actions column */}
-                      <TableCell>
+                        </TableHead>
+                        
+                        {/* Essential columns - always visible */}
+                        <TableHead 
+                          className="cursor-pointer hover:bg-accent transition-colors sticky left-12 bg-background min-w-[100px]"
+                          onClick={() => handleSort('expense_date')}
+                          title={`Sort by date ${sortBy === 'expense_date' ? (sortOrder === 'asc' ? '(ascending)' : '(descending)') : ''}`}
+                          aria-label={`Sort expenses by date ${sortBy === 'expense_date' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'ascending'}`}
+                        >
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-4 w-4" />
+                            Date
+                            {sortBy === 'expense_date' && (
+                              <span className="ml-1 text-primary font-bold">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                            )}
+                          </div>
+                        </TableHead>
+                        
+                        <TableHead 
+                          className="cursor-pointer hover:bg-accent transition-colors min-w-[100px]"
+                          onClick={() => handleSort('amount')}
+                          title={`Sort by amount ${sortBy === 'amount' ? (sortOrder === 'asc' ? '(ascending)' : '(descending)') : ''}`}
+                          aria-label={`Sort expenses by amount ${sortBy === 'amount' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'descending'}`}
+                        >
+                          <div className="flex items-center gap-1">
+                            Amount
+                            {sortBy === 'amount' && (
+                              <span className="ml-1 text-primary font-bold">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                            )}
+                          </div>
+                        </TableHead>
+                        
+                        <TableHead className="min-w-[200px]">Description</TableHead>
+                        
+                        {/* Secondary columns - hideable on desktop */}
+                        <TableHead className={showMobileColumns ? '' : 'hidden lg:table-cell'}>
+                          <div className="flex items-center gap-1">
+                            <Tag className="h-4 w-4" />
+                            Category
+                          </div>
+                        </TableHead>
+                        
+                        {isAdmin && (
+                          <TableHead className={showMobileColumns ? '' : 'hidden xl:table-cell'}>
+                            <div className="flex items-center gap-1">
+                              <User className="h-4 w-4" />
+                              User
+                            </div>
+                          </TableHead>
+                        )}
+                        
+                        <TableHead className={showMobileColumns ? '' : 'hidden lg:table-cell'}>Notes</TableHead>
+                        
+                        {/* Actions column - sticky right */}
+                        <TableHead className="w-16 sticky right-0 bg-background">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {expenses.map((expense) => (
+                        <TableRow 
+                          key={expense.id} 
+                          className="hover:bg-accent/50"
+                          data-state={selectedExpenses.has(expense.id) ? "selected" : ""}
+                        >
+                          {/* Multi-select checkbox - sticky left */}
+                          <TableCell className="sticky left-0 bg-background">
+                            <Checkbox
+                              checked={selectedExpenses.has(expense.id)}
+                              onCheckedChange={(checked) => handleSelectExpense(expense.id, checked)}
+                              aria-label={`Select expense ${expense.description}`}
+                            />
+                          </TableCell>
+                          
+                          {/* Essential columns */}
+                          <TableCell className="sticky left-12 bg-background">
+                            <div className="flex items-center gap-2">
+                              <Calendar className="h-3 w-3 text-muted-foreground" />
+                              {new Date(expense.expense_date).toLocaleDateString()}
+                            </div>
+                          </TableCell>
+                          
+                          <TableCell className="font-mono font-semibold text-primary">
+                            {formatCurrency(expense.amount)}
+                          </TableCell>
+                          
+                          <TableCell className="max-w-xs">
+                            <div className="truncate" title={expense.description}>
+                              {expense.description}
+                            </div>
+                          </TableCell>
+                          
+                          {/* Secondary columns - hideable */}
+                          <TableCell className={showMobileColumns ? '' : 'hidden lg:table-cell'}>
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="w-3 h-3 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: expense.category?.color || '#64748B' }}
+                              />
+                              <span className="truncate">{expense.category?.name || 'Uncategorized'}</span>
+                            </div>
+                          </TableCell>
+                          
+                          {isAdmin && (
+                            <TableCell className={showMobileColumns ? '' : 'hidden xl:table-cell'}>
+                              <div className="flex items-center gap-2">
+                                <User className="h-3 w-3 text-muted-foreground" />
+                                <span className="truncate">{expense.created_by_user?.full_name || 'Unknown User'}</span>
+                              </div>
+                            </TableCell>
+                          )}
+                          
+                          <TableCell className={`max-w-xs ${showMobileColumns ? '' : 'hidden lg:table-cell'}`}>
+                            <div className="truncate" title={expense.notes}>
+                              {expense.notes || '-'}
+                            </div>
+                          </TableCell>
+                          
+                          {/* Actions column - sticky right */}
+                          <TableCell className="sticky right-0 bg-background">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" className="h-8 w-8 p-0">
@@ -1141,18 +1604,25 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
 
               {/* Pagination */}
-              <div className="flex items-center justify-between mt-4">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-4">
                 <div className="text-sm text-muted-foreground">
                   Page {currentPage} of {totalPages}
+                  {isMobile && selectedExpenses.size > 0 && (
+                    <div className="mt-1">
+                      {selectedExpenses.size} selected
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -1160,17 +1630,19 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
                     size="sm"
                     onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                     disabled={currentPage === 1}
+                    className="flex items-center gap-1"
                   >
                     <ChevronLeft className="h-4 w-4" />
-                    Previous
+                    <span className={isMobile ? 'hidden' : ''}>Previous</span>
                   </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                     disabled={currentPage === totalPages}
+                    className="flex items-center gap-1"
                   >
-                    Next
+                    <span className={isMobile ? 'hidden' : ''}>Next</span>
                     <ChevronRight className="h-4 w-4" />
                   </Button>
                 </div>
@@ -1223,7 +1695,10 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
                   </Button>
                   <Button 
                     onClick={() => {
-                      handlePresetChange('current_month');
+                      const today = new Date().toISOString().split('T')[0];
+                      const firstOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0];
+                      handleDateRangeChange('startDate', firstOfMonth);
+                      handleDateRangeChange('endDate', today);
                     }} 
                     className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-600"
                   >
