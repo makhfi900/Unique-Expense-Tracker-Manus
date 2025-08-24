@@ -21,7 +21,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id', 'X-User-Role', 'x-user-id', 'x-user-role']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-User-Id', 'X-User-Role', 'x-user-id', 'x-user-role', 'x-request-time', 'x-session-id']
 }));
 app.use(express.json());
 
@@ -730,6 +730,7 @@ app.get('/api/expenses', authenticateToken, async (req, res) => {
       page = 1,
       limit = 50,
       categories,
+      category_id,
       user_id,
       start_date,
       end_date,
@@ -796,12 +797,51 @@ app.get('/api/expenses', authenticateToken, async (req, res) => {
       }
     }
 
-    // Category filtering (supports multiple categories)
-    if (categories) {
-      const categoryIds = categories.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+    // Category filtering (supports both single category_id and multiple categories)
+    if (categories || category_id) {
+      let categoryIds = [];
+      
+      // Helper function to validate UUID format
+      const isValidUUID = (uuid) => {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+        return uuidRegex.test(uuid);
+      };
+      
+      // Handle multiple categories parameter (comma-separated UUIDs)
+      if (categories) {
+        const categoryList = categories.split(',').map(id => id.trim()).filter(id => id && isValidUUID(id));
+        categoryIds.push(...categoryList);
+      }
+      
+      // Handle single category_id parameter (from frontend - UUID format)
+      if (category_id) {
+        const trimmedCategoryId = category_id.trim();
+        if (trimmedCategoryId && isValidUUID(trimmedCategoryId)) {
+          categoryIds.push(trimmedCategoryId);
+        }
+      }
+      
+      // Apply category filter if we have valid category UUIDs
       if (categoryIds.length > 0) {
-        queryBuilder = queryBuilder.in('category_id', categoryIds);
-        countQueryBuilder = countQueryBuilder.in('category_id', categoryIds);
+        // Remove duplicates
+        categoryIds = [...new Set(categoryIds)];
+        
+        // Debug logging for category filtering
+        console.log('[EXPENSE API] Category filter applied:', {
+          filterType: categoryIds.length === 1 ? 'single' : 'multiple',
+          categoryIds: categoryIds,
+          originalParams: { categories, category_id }
+        });
+        
+        if (categoryIds.length === 1) {
+          // Single category filter
+          queryBuilder = queryBuilder.eq('category_id', categoryIds[0]);
+          countQueryBuilder = countQueryBuilder.eq('category_id', categoryIds[0]);
+        } else {
+          // Multiple categories filter
+          queryBuilder = queryBuilder.in('category_id', categoryIds);
+          countQueryBuilder = countQueryBuilder.in('category_id', categoryIds);
+        }
       }
     }
 
