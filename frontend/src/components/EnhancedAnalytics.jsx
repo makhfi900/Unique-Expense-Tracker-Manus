@@ -65,7 +65,7 @@ const EnhancedAnalytics = memo(() => {
   
   // Chart display preferences - restored chart toggle functionality
   const [categoryChartType, setCategoryChartType] = useState('donut');
-  const [monthlyChartType, setMonthlyChartType] = useState('stacked'); // Toggle for monthly spending chart
+  const [monthlyChartType, setMonthlyChartType] = useState('donut'); // Toggle for monthly spending chart - donut is primary display
   
   // No additional filtering states needed - ExpenseViewer handles its own filtering
 
@@ -771,23 +771,14 @@ const EnhancedAnalytics = memo(() => {
                       Monthly Spending by Category
                     </CardTitle>
                     <p className="text-sm text-muted-foreground">
-                      {monthlyChartType === 'stacked' 
-                        ? 'Each bar shows the total monthly spending with category breakdown'
-                        : 'Monthly spending data displayed as donut charts'
+                      {monthlyChartType === 'donut' 
+                        ? 'Monthly spending data displayed as donut charts with category breakdown'
+                        : 'Each bar shows the total monthly spending with category breakdown'
                       }
                     </p>
                   </div>
-                  {/* Chart Type Toggle */}
+                  {/* Chart Type Toggle - DONUT is now primary, STACKED is secondary */}
                   <div className="flex items-center gap-2">
-                    <Button
-                      variant={monthlyChartType === 'stacked' ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setMonthlyChartType('stacked')}
-                      className="flex items-center gap-2"
-                    >
-                      <BarChart3 className="h-4 w-4" />
-                      STACKED
-                    </Button>
                     <Button
                       variant={monthlyChartType === 'donut' ? 'default' : 'outline'}
                       size="sm"
@@ -796,6 +787,15 @@ const EnhancedAnalytics = memo(() => {
                     >
                       <PieChartIcon className="h-4 w-4" />
                       DONUT
+                    </Button>
+                    <Button
+                      variant={monthlyChartType === 'stacked' ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setMonthlyChartType('stacked')}
+                      className="flex items-center gap-2"
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                      STACKED
                     </Button>
                   </div>
                 </div>
