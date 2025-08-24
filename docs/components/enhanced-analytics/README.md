@@ -19,7 +19,6 @@ EnhancedAnalytics/
 ├── View Expenses Tab (Account Officers only)
 ├── Yearly Analysis Tab
 ├── Year Comparison Tab
-└── AI Insights Tab
 ```
 
 ### Dependencies
@@ -36,7 +35,6 @@ EnhancedAnalytics/
 - **View Expenses**: Account officer expense viewer
 - **Yearly Analysis**: Year-specific breakdowns
 - **Year Comparison**: Multi-year comparisons
-- **AI Insights**: Intelligent analysis
 
 ### 2. Time Range Management
 - **Shared Context**: Uses TimeRangeContext for consistency

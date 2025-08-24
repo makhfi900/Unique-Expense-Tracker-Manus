@@ -14,7 +14,6 @@ EnhancedAnalytics/
 │   ├── YearSelector.jsx            # Year selection component  
 │   ├── MonthlyYearlyView.jsx       # Monthly/yearly analytics
 │   ├── YearComparisonView.jsx      # Multi-year comparison
-│   ├── InsightsDashboard.jsx       # AI insights component
 │   └── ExpenseViewer.jsx           # Detailed expense list
 └── Context/
     ├── TimeRangeContext.jsx        # Shared date range state
@@ -30,9 +29,7 @@ EnhancedAnalytics
 │   │   ├── TabsTrigger("overview")
 │   │   ├── TabsTrigger("expenses") // Account officers only
 │   │   ├── TabsTrigger("yearly")
-│   │   ├── TabsTrigger("comparison")
-│   │   └── TabsTrigger("insights")
-│   │
+│   │   └── TabsTrigger("comparison")
 │   ├── TabsContent("overview")
 │   │   ├── TimeRangeSlider
 │   │   ├── AnalyticsFilters
@@ -66,8 +63,6 @@ EnhancedAnalytics
 │   ├── TabsContent("comparison")
 │   │   └── YearComparisonView
 │   │
-│   └── TabsContent("insights")
-│       └── InsightsDashboard
 ```
 
 ## 🔄 Data Flow Architecture

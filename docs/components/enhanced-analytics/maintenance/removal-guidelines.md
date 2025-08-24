@@ -291,6 +291,19 @@ const [kpiData, setKpiData] = useState({
 });
 ```
 
+## ✅ Recent Successful Removal: AI Insights Component
+
+### Completed Removal Process (2025-08-24)
+The AI Insights component has been successfully removed following these guidelines:
+
+1. **Tab Removal**: Removed "insights" TabsTrigger and TabsContent from EnhancedAnalytics.jsx
+2. **Component Deletion**: Deleted InsightsDashboard.jsx component file
+3. **Import Cleanup**: Removed InsightsDashboard import from EnhancedAnalytics.jsx
+4. **Grid Layout**: Updated TabsList grid columns (admin: 4→3, non-admin: 5→4)
+5. **Documentation**: Updated architecture.md and README.md to reflect changes
+
+**Result**: Clean removal with no broken references or functionality loss.
+
 ## 🌐 API Endpoint Removal
 
 ### Step 1: Remove API Call
