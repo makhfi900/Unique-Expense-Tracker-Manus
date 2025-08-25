@@ -233,7 +233,6 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
   // Mobile responsive states  
   const [showMobileColumns, setShowMobileColumns] = useState(false);
   const [expandedCards, setExpandedCards] = useState(new Set());
-  const [swipeStart, setSwipeStart] = useState(null);
 
   // Legacy date presets for Analytics Filters (matching EnhancedAnalytics.jsx format)
   const legacyDatePresets = {
@@ -448,16 +447,6 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
     }
   }, [fetchCategories, fetchUsers, isAdmin]);
 
-  // Mobile detection and resize handler
-  useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
 
   // Mobile card expansion handler
   const toggleCardExpansion = (expenseId) => {
