@@ -6,12 +6,24 @@ import { DemoProvider, useDemo } from './context/DemoContext';
 import SupabaseLogin from './components/SupabaseLogin';
 import Dashboard from './components/Dashboard';
 import DemoDashboard from './components/DemoDashboard';
+import InstallNotification from './components/InstallNotification';
+import { useInstallNotification } from './hooks/useInstallNotification';
 import { Loader2 } from 'lucide-react';
 import './App.css';
 
 function AppContent() {
   const { user, loading } = useAuth();
   const { isDemoMode } = useDemo();
+  const {
+    showInstallNotification,
+    deviceType,
+    isInstalled,
+    canInstall,
+    installPWA,
+    dismissInstallNotification,
+    remindLaterInstallNotification,
+    hideInstallNotification
+  } = useInstallNotification();
   
   // Check for demo mode via URL parameters or environment variable
   const urlParams = new URLSearchParams(window.location.search);
@@ -37,7 +49,19 @@ function AppContent() {
   }
 
   // Otherwise, use normal authentication flow
-  return user ? <Dashboard /> : <SupabaseLogin />;
+  return (
+    <>
+      {user ? <Dashboard /> : <SupabaseLogin />}
+      {/* Show install notification if PWA is not installed and conditions are met */}
+      <InstallNotification
+        isVisible={showInstallNotification && !isInstalled}
+        onInstall={installPWA}
+        onDismiss={dismissInstallNotification}
+        onRemindLater={remindLaterInstallNotification}
+        deviceType={deviceType}
+      />
+    </>
+  );
 }
 
 function SupabaseApp() {
