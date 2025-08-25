@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Monitor, Smartphone, Tablet, MapPin, Clock, User, Shield, AlertTriangle, Trash2 } from 'lucide-react';
+import { Loader2, Monitor, Smartphone, Tablet, MapPin, Clock, User, Shield, AlertTriangle, Trash2, RefreshCw, Globe } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const LoginActivityTracker = () => {
@@ -92,9 +92,39 @@ const LoginActivityTracker = () => {
   };
 
   const getLocationString = (activity) => {
-    const parts = [activity.location_city, activity.location_region, activity.location_country]
-      .filter(part => part && part !== 'Unknown' && part !== 'Local');
-    return parts.length > 0 ? parts.join(', ') : 'Unknown Location';
+    // Handle different location display scenarios
+    const city = activity.location_city;
+    const region = activity.location_region;
+    const country = activity.location_country;
+    
+    // Filter out placeholder values
+    const validParts = [city, region, country]
+      .filter(part => 
+        part && 
+        part !== 'Unknown' && 
+        part !== 'Local' && 
+        !part.includes('WebRTC') && 
+        part !== 'null'
+      );
+    
+    if (validParts.length === 0) {
+      // Special handling for development/localhost
+      if (activity.ip_address === '127.0.0.1' || activity.ip_address?.startsWith('192.168.')) {
+        return '🏠 Local Network';
+      } else if (region?.includes('WebRTC') || country?.includes('WebRTC')) {
+        return '🌐 WebRTC Detected';
+      }
+      return '📍 Location Unknown';
+    }
+    
+    // Format based on available data
+    if (validParts.length === 1) {
+      return `📍 ${validParts[0]}`;
+    } else if (validParts.length === 2) {
+      return `📍 ${validParts.join(', ')}`;
+    } else {
+      return `📍 ${validParts.join(', ')}`;
+    }
   };
 
   if (!isAdmin) {
@@ -138,10 +168,21 @@ const LoginActivityTracker = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-end">
+            <div className="flex items-end gap-2">
+              <Button 
+                onClick={fetchLoginActivities}
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-2"
+                disabled={loading}
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
               <Button 
                 onClick={cleanupOldActivities}
                 variant="outline"
+                size="sm"
                 className="flex items-center gap-2"
               >
                 <Trash2 className="h-4 w-4" />
@@ -222,13 +263,18 @@ const LoginActivityTracker = () => {
                           <TableCell>{activity.browser || 'Unknown'}</TableCell>
                           <TableCell>{activity.operating_system || 'Unknown'}</TableCell>
                           <TableCell>
-                            <code className="text-xs bg-muted px-1 py-0.5 rounded">
-                              {activity.ip_address || 'Unknown'}
-                            </code>
+                            <div className="flex items-center gap-2">
+                              <Globe className="h-3 w-3" />
+                              <code className="text-xs bg-muted px-1 py-0.5 rounded">
+                                {activity.ip_address || 'Unknown'}
+                              </code>
+                              {activity.ip_address === '127.0.0.1' && (
+                                <span className="text-xs text-muted-foreground">(localhost)</span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
-                              <MapPin className="h-4 w-4" />
                               <span className="text-sm">{getLocationString(activity)}</span>
                             </div>
                           </TableCell>

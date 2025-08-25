@@ -41,34 +41,94 @@ export const getDeviceInfo = () => {
     return 'Unknown';
   };
 
-  // Get real location info using ipapi.co service
+  // Enhanced location detection with multiple services and real IP detection
   const getLocationInfo = async () => {
     try {
-      // Use ipapi.co for production-ready geolocation
-      const response = await fetch('https://ipapi.co/json/', {
-        timeout: 5000 // 5 second timeout
-      });
+      // Multiple IP/location services for reliability
+      const services = [
+        {
+          url: 'https://api.ipify.org?format=json',
+          parser: (data) => ({ ip: data.ip, country: 'Unknown', region: 'Unknown', city: 'Unknown' })
+        },
+        {
+          url: 'https://ipapi.co/json/',
+          parser: (data) => ({
+            ip: data.ip || 'Unknown',
+            country: data.country_name || 'Unknown',
+            region: data.region || 'Unknown', 
+            city: data.city || 'Unknown'
+          })
+        },
+        {
+          url: 'https://api.ip.sb/geoip',
+          parser: (data) => ({
+            ip: data.ip || 'Unknown',
+            country: data.country || 'Unknown',
+            region: data.region || 'Unknown',
+            city: data.city || 'Unknown'
+          })
+        },
+        {
+          url: 'https://ipwho.is/',
+          parser: (data) => ({
+            ip: data.ip || 'Unknown',
+            country: data.country || 'Unknown',
+            region: data.region || 'Unknown',
+            city: data.city || 'Unknown'
+          })
+        }
+      ];
       
-      if (!response.ok) {
-        throw new Error('Geolocation service unavailable');
+      // Try services in order
+      for (const service of services) {
+        try {
+          const response = await fetch(service.url, { 
+            timeout: 3000,
+            headers: { 'Accept': 'application/json' }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const parsed = service.parser(data);
+            
+            // If we got a real IP (not localhost), return it
+            if (parsed.ip && parsed.ip !== 'Unknown' && !parsed.ip.startsWith('127.')) {
+              console.log('Successfully got location from:', service.url, parsed);
+              return parsed;
+            }
+          }
+        } catch (error) {
+          console.warn(`Location service ${service.url} failed:`, error.message);
+          continue;
+        }
       }
       
-      const data = await response.json();
+      // Enhanced WebRTC-based real IP detection as fallback
+      const webrtcIP = await getRealIPViaWebRTC();
+      if (webrtcIP) {
+        return {
+          country: 'Unknown (WebRTC)',
+          region: 'Unknown (WebRTC)',
+          city: 'Unknown (WebRTC)',
+          ip: webrtcIP
+        };
+      }
       
+      // Final fallback
       return {
-        country: data.country_name || 'Unknown',
-        region: data.region || 'Unknown',
-        city: data.city || 'Unknown',
-        ip: data.ip || 'Unknown'
+        country: 'Unknown',
+        region: 'Unknown', 
+        city: 'Unknown',
+        ip: '127.0.0.1'
       };
+      
     } catch (error) {
-      console.warn('Geolocation failed, using fallback:', error.message);
-      // Fallback to basic detection
+      console.warn('All geolocation methods failed:', error.message);
       return {
         country: 'Unknown',
         region: 'Unknown',
         city: 'Unknown',
-        ip: '127.0.0.1' // Valid IP format for database inet type
+        ip: '127.0.0.1'
       };
     }
   };
@@ -94,13 +154,87 @@ export const getDeviceInfo = () => {
 };
 
 /**
- * Create login activity record with real geolocation
+ * Enhanced WebRTC-based real IP detection
+ */
+export const getRealIPViaWebRTC = async () => {
+  try {
+    // Check if WebRTC is available
+    if (typeof RTCPeerConnection === 'undefined') {
+      console.warn('WebRTC not available in this environment');
+      return null;
+    }
+    
+    const rtcConfig = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' }
+      ]
+    };
+    
+    return new Promise((resolve) => {
+      const rtc = new RTCPeerConnection(rtcConfig);
+      const ips = new Set();
+      let resolved = false;
+      
+      rtc.createDataChannel('');
+      
+      rtc.onicecandidate = (ice) => {
+        if (ice.candidate) {
+          // Extract IP address from ICE candidate
+          const match = /([0-9]{1,3}(\.[0-9]{1,3}){3})/.exec(ice.candidate.candidate);
+          if (match) {
+            const ip = match[1];
+            ips.add(ip);
+            
+            // Prefer public IPs over private ones
+            if (!ip.startsWith('127.') && 
+                !ip.startsWith('192.168.') && 
+                !ip.startsWith('10.') && 
+                !ip.startsWith('172.') &&
+                !resolved) {
+              resolved = true;
+              console.log('Found real IP via WebRTC:', ip);
+              resolve(ip);
+              rtc.close();
+            }
+          }
+        }
+      };
+      
+      rtc.createOffer()
+        .then(offer => rtc.setLocalDescription(offer))
+        .catch(error => console.warn('WebRTC offer failed:', error));
+      
+      // Timeout after 3 seconds
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          // Return first IP found, even if private
+          const firstIP = Array.from(ips)[0];
+          console.log('WebRTC timeout, using first IP found:', firstIP || 'none');
+          resolve(firstIP || null);
+          rtc.close();
+        }
+      }, 3000);
+    });
+  } catch (error) {
+    console.warn('WebRTC IP detection failed:', error);
+    return null;
+  }
+};
+
+/**
+ * Create login activity record with enhanced real geolocation
  */
 export const createLoginActivityData = async (userId, success = true, failureReason = null) => {
   const deviceInfo = getDeviceInfo();
   
-  // Get real location data asynchronously
+  // Get enhanced location data with multiple fallbacks
   const locationInfo = await deviceInfo.getLocationInfo();
+  
+  // Log for debugging
+  console.log('Login activity location info:', locationInfo);
   
   return {
     user_id: userId,

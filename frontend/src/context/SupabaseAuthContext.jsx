@@ -209,6 +209,24 @@ export const AuthProvider = ({ children }) => {
     }
   }
 
+  // Register new user (admin only) - calls API endpoint
+  const register = async (userData) => {
+    if (!isAdmin) {
+      return { success: false, error: 'Only administrators can create new users' };
+    }
+
+    try {
+      const result = await apiCall('/auth/register', {
+        method: 'POST',
+        body: userData,
+      });
+
+      return { success: true, user: result.user };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  }
+
   // Sign out
   const signOut = async () => {
     try {
@@ -589,6 +607,7 @@ export const AuthProvider = ({ children }) => {
     isAdmin,
     isAccountOfficer,
     getUserRole,
+    register,
     // Analytics methods
     getMonthlyAnalytics,
     getCategoryAnalytics,
@@ -597,7 +616,6 @@ export const AuthProvider = ({ children }) => {
     // Legacy aliases for compatibility
     login: signIn,
     logout: signOut,
-    register: signUp,
   }
 
   return (

@@ -76,7 +76,9 @@ const UserForm = React.memo(({
     <form onSubmit={handleSubmit} className="space-y-4">
       {formError && (
         <Alert variant="destructive">
-          <AlertDescription>{formError}</AlertDescription>
+          <AlertDescription id="error-message" role="alert">
+            {formError}
+          </AlertDescription>
         </Alert>
       )}
 
@@ -96,6 +98,8 @@ const UserForm = React.memo(({
           onChange={handleEmailChange}
           required
           disabled={formLoading || editingUser} // Disable email editing for existing users
+          aria-describedby={formError ? "error-message" : undefined}
+          autoComplete="email"
         />
       </div>
 
@@ -109,6 +113,8 @@ const UserForm = React.memo(({
           onChange={handleFullNameChange}
           required
           disabled={formLoading}
+          aria-describedby={formError ? "error-message" : undefined}
+          autoComplete="name"
         />
       </div>
 
@@ -118,11 +124,14 @@ const UserForm = React.memo(({
           <Input
             id="password"
             type="password"
-            placeholder="Enter password"
+            placeholder="Enter password (minimum 6 characters)"
             value={formData.password}
             onChange={handlePasswordChange}
             required
             disabled={formLoading}
+            aria-describedby={formError ? "error-message" : undefined}
+            autoComplete="new-password"
+            minLength="6"
           />
         </div>
       )}
@@ -175,7 +184,7 @@ const UserForm = React.memo(({
 UserForm.displayName = 'UserForm';
 
 const UserManager = () => {
-  const { apiCall, register } = useAuth();
+  const { apiCall, register, isAdmin, getUserRole } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -197,6 +206,13 @@ const UserManager = () => {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  // Admin authorization check
+  useEffect(() => {
+    if (!isAdmin) {
+      setError('Access denied: Admin privileges required for user management');
+    }
+  }, [isAdmin]);
 
   const fetchUsers = async () => {
     try {
@@ -247,12 +263,40 @@ const UserManager = () => {
     setFormLoading(true);
 
     try {
-      if (!formData.email.trim() || !formData.full_name.trim()) {
-        throw new Error('Email and full name are required');
+      // Enhanced validation
+      if (!formData.email.trim()) {
+        throw new Error('Email is required');
       }
 
-      if (!editingUser && !formData.password.trim()) {
-        throw new Error('Password is required for new users');
+      // Email format validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email.trim())) {
+        throw new Error('Please enter a valid email address');
+      }
+
+      if (!formData.full_name.trim()) {
+        throw new Error('Full name is required');
+      }
+
+      // Full name validation - minimum 2 characters
+      if (formData.full_name.trim().length < 2) {
+        throw new Error('Full name must be at least 2 characters long');
+      }
+
+      if (!editingUser) {
+        if (!formData.password.trim()) {
+          throw new Error('Password is required for new users');
+        }
+
+        // Password strength validation
+        if (formData.password.length < 6) {
+          throw new Error('Password must be at least 6 characters long');
+        }
+      }
+
+      // Role validation
+      if (!formData.role || !['admin', 'account_officer'].includes(formData.role)) {
+        throw new Error('Please select a valid role');
       }
 
       if (editingUser) {
@@ -269,7 +313,7 @@ const UserManager = () => {
 
         setFormSuccess('User updated successfully!');
       } else {
-        // Create new user
+        // Create new user via register function
         const result = await register(formData);
         
         if (!result.success) {
@@ -291,7 +335,27 @@ const UserManager = () => {
       }, 1000);
 
     } catch (err) {
-      setFormError(err.message);
+      // Handle different types of errors with user-friendly messages
+      let errorMessage = err.message;
+      
+      if (err.message.includes('already registered') || err.message.includes('already exists')) {
+        errorMessage = 'This email address is already registered. Please use a different email.';
+      } else if (err.message.includes('authentication') || err.message.includes('Unauthorized')) {
+        errorMessage = 'You do not have permission to create users. Please contact an administrator.';
+      } else if (err.message.includes('network') || err.message.includes('fetch')) {
+        errorMessage = 'Network error. Please check your connection and try again.';
+      } else if (err.message.includes('timeout')) {
+        errorMessage = 'Request timed out. Please try again.';
+      }
+      
+      setFormError(errorMessage);
+      
+      // Log the original error for debugging
+      console.error('User creation/update error:', {
+        originalError: err,
+        userFriendlyMessage: errorMessage,
+        formData: { ...formData, password: '[REDACTED]' }
+      });
     } finally {
       setFormLoading(false);
     }
@@ -329,6 +393,19 @@ const UserManager = () => {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Show access denied message for non-admin users
+  if (!isAdmin) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Alert variant="destructive">
+          <AlertDescription>
+            Access denied: Administrator privileges required to manage users.
+          </AlertDescription>
+        </Alert>
       </div>
     );
   }
