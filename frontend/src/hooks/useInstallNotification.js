@@ -50,6 +50,7 @@ export const useInstallNotification = () => {
 
     // PWA install prompt for Android/Desktop
     const handleBeforeInstallPrompt = (e) => {
+      console.log('beforeinstallprompt event triggered');
       e.preventDefault();
       setInstallPrompt(e);
       
@@ -57,8 +58,11 @@ export const useInstallNotification = () => {
       const installed = checkInstalled();
       const canShowNotification = checkInstallNotificationStatus();
       
+      console.log('Install status:', { installed, canShowNotification });
+      
       if (!installed && canShowNotification) {
         setTimeout(() => {
+          console.log('Showing install notification');
           setShowInstallNotification(true);
         }, 3000); // Show after 3 seconds
       }
@@ -95,23 +99,45 @@ export const useInstallNotification = () => {
   }, []);
 
   const installPWA = async () => {
+    console.log('Install PWA called', { installPrompt: !!installPrompt, deviceType });
+    
     if (!installPrompt) {
-      console.log('No install prompt available');
+      console.log('No install prompt available - checking browser compatibility');
+      
+      // For debugging - show what's available
+      console.log('Navigator capabilities:', {
+        serviceWorker: 'serviceWorker' in navigator,
+        standalone: 'standalone' in window.navigator,
+        userAgent: navigator.userAgent
+      });
+      
+      // Try to trigger install via different method
+      if (deviceType === 'ios') {
+        alert('To install this app on iOS:\n1. Tap the Share button\n2. Tap "Add to Home Screen"\n3. Tap "Add"');
+        return false;
+      }
+      
       return false;
     }
 
     try {
+      console.log('Showing install prompt...');
       const result = await installPrompt.prompt();
       console.log('Install prompt result:', result.outcome);
       
       if (result.outcome === 'accepted') {
+        console.log('User accepted installation');
         setInstallPrompt(null);
         setShowInstallNotification(false);
         return true;
+      } else {
+        console.log('User dismissed installation');
       }
       return false;
     } catch (error) {
       console.error('Error during PWA installation:', error);
+      // Show user-friendly error
+      alert('Installation failed. Please try again or install manually from your browser menu.');
       return false;
     }
   };
