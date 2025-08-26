@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
+const { BulkRecategorizationAPI } = require('./bulk-recategorization-api');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -723,6 +724,64 @@ app.put('/api/categories/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// Initialize ML Categorization API
+const mlCategorizationAPI = new BulkRecategorizationAPI(supabaseAdmin);
+
+// ML Categorization Routes
+app.get('/api/recategorization/analyze', authenticateToken, async (req, res) => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    await mlCategorizationAPI.analyzeExpenses(req, res);
+  } catch (error) {
+    console.error('Categorization analyze error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/recategorization/bulk-apply', authenticateToken, async (req, res) => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    await mlCategorizationAPI.bulkApplyRecategorization(req, res);
+  } catch (error) {
+    console.error('Bulk categorization error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/recategorization/single', authenticateToken, async (req, res) => {
+  try {
+    await mlCategorizationAPI.categorizeSingleExpense(req, res);
+  } catch (error) {
+    console.error('Single categorization error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/recategorization/suggestions/:expense_id', authenticateToken, async (req, res) => {
+  try {
+    await mlCategorizationAPI.getExpenseSuggestions(req, res);
+  } catch (error) {
+    console.error('Get suggestions error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.get('/api/recategorization/report', authenticateToken, async (req, res) => {
+  try {
+    if (!req.user || req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    await mlCategorizationAPI.getCategorizationReport(req, res);
+  } catch (error) {
+    console.error('Categorization report error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Enhanced Expense routes with advanced filtering
 app.get('/api/expenses', authenticateToken, async (req, res) => {
   try {
@@ -982,8 +1041,20 @@ app.put('/api/expenses/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Expense not found' });
     }
 
-    if (req.user.role !== 'admin' && existingExpense.created_by !== req.user.id) {
-      return res.status(403).json({ error: 'You can only edit your own expenses' });
+    // Allow admins to edit any expense, and users to edit their own expenses
+    // Only admins can edit all expenses, others can only edit their own
+    const canEdit = req.user.role === 'admin' || 
+                   existingExpense.created_by === req.user.id;
+                   
+    if (!canEdit) {
+      return res.status(403).json({ 
+        error: 'You can only edit your own expenses', 
+        debug: {
+          userRole: req.user.role,
+          userId: req.user.id,
+          expenseCreator: existingExpense.created_by
+        }
+      });
     }
 
     const updateData = {};
@@ -1039,8 +1110,20 @@ app.delete('/api/expenses/:id', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Expense not found' });
     }
 
-    if (req.user.role !== 'admin' && existingExpense.created_by !== req.user.id) {
-      return res.status(403).json({ error: 'You can only delete your own expenses' });
+    // Allow admins to delete any expense, and users to delete their own expenses
+    // Only admins can delete all expenses, others can only delete their own
+    const canDelete = req.user.role === 'admin' || 
+                     existingExpense.created_by === req.user.id;
+                     
+    if (!canDelete) {
+      return res.status(403).json({ 
+        error: 'You can only delete your own expenses',
+        debug: {
+          userRole: req.user.role,
+          userId: req.user.id,
+          expenseCreator: existingExpense.created_by
+        }
+      });
     }
 
     const { error } = await supabaseAdmin

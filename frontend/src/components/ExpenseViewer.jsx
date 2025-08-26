@@ -48,7 +48,10 @@ import {
   ChevronDown,
   ChevronUp,
   Eye,
-  EyeOff
+  EyeOff,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -68,7 +71,16 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from './ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 import { Checkbox } from './ui/checkbox';
+import ExpenseForm from './ExpenseForm';
 
 // Mobile-responsive expense card component
 const MobileExpenseCard = ({ expense, isSelected, onSelect, onEdit, onDelete, onDuplicate, isAdmin, deleteLoading }) => {
@@ -229,10 +241,15 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
   
   // Action states
   const [deleteLoading, setDeleteLoading] = useState(false);
+  
+  // Edit modal states
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState(null);
 
   // Mobile responsive states  
   const [showMobileColumns, setShowMobileColumns] = useState(false);
   const [expandedCards, setExpandedCards] = useState(new Set());
+  const [swipeStart, setSwipeStart] = useState(null);
 
   // Legacy date presets for Analytics Filters (matching EnhancedAnalytics.jsx format)
   const legacyDatePresets = {
@@ -486,13 +503,13 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
     setSwipeStart(null);
   };
 
-  // Priority columns for mobile display
-  const mobileColumns = {
-    essential: ['date', 'amount', 'description'], // Always shown on mobile
-    secondary: ['category', 'notes'], // Shown when expanded
-    admin: ['user'], // Admin only, shown when expanded
-    actions: ['actions'] // Always accessible via card action menu
-  };
+  // Priority columns for mobile display (for future mobile table implementation)
+  // const mobileColumns = {
+  //   essential: ['date', 'amount', 'description'], // Always shown on mobile
+  //   secondary: ['category', 'notes'], // Shown when expanded
+  //   admin: ['user'], // Admin only, shown when expanded
+  //   actions: ['actions'] // Always accessible via card action menu
+  // };
 
   // SWARM FIX: Separate filter change effects to prevent cascading re-renders
   useEffect(() => {
@@ -628,8 +645,25 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
 
   // Individual expense actions
   const handleEditExpense = (expense) => {
-    // You can implement edit modal here or navigate to edit page
-    console.log('Edit expense:', expense);
+    console.log('Opening edit modal for expense:', expense.id);
+    setEditingExpense(expense);
+    setEditModalOpen(true);
+  };
+
+  // Handle expense edit success
+  const handleEditSuccess = () => {
+    console.log('Expense edited successfully, refreshing data...');
+    setEditModalOpen(false);
+    setEditingExpense(null);
+    // Refresh the expenses list to show updated data
+    fetchExpenses();
+  };
+
+  // Handle expense edit cancel
+  const handleEditCancel = () => {
+    console.log('Edit cancelled');
+    setEditModalOpen(false);
+    setEditingExpense(null);
   };
 
   const handleDeleteExpense = async (expenseId) => {
@@ -1377,6 +1411,49 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
                     )}
                   </div>
                   
+                  {/* Mobile Sorting Controls */}
+                  <div className="flex items-center justify-between px-3 py-2 bg-muted/30 rounded-lg mb-3">
+                    <div className="text-sm font-medium text-muted-foreground">
+                      Sort by:
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={sortBy === 'expense_date' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => handleSort('expense_date')}
+                        className="text-xs px-2 py-1 h-7"
+                      >
+                        <Calendar className="h-3 w-3 mr-1" />
+                        Date
+                        {sortBy === 'expense_date' && (
+                          sortOrder === 'asc' ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />
+                        )}
+                      </Button>
+                      <Button
+                        variant={sortBy === 'amount' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => handleSort('amount')}
+                        className="text-xs px-2 py-1 h-7"
+                      >
+                        <span className="font-mono">₨</span>
+                        {sortBy === 'amount' && (
+                          sortOrder === 'asc' ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />
+                        )}
+                      </Button>
+                      <Button
+                        variant={sortBy === 'description' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => handleSort('description')}
+                        className="text-xs px-2 py-1 h-7"
+                      >
+                        Desc
+                        {sortBy === 'description' && (
+                          sortOrder === 'asc' ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  
                   {/* Mobile Swipe Hint */}
                   {totalPages > 1 && (
                     <div className="text-center py-2">
@@ -1413,35 +1490,56 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
                         
                         {/* Essential columns - always visible */}
                         <TableHead 
-                          className="cursor-pointer hover:bg-accent transition-colors sticky left-12 bg-background min-w-[100px]"
+                          className="cursor-pointer hover:bg-accent transition-colors sticky left-12 bg-background min-w-[100px] select-none"
                           onClick={() => handleSort('expense_date')}
                           title={`Sort by date ${sortBy === 'expense_date' ? (sortOrder === 'asc' ? '(ascending)' : '(descending)') : ''}`}
                           aria-label={`Sort expenses by date ${sortBy === 'expense_date' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'ascending'}`}
                         >
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4" />
-                            Date
-                            {sortBy === 'expense_date' && (
-                              <span className="ml-1 text-primary font-bold">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                            <span className="hidden sm:inline">Date</span>
+                            <span className="sm:hidden">Date</span>
+                            {sortBy === 'expense_date' ? (
+                              sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                            ) : (
+                              <ArrowUpDown className="h-4 w-4 text-muted-foreground opacity-50" />
                             )}
                           </div>
                         </TableHead>
                         
                         <TableHead 
-                          className="cursor-pointer hover:bg-accent transition-colors min-w-[100px]"
+                          className="cursor-pointer hover:bg-accent transition-colors min-w-[100px] select-none"
                           onClick={() => handleSort('amount')}
                           title={`Sort by amount ${sortBy === 'amount' ? (sortOrder === 'asc' ? '(ascending)' : '(descending)') : ''}`}
                           aria-label={`Sort expenses by amount ${sortBy === 'amount' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'descending'}`}
                         >
-                          <div className="flex items-center gap-1">
-                            Amount
-                            {sortBy === 'amount' && (
-                              <span className="ml-1 text-primary font-bold">{sortOrder === 'asc' ? '↑' : '↓'}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="hidden sm:inline">Amount</span>
+                            <span className="sm:hidden font-mono">₨</span>
+                            {sortBy === 'amount' ? (
+                              sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                            ) : (
+                              <ArrowUpDown className="h-4 w-4 text-muted-foreground opacity-50" />
                             )}
                           </div>
                         </TableHead>
                         
-                        <TableHead className="min-w-[200px]">Description</TableHead>
+                        <TableHead 
+                          className="cursor-pointer hover:bg-accent transition-colors min-w-[200px] select-none"
+                          onClick={() => handleSort('description')}
+                          title={`Sort by description ${sortBy === 'description' ? (sortOrder === 'asc' ? '(ascending)' : '(descending)') : ''}`}
+                          aria-label={`Sort expenses by description ${sortBy === 'description' ? (sortOrder === 'asc' ? 'ascending' : 'descending') : 'ascending'}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="hidden sm:inline">Description</span>
+                            <span className="sm:hidden">Desc</span>
+                            {sortBy === 'description' ? (
+                              sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                            ) : (
+                              <ArrowUpDown className="h-4 w-4 text-muted-foreground opacity-50" />
+                            )}
+                          </div>
+                        </TableHead>
                         
                         {/* Secondary columns - hideable on desktop */}
                         <TableHead className={showMobileColumns ? '' : 'hidden lg:table-cell'}>
@@ -1700,6 +1798,28 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
           )}
         </CardContent>
       </Card>
+
+      {/* Edit Expense Modal */}
+      <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
+        <DialogContent className="sm:max-w-md max-w-[95vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Expense</DialogTitle>
+            <DialogDescription>
+              Update the details for this expense. All changes will be saved immediately.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {editingExpense && (
+            <div className="py-4">
+              <ExpenseForm
+                expense={editingExpense}
+                onSuccess={handleEditSuccess}
+                onCancel={handleEditCancel}
+              />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

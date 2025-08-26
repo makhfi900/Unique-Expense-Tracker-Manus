@@ -41,7 +41,10 @@ import {
   Tag,
   Search,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 import ExpenseForm from './ExpenseForm';
 
@@ -145,6 +148,10 @@ const OptimizedExpenseList = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Sorting states
+  const [sortBy, setSortBy] = useState('expense_date');
+  const [sortOrder, setSortOrder] = useState('desc');
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -179,6 +186,10 @@ const OptimizedExpenseList = () => {
       queryParams.append('page', page.toString());
       queryParams.append('limit', itemsPerPage.toString());
       
+      // Add sorting
+      queryParams.append('sort_by', sortBy);
+      queryParams.append('sort_order', sortOrder);
+      
       // Add search
       if (filters.search || debouncedSearchTerm) {
         queryParams.append('search', filters.search || debouncedSearchTerm);
@@ -209,7 +220,7 @@ const OptimizedExpenseList = () => {
     } finally {
       setLoading(false);
     }
-  }, [apiCall, debouncedSearchTerm, dateRange, categoryFilter, itemsPerPage]);
+  }, [apiCall, debouncedSearchTerm, dateRange, categoryFilter, itemsPerPage, sortBy, sortOrder]);
 
   // Fetch categories
   const fetchCategories = useCallback(async () => {
@@ -261,10 +272,25 @@ const OptimizedExpenseList = () => {
     fetchExpenses({}, currentPage);
   }, [fetchExpenses, currentPage]);
 
+  // Handle sorting
+  const handleSort = useCallback((column) => {
+    if (sortBy === column) {
+      // Toggle sort order if clicking the same column
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      // Set new column with default desc order
+      setSortBy(column);
+      setSortOrder(column === 'amount' ? 'desc' : 'desc'); // Amount defaults to desc (highest first)
+    }
+    setCurrentPage(1); // Reset to first page when sorting changes
+  }, [sortBy, sortOrder]);
+
   // Clear filters (only search and category now)
   const clearFilters = useCallback(() => {
     setSearchTerm('');
     setCategoryFilter('all');
+    setSortBy('expense_date');
+    setSortOrder('desc');
     setCurrentPage(1);
   }, []);
 
@@ -419,9 +445,49 @@ const OptimizedExpenseList = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Amount</TableHead>
-                      <TableHead>Description</TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-accent transition-colors select-none"
+                        onClick={() => handleSort('expense_date')}
+                        title={`Sort by date ${sortBy === 'expense_date' ? (sortOrder === 'asc' ? '(ascending)' : '(descending)') : ''}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          Date
+                          {sortBy === 'expense_date' ? (
+                            sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                          ) : (
+                            <ArrowUpDown className="h-4 w-4 text-muted-foreground opacity-50" />
+                          )}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-accent transition-colors select-none"
+                        onClick={() => handleSort('amount')}
+                        title={`Sort by amount ${sortBy === 'amount' ? (sortOrder === 'asc' ? '(ascending)' : '(descending)') : ''}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          Amount
+                          {sortBy === 'amount' ? (
+                            sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                          ) : (
+                            <ArrowUpDown className="h-4 w-4 text-muted-foreground opacity-50" />
+                          )}
+                        </div>
+                      </TableHead>
+                      <TableHead 
+                        className="cursor-pointer hover:bg-accent transition-colors select-none"
+                        onClick={() => handleSort('description')}
+                        title={`Sort by description ${sortBy === 'description' ? (sortOrder === 'asc' ? '(ascending)' : '(descending)') : ''}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          Description
+                          {sortBy === 'description' ? (
+                            sortOrder === 'asc' ? <ArrowUp className="h-4 w-4 text-primary" /> : <ArrowDown className="h-4 w-4 text-primary" />
+                          ) : (
+                            <ArrowUpDown className="h-4 w-4 text-muted-foreground opacity-50" />
+                          )}
+                        </div>
+                      </TableHead>
                       <TableHead>Category</TableHead>
                       {isAdmin && <TableHead>Created By</TableHead>}
                       <TableHead>Actions</TableHead>

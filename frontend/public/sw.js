@@ -84,10 +84,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
-  // Handle API requests with Network First strategy
+  // Skip API requests during development to avoid caching issues
   if (isApiRequest(url)) {
-    event.respondWith(handleApiRequest(request));
-    return;
+    console.log('[SW] Skipping API request caching in development:', request.url);
+    return; // Let the browser handle API requests directly
   }
   
   // Handle static assets with Cache First strategy

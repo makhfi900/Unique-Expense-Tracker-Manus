@@ -47,10 +47,16 @@ const ExpenseForm = ({ expense = null, onSuccess, onCancel }) => {
 
   const fetchCategories = async () => {
     try {
+      console.log('🔄 Fetching categories...');
       const data = await apiCall('/categories');
+      console.log('📦 Categories response:', data);
       setCategories(data.categories || []);
+      console.log('✅ Categories loaded successfully:', data.categories?.length || 0);
     } catch (err) {
-      setError('Failed to fetch categories');
+      console.error('❌ Failed to fetch categories:', err);
+      setError(`Failed to fetch categories: ${err.message || 'Unknown error'}`);
+      // Fallback: set empty array so form still works
+      setCategories([]);
     }
   };
 

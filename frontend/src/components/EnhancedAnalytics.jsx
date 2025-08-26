@@ -58,7 +58,7 @@ import {
 } from 'lucide-react';
 
 const EnhancedAnalytics = memo(() => {
-  const { apiCall, isAdmin } = useAuth();
+  const { apiCall, isAdmin, user } = useAuth();
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -188,6 +188,11 @@ const EnhancedAnalytics = memo(() => {
     // Check cache first
     if (analyticsCache.has(cacheKey)) {
       const cachedData = analyticsCache.get(cacheKey);
+      console.log('📦 USING CACHED DATA:', {
+        categoryBreakdown: cachedData.categoryBreakdown?.length || 0,
+        monthlyCategoryData: cachedData.monthlyCategoryData?.length || 0,
+        kpiData: cachedData.kpiData ? 'PRESENT' : 'MISSING'
+      });
       setCategoryBreakdown(cachedData.categoryBreakdown);
       setMonthlyCategoryData(cachedData.monthlyCategoryData);
       setCategoryColors(cachedData.categoryColors);
@@ -230,13 +235,26 @@ const EnhancedAnalytics = memo(() => {
       }
 
       // Handle category breakdown
+      console.log('🔍 DEBUG - API Responses:', {
+        trendsResponse: trendsResponse?.error ? 'ERROR' : 'SUCCESS',
+        categoryResponse: categoryResponse?.error ? 'ERROR' : 'SUCCESS',
+        monthlyCategoryResponse: monthlyCategoryResponse?.error ? 'ERROR' : 'SUCCESS'
+      });
+      
       if (categoryResponse.breakdown && !categoryResponse.error) {
-        const breakdownArray = Object.entries(categoryResponse.breakdown).map(([name, data]) => ({
-          name,
-          value: parseFloat(data.total),
-          count: data.count,
-          color: data.color || '#3B82F6' // Default color if none provided
-        }));
+        console.log('📊 Processing category data:', categoryResponse.breakdown);
+        
+        const breakdownArray = Object.entries(categoryResponse.breakdown)
+          .filter(([name, data]) => data && typeof data === 'object')
+          .map(([name, data]) => ({
+            name,
+            value: parseFloat(data.total || 0),
+            count: parseInt(data.count || 0),
+            color: data.color || '#3B82F6'
+          }))
+          .filter(item => item.value > 0); // Remove zero-value entries
+        
+        console.log('✅ Processed breakdown array:', breakdownArray);
         setCategoryBreakdown(breakdownArray);
         
         // Calculate KPIs from category data
@@ -438,6 +456,17 @@ const EnhancedAnalytics = memo(() => {
     }
   }, [apiCall, dateRange.startDate, dateRange.endDate, categories]);
 
+
+  // Add state debug logging
+  useEffect(() => {
+    console.log('📈 ANALYTICS STATE UPDATE:', {
+      categoryBreakdown: categoryBreakdown.length,
+      monthlyCategoryData: monthlyCategoryData.length,
+      loading,
+      error: error || 'none',
+      user: user ? 'present' : 'missing'
+    });
+  }, [categoryBreakdown, monthlyCategoryData, loading, error, user]);
 
   // useEffect hooks - must come after useCallback definitions
   useEffect(() => {

@@ -11,17 +11,24 @@ export const useTimeRange = () => {
 };
 
 export const TimeRangeProvider = ({ children }) => {
-  // Initialize with current year by default for meaningful analytics data
-  const currentYear = new Date().getFullYear();
+  // Initialize with 2024-2025 range to include all imported expense data
   const [dateRange, setDateRange] = useState({
-    startDate: `${currentYear}-01-01`,
+    startDate: '2024-01-01',
     endDate: new Date().toISOString().split('T')[0]
   });
   
-  const [selectedPreset, setSelectedPreset] = useState('this_year');
+  const [selectedPreset, setSelectedPreset] = useState('all_data');
 
   // Date presets matching the design from issue1.JPG
   const datePresets = {
+    all_data: {
+      label: 'All Data (2024-2025)',
+      months: 24,
+      getRange: () => ({
+        startDate: '2024-01-01',
+        endDate: new Date().toISOString().split('T')[0]
+      })
+    },
     current_month: {
       label: 'Current month',
       months: 1,
