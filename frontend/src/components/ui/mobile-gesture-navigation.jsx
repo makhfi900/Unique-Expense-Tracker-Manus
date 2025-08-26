@@ -1,18 +1,17 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { motion, AnimatePresence, PanInfo } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from './card';
 import { Button } from './button';
 import {
   ChevronLeft,
   ChevronRight,
-  SwipeUp,
   Navigation,
   ArrowUp,
   ArrowDown,
   ArrowLeft,
   ArrowRight,
   Smartphone,
-  Gesture
+  Hand
 } from 'lucide-react';
 
 // Gesture-based navigation component for mobile
@@ -185,7 +184,7 @@ const MobileGestureNavigation = ({
         >
           <Card className="p-6 mx-4 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm shadow-2xl">
             <div className="flex items-center gap-3 mb-4 text-lg font-semibold text-gray-900 dark:text-gray-100">
-              <Gesture className="w-5 h-5 text-blue-600" />
+              <Hand className="w-5 h-5 text-blue-600" />
               Gesture Controls
             </div>
             
