@@ -1,0 +1,442 @@
+/**
+ * Professional Mobile Animations & Micro-Interactions
+ * Optimized for expense tracker with sophisticated touch feedback
+ */
+
+/* === KEYFRAME ANIMATIONS === */
+
+/* Professional shimmer for loading states */
+@keyframes shimmer-professional {
+  0% {
+    background-position: -200% 0;
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    background-position: 200% 0;
+    opacity: 0.8;
+  }
+}
+
+/* Smooth card entrance */
+@keyframes card-entrance {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  50% {
+    opacity: 0.7;
+    transform: translateY(-2px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Professional amount counter */
+@keyframes amount-counter {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.05);
+    filter: brightness(1.2);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+/* Subtle floating action button pulse */
+@keyframes fab-pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 6px 20px rgba(37, 99, 235, 0.15);
+  }
+  50% {
+    transform: scale(1.03);
+    box-shadow: 0 8px 30px rgba(37, 99, 235, 0.25);
+  }
+}
+
+/* Category badge glow */
+@keyframes category-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(37, 99, 235, 0);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(37, 99, 235, 0.3);
+  }
+}
+
+/* Professional swipe hint */
+@keyframes swipe-hint {
+  0%, 100% {
+    transform: translateX(0) scale(1);
+    opacity: 0.7;
+  }
+  33% {
+    transform: translateX(8px) scale(1.05);
+    opacity: 1;
+  }
+  66% {
+    transform: translateX(-8px) scale(1.05);
+    opacity: 1;
+  }
+}
+
+/* Elastic bounce for interactions */
+@keyframes elastic-bounce {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(0.9);
+  }
+  70% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Morphing icon animation */
+@keyframes icon-morph {
+  0% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(0.8) rotate(90deg);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1) rotate(180deg);
+    opacity: 1;
+  }
+}
+
+/* Professional scroll indicator */
+@keyframes scroll-indicator {
+  0%, 100% {
+    opacity: 0.4;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(4px);
+  }
+}
+
+/* === UTILITY CLASSES === */
+
+/* Professional entrance animations */
+.animate-card-entrance {
+  animation: card-entrance 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.animate-card-entrance-delayed {
+  animation: card-entrance 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  animation-delay: 0.1s;
+  animation-fill-mode: both;
+}
+
+/* Enhanced shimmer loading */
+.animate-shimmer-professional {
+  animation: shimmer-professional 2.5s ease-in-out infinite;
+  background: linear-gradient(
+    90deg,
+    #f8fafc 25%,
+    #e2e8f0 50%,
+    #f8fafc 75%
+  );
+  background-size: 200% 100%;
+}
+
+/* Amount animations */
+.animate-amount-counter {
+  animation: amount-counter 0.8s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* FAB animations */
+.animate-fab-pulse {
+  animation: fab-pulse 3s ease-in-out infinite;
+}
+
+/* Category animations */
+.animate-category-glow {
+  animation: category-glow 2s ease-in-out infinite;
+}
+
+/* Swipe interactions */
+.animate-swipe-hint {
+  animation: swipe-hint 3s ease-in-out infinite;
+}
+
+/* Touch feedback */
+.animate-elastic-bounce {
+  animation: elastic-bounce 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Icon transitions */
+.animate-icon-morph {
+  animation: icon-morph 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Scroll indicator */
+.animate-scroll-indicator {
+  animation: scroll-indicator 2s ease-in-out infinite;
+}
+
+/* === PROFESSIONAL INTERACTION STATES === */
+
+/* Enhanced touch feedback with multiple states */
+.touch-feedback-professional {
+  position: relative;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+.touch-feedback-professional:active {
+  transform: scale(0.96);
+  transition-duration: 0.1s;
+}
+
+.touch-feedback-professional:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+/* Card hover states */
+.card-hover-professional {
+  transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.card-hover-professional:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 25px rgba(37, 99, 235, 0.12);
+}
+
+.card-hover-professional:active {
+  transform: translateY(0) scale(0.99);
+  transition-duration: 0.1s;
+}
+
+/* Button professional states */
+.button-professional {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.button-professional::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  transform: translate(-50%, -50%);
+  transition: width 0.3s ease, height 0.3s ease;
+}
+
+.button-professional:active::before {
+  width: 200px;
+  height: 200px;
+  transition-duration: 0s;
+}
+
+/* Professional focus states */
+.focus-professional:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.3);
+  border-color: #2563eb;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* === GESTURE ENHANCEMENTS === */
+
+/* Swipe action reveals */
+.swipe-action-left {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2563eb, #1e40af);
+  color: white;
+  border-radius: 16px 0 0 16px;
+  transform: translateX(-100%);
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.swipe-action-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(225deg, #dc2626, #b91c1c);
+  color: white;
+  border-radius: 0 16px 16px 0;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* Drag indicators */
+.drag-indicator {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 500;
+  backdrop-filter: blur(8px);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.dragging .drag-indicator {
+  opacity: 1;
+}
+
+/* === RESPONSIVE ENHANCEMENTS === */
+
+/* Mobile-specific optimizations */
+@media (max-width: 768px) {
+  .touch-feedback-professional:active {
+    transform: scale(0.95);
+  }
+  
+  .card-hover-professional:hover {
+    transform: none;
+    box-shadow: inherit;
+  }
+  
+  .card-hover-professional:active {
+    transform: scale(0.98);
+  }
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .animate-card-entrance,
+  .animate-shimmer-professional,
+  .animate-amount-counter,
+  .animate-fab-pulse,
+  .animate-category-glow,
+  .animate-swipe-hint,
+  .animate-elastic-bounce,
+  .animate-icon-morph,
+  .animate-scroll-indicator {
+    animation: none;
+  }
+  
+  .touch-feedback-professional,
+  .card-hover-professional,
+  .button-professional,
+  .swipe-action-left,
+  .swipe-action-right {
+    transition: none;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .card-hover-professional {
+    border: 2px solid;
+  }
+  
+  .focus-professional:focus-visible {
+    outline: 2px solid;
+    box-shadow: none;
+  }
+}
+
+/* === LOADING STATES === */
+
+.skeleton-professional {
+  background: linear-gradient(
+    90deg,
+    #f1f5f9 25%,
+    #e2e8f0 50%,
+    #f1f5f9 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-professional 1.8s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+/* === SCROLL ENHANCEMENTS === */
+
+.smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Custom scrollbar for webkit browsers */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* === UTILITY HELPERS === */
+
+.backdrop-blur-professional {
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+}
+
+.glass-effect-professional {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px) saturate(1.2);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* === PERFORMANCE OPTIMIZATIONS === */
+
+/* GPU acceleration for smooth animations */
+.gpu-accelerated {
+  transform: translateZ(0);
+  will-change: transform, opacity;
+}
+
+/* Contain layout to prevent reflows */
+.layout-contained {
+  contain: layout style paint;
+}

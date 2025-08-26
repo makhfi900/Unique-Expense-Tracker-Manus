@@ -1,8 +1,11 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { useTimeRange } from '../context/TimeRangeContext';
 import { formatCurrency } from '../utils/currency';
+
+// Lazy load the enhanced mobile interface
+const EnhancedMobileExpenseList = lazy(() => import('./EnhancedMobileExpenseList'));
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Input } from './ui/input';
@@ -208,6 +211,20 @@ const MobileExpenseCard = ({ expense, isSelected, onSelect, onEdit, onDelete, on
 const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
   const { apiCall, isAdmin, session } = useAuth();
   const isMobile = useIsMobile();
+
+  // Use enhanced mobile interface on mobile devices
+  if (isMobile) {
+    return (
+      <Suspense fallback={
+        <div className="flex justify-center items-center h-64 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950 dark:to-indigo-900 rounded-2xl">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600"></div>
+          <span className="ml-3 text-gray-700 dark:text-gray-300 font-medium">Loading professional mobile interface...</span>
+        </div>
+      }>
+        <EnhancedMobileExpenseList selectedCategory={parentSelectedCategory} />
+      </Suspense>
+    );
+  }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
