@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo, Suspense, lazy } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { useTimeRange } from '../context/TimeRangeContext';
 import { useIsMobile } from '../hooks/use-mobile';
@@ -21,6 +21,9 @@ import MonthlyYearlyView from './MonthlyYearlyView';
 import YearComparisonView from './YearComparisonView';
 import TimeRangeSlider from './TimeRangeSlider';
 import ExpenseViewer from './ExpenseViewer';
+import ProductionErrorBoundary from './ProductionErrorBoundary';
+import ChartErrorBoundary from './ChartErrorBoundary';
+import { LoadingSpinner, ExpenseCardSkeleton, ChartSkeleton, EmptyState } from './ui/loading-states';
 import {
   LineChart,
   Line,
@@ -54,14 +57,26 @@ import {
   ToggleRight,
   Play,
   Pause,
-  List
+  List,
+  Wifi,
+  AlertCircle,
+  Info
 } from 'lucide-react';
+
+// Lazy load heavy chart components for better mobile performance
+const LazyPieChart = lazy(() => Promise.resolve({ default: PieChart }));
+const LazyBarChart = lazy(() => Promise.resolve({ default: BarChart }));
+const LazyResponsiveContainer = lazy(() => Promise.resolve({ default: ResponsiveContainer }));
 
 const EnhancedAnalytics = memo(() => {
   const { apiCall, isAdmin, user } = useAuth();
   const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [mobileOptimized, setMobileOptimized] = useState(false);
+  const [networkError, setNetworkError] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [chartLoadingState, setChartLoadingState] = useState('loading'); // 'loading', 'success', 'error'
   const [activeTab, setActiveTab] = useState('overview');
   
   // Chart display preferences - restored chart toggle functionality
@@ -112,24 +127,33 @@ const EnhancedAnalytics = memo(() => {
   // Phase 2: Yearly Analysis State
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  // Dynamic chart heights based on screen size
-  const getChartHeight = (baseHeight) => {
-    return isMobile ? Math.max(baseHeight - 50, 200) : baseHeight;
-  };
+  // Dynamic chart heights based on screen size with mobile optimization
+  const getChartHeight = useCallback((baseHeight) => {
+    if (isMobile) {
+      // Reduce height significantly for mobile to prevent memory issues
+      return Math.max(baseHeight * 0.6, 180);
+    }
+    return baseHeight;
+  }, [isMobile]);
 
-  // Dynamic chart margins for mobile optimization
-  const getChartMargins = () => {
+  // Dynamic chart margins for mobile optimization with better spacing
+  const getChartMargins = useCallback(() => {
     return isMobile 
-      ? { top: 10, right: 10, left: 10, bottom: 40 }
+      ? { top: 5, right: 5, left: 5, bottom: 30 }
       : { top: 20, right: 30, left: 20, bottom: 5 };
-  };
+  }, [isMobile]);
 
-  // Legend positioning based on screen size
-  const getLegendProps = () => {
+  // Legend positioning based on screen size with mobile performance optimization
+  const getLegendProps = useCallback(() => {
     return isMobile 
-      ? { verticalAlign: 'bottom', align: 'center', layout: 'horizontal', wrapperStyle: { paddingTop: '10px', fontSize: '12px' } }
+      ? { 
+          verticalAlign: 'bottom', 
+          align: 'center', 
+          layout: 'horizontal', 
+          wrapperStyle: { paddingTop: '5px', fontSize: '10px', maxHeight: '40px', overflow: 'hidden' }
+        }
       : { wrapperStyle: { paddingTop: '20px' }, iconType: 'rect' };
-  };
+  }, [isMobile]);
 
   // Legacy date presets for the existing select filter (can be removed in future)
   const legacyDatePresets = {
@@ -185,49 +209,82 @@ const EnhancedAnalytics = memo(() => {
   }, [dateRange.startDate, dateRange.endDate]);
 
   const fetchAnalyticsData = useCallback(async () => {
-    // Check cache first
-    if (analyticsCache.has(cacheKey)) {
-      const cachedData = analyticsCache.get(cacheKey);
-      console.log('📦 USING CACHED DATA:', {
-        categoryBreakdown: cachedData.categoryBreakdown?.length || 0,
-        monthlyCategoryData: cachedData.monthlyCategoryData?.length || 0,
-        kpiData: cachedData.kpiData ? 'PRESENT' : 'MISSING'
-      });
-      setCategoryBreakdown(cachedData.categoryBreakdown);
-      setMonthlyCategoryData(cachedData.monthlyCategoryData);
-      setCategoryColors(cachedData.categoryColors);
-      setCategoryList(cachedData.categoryList);
-      setKpiData(cachedData.kpiData);
-      return;
-    }
+    // Mobile optimization: Clear any existing timeouts to prevent memory leaks
+    const abortController = new AbortController();
+    const timeoutId = isMobile ? setTimeout(() => abortController.abort(), 15000) : null; // 15s timeout on mobile
     
-    setLoading(true);
-    setError('');
     try {
-      // Use Promise.all for parallel requests to improve performance
+      // Check cache first
+      if (analyticsCache.has(cacheKey)) {
+        const cachedData = analyticsCache.get(cacheKey);
+        console.log('📦 USING CACHED DATA:', {
+          categoryBreakdown: cachedData.categoryBreakdown?.length || 0,
+          monthlyCategoryData: cachedData.monthlyCategoryData?.length || 0,
+          kpiData: cachedData.kpiData ? 'PRESENT' : 'MISSING'
+        });
+        setCategoryBreakdown(cachedData.categoryBreakdown);
+        setMonthlyCategoryData(cachedData.monthlyCategoryData);
+        setCategoryColors(cachedData.categoryColors);
+        setCategoryList(cachedData.categoryList);
+        setKpiData(cachedData.kpiData);
+        setChartLoadingState('success');
+        return;
+      }
+      
+      setLoading(true);
+      setError('');
+      setNetworkError(false);
+      setChartLoadingState('loading');
+      // Mobile-optimized API calls with timeout handling
+      const createApiCall = (url) => {
+        return Promise.race([
+          apiCall(url),
+          new Promise((_, reject) => {
+            if (isMobile) {
+              setTimeout(() => reject(new Error('Request timeout on mobile')), 10000);
+            }
+          })
+        ]).catch(err => ({ 
+          error: err.message, 
+          type: url.includes('trends') ? 'trends' : 
+                url.includes('category-breakdown') ? 'categories' : 'monthly-category',
+          isTimeout: err.message.includes('timeout')
+        }));
+      };
+      
+      // Use Promise.allSettled for better error handling on mobile
       const requests = [];
       
-      // 1. Fetch spending trends
+      // 1. Fetch spending trends with timeout
       const startYear = new Date(dateRange.startDate).getFullYear();
       requests.push(
-        apiCall(`/analytics/spending-trends?period=monthly&year=${startYear}&start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`)
-          .catch(err => ({ error: err.message, type: 'trends' }))
+        createApiCall(`/analytics/spending-trends?period=monthly&year=${startYear}&start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`)
       );
       
-      // 2. Fetch category breakdown
+      // 2. Fetch category breakdown with timeout
       requests.push(
-        apiCall(`/analytics/category-breakdown?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`)
-          .catch(err => ({ error: err.message, type: 'categories' }))
+        createApiCall(`/analytics/category-breakdown?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`)
       );
       
-      // 3. Fetch combined monthly-category breakdown for stacked chart
+      // 3. Fetch combined monthly-category breakdown for stacked chart with timeout
       requests.push(
-        apiCall(`/analytics/monthly-category-breakdown?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`)
-          .catch(err => ({ error: err.message, type: 'monthly-category' }))
+        createApiCall(`/analytics/monthly-category-breakdown?start_date=${dateRange.startDate}&end_date=${dateRange.endDate}`)
       );
 
-      // Execute all requests in parallel
-      const [trendsResponse, categoryResponse, monthlyCategoryResponse] = await Promise.all(requests);
+      // Execute all requests with better error handling for mobile
+      const results = await Promise.allSettled(requests);
+      const [trendsResult, categoryResult, monthlyCategoryResult] = results;
+      
+      // Extract responses, handling failures gracefully
+      const trendsResponse = trendsResult.status === 'fulfilled' ? trendsResult.value : { error: trendsResult.reason?.message || 'Network error' };
+      const categoryResponse = categoryResult.status === 'fulfilled' ? categoryResult.value : { error: categoryResult.reason?.message || 'Network error' };
+      const monthlyCategoryResponse = monthlyCategoryResult.status === 'fulfilled' ? monthlyCategoryResult.value : { error: monthlyCategoryResult.reason?.message || 'Network error' };
+      
+      // Check for network connectivity issues on mobile
+      if (results.every(result => result.status === 'rejected')) {
+        setNetworkError(true);
+        throw new Error('Network connectivity issue. Please check your connection.');
+      }
       
       // Handle trends data - now only used for logging, main chart uses monthlyCategoryData
       if (trendsResponse.error) {
@@ -277,7 +334,7 @@ const EnhancedAnalytics = memo(() => {
         };
         setKpiData(newKpiData);
         
-        // Cache the results
+        // Cache the results with mobile memory optimization
         const cacheData = {
           categoryBreakdown: breakdownArray,
           monthlyCategoryData: monthlyCategoryResponse.breakdown || [],
@@ -288,13 +345,15 @@ const EnhancedAnalytics = memo(() => {
         setAnalyticsCache(prev => {
           const newCache = new Map(prev);
           newCache.set(cacheKey, cacheData);
-          // Keep only last 5 cache entries to prevent memory leak
-          if (newCache.size > 5) {
+          // Keep fewer cache entries on mobile to prevent memory issues
+          const maxCacheSize = isMobile ? 2 : 5;
+          if (newCache.size > maxCacheSize) {
             const firstKey = newCache.keys().next().value;
             newCache.delete(firstKey);
           }
           return newCache;
         });
+        setChartLoadingState('success');
       } else if (categoryResponse.error) {
         console.warn('Category data failed:', categoryResponse.error);
         // Try fallback: fetch expenses directly and create category breakdown
@@ -313,10 +372,27 @@ const EnhancedAnalytics = memo(() => {
 
 
     } catch (err) {
-      setError('Failed to fetch analytics data: ' + err.message);
       console.error('Analytics error:', err);
+      setRetryCount(prev => prev + 1);
+      
+      // Enhanced error handling for mobile
+      if (err.message.includes('timeout') || err.message.includes('Network')) {
+        setNetworkError(true);
+        setError('Network connection issue. Please check your internet connection and try again.');
+      } else if (err.name === 'AbortError') {
+        setError('Request was cancelled. Please try again.');
+      } else {
+        setError('Failed to fetch analytics data: ' + err.message);
+      }
+      setChartLoadingState('error');
     } finally {
+      if (timeoutId) clearTimeout(timeoutId);
       setLoading(false);
+      
+      // Mobile performance optimization: trigger garbage collection hint
+      if (isMobile && window.gc) {
+        setTimeout(() => window.gc(), 1000);
+      }
     }
   }, [apiCall, dateRange.startDate, dateRange.endDate, categories.length, analyticsCache, cacheKey]);
 
@@ -490,21 +566,72 @@ const EnhancedAnalytics = memo(() => {
 
 
   const refreshData = useCallback(async () => {
-    // Clear cache to force fresh data
+    // Clear cache to force fresh data with mobile optimization
     setAnalyticsCache(new Map());
     setError('');
+    setNetworkError(false);
+    setRetryCount(0);
+    setChartLoadingState('loading');
+    
     try {
       await fetchAnalyticsData();
     } catch (err) {
+      console.error('Refresh failed:', err);
       setError('Failed to refresh data: ' + err.message);
+      setChartLoadingState('error');
     }
   }, [fetchAnalyticsData]);
+  
+  // Mobile-specific retry mechanism
+  const retryWithBackoff = useCallback(async () => {
+    if (retryCount >= 3) {
+      setError('Maximum retry attempts reached. Please check your connection.');
+      return;
+    }
+    
+    const backoffDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff
+    setTimeout(() => {
+      refreshData();
+    }, backoffDelay);
+  }, [retryCount, refreshData]);
 
+
+  // Mobile-specific error component
+  const MobileErrorFallback = ({ error, onRetry }) => (
+    <Card className="border-red-200 bg-red-50">
+      <CardContent className="p-4 text-center">
+        <div className="flex flex-col items-center space-y-3">
+          <AlertCircle className="h-8 w-8 text-red-500" />
+          <div>
+            <h3 className="font-semibold text-red-800">Unable to Load Analytics</h3>
+            <p className="text-sm text-red-600 mt-1">
+              {networkError ? 'Check your internet connection' : error}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={onRetry} disabled={retryCount >= 3}>
+              <RefreshCw className="h-4 w-4 mr-1" />
+              {retryCount >= 3 ? 'Max Retries' : `Retry (${retryCount})`}
+            </Button>
+            {networkError && (
+              <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                <Wifi className="h-4 w-4 mr-1" />
+                Reload
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
 
   // Both admin and account officers see the full analytics dashboard with role-based tab differences
-
   return (
-    <div className="space-y-6">
+    <ProductionErrorBoundary 
+      componentName="Enhanced Analytics" 
+      fallbackComponent={isMobile ? MobileErrorFallback : undefined}
+    >
+      <div className="space-y-6">
       {/* Main Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className={`
@@ -550,14 +677,26 @@ const EnhancedAnalytics = memo(() => {
         {/* Overview Tab - Original Analytics */}
         <TabsContent value="overview" className="space-y-6">
 
-          {/* Loading State for Analytics */}
+          {/* Enhanced Loading State for Analytics with Mobile Optimization */}
           {loading && (
             <Card>
               <CardContent className="p-6">
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
-                  <span className="ml-3 text-lg font-medium text-gray-600 dark:text-gray-400">Loading analytics data...</span>
-                </div>
+                {isMobile ? (
+                  // Mobile-optimized loading with skeleton
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-center py-4">
+                      <LoadingSpinner size="default" color="primary" className="mr-2" />
+                      <span className="text-sm font-medium text-gray-600">Loading analytics...</span>
+                    </div>
+                    <ChartSkeleton type="pie" className="h-40" />
+                  </div>
+                ) : (
+                  // Desktop loading state
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-cyan-500" />
+                    <span className="ml-3 text-lg font-medium text-gray-600 dark:text-gray-400">Loading analytics data...</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
           )}
@@ -739,13 +878,29 @@ const EnhancedAnalytics = memo(() => {
         </CardContent>
       </Card>
 
-      {/* Error Display - Enhanced */}
+      {/* Error Display - Enhanced with Mobile Optimization */}
       {error && (
         <Alert variant="destructive" className="border-red-200 dark:border-red-800">
           <AlertDescription className="text-red-800 dark:text-red-200">
-            <div className="flex items-center gap-2">
-              <span>⚠️</span>
-              {error}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                {networkError ? <Wifi className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                <span className={isMobile ? 'text-sm' : ''}>{error}</span>
+              </div>
+              {isMobile && (
+                <div className="flex gap-2 mt-2">
+                  <Button size="sm" variant="outline" onClick={retryWithBackoff} disabled={retryCount >= 3}>
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Retry
+                  </Button>
+                  {networkError && (
+                    <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+                      <Wifi className="h-3 w-3 mr-1" />
+                      Reload
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           </AlertDescription>
         </Alert>
@@ -753,8 +908,21 @@ const EnhancedAnalytics = memo(() => {
 
       {loading ? (
         <div className="flex items-center justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin" />
-          <span className="ml-2">Loading analytics...</span>
+          {isMobile ? (
+            <div className="space-y-4 w-full">
+              <LoadingSpinner size="default" color="primary" className="mx-auto" />
+              <span className="block text-center text-sm">Loading analytics...</span>
+              <div className="space-y-2">
+                <ChartSkeleton type="pie" className="h-32" />
+                <ExpenseCardSkeleton count={2} variant="compact" />
+              </div>
+            </div>
+          ) : (
+            <>
+              <Loader2 className="h-8 w-8 animate-spin" />
+              <span className="ml-2">Loading analytics...</span>
+            </>
+          )}
         </div>
       ) : (
         <div className="space-y-6">
@@ -899,151 +1067,178 @@ const EnhancedAnalytics = memo(() => {
                 {monthlyCategoryData && monthlyCategoryData.length > 0 && categoryList.length > 0 ? (
                   <>
                     {monthlyChartType === 'stacked' ? (
-                      /* Stacked Bar Chart View */
-                      <ResponsiveContainer width="100%" height={getChartHeight(400)}>
-                        <BarChart data={memoizedChartData} margin={getChartMargins()}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis 
-                            dataKey="month" 
-                            tick={{ fontSize: isMobile ? 10 : 12 }}
-                            angle={isMobile ? -60 : -45}
-                            textAnchor="end"
-                            height={isMobile ? 80 : 60}
-                            interval={isMobile ? 'preserveStartEnd' : 0}
-                          />
-                          <YAxis 
-                            tick={{ fontSize: isMobile ? 10 : 12 }}
-                            tickFormatter={(value) => `Rs ${(value / 1000).toFixed(0)}K`}
-                          />
-                          <Tooltip 
-                            content={({ active, payload, label }) => {
-                              if (active && payload && payload.length) {
-                                const monthData = memoizedChartData.find(data => data.month === label);
-                                return (
-                                  <div className={`bg-popover border rounded shadow-lg text-popover-foreground ${isMobile ? 'p-2 max-w-[200px]' : 'p-4 max-w-sm'}`}>
-                                    <p className={`font-semibold mb-2 ${isMobile ? 'text-xs' : 'text-sm'}`}>{`Month: ${label}`}</p>
-                                    <p className={`font-medium mb-2 text-green-600 ${isMobile ? 'text-xs' : 'text-sm'}`}>
-                                      {`Total: ${isMobile ? `Rs ${(monthData?.total / 1000).toFixed(0)}K` : formatCurrency(monthData?.total || 0)}`}
-                                    </p>
-                                    <div className="space-y-1">
-                                      {payload.slice(0, isMobile ? 3 : payload.length).map((entry, index) => (
-                                        <p key={index} style={{ color: entry.color }} className={isMobile ? 'text-[10px]' : 'text-sm'}>
-                                          {`${entry.dataKey}: ${isMobile ? `${(entry.value / 1000).toFixed(0)}K` : formatCurrency(entry.value)}`}
+                      /* Mobile-Optimized Stacked Bar Chart View */
+                      <ChartErrorBoundary chartName="Monthly Spending Chart" onRetry={refreshData}>
+                        <Suspense fallback={<ChartSkeleton type="bar" />}>
+                          <LazyResponsiveContainer width="100%" height={getChartHeight(400)}>
+                            <LazyBarChart data={memoizedChartData} margin={getChartMargins()}>
+                              <CartesianGrid 
+                                strokeDasharray="3 3" 
+                                stroke={isMobile ? "#f0f0f0" : "#e0e0e0"}
+                              />
+                              <XAxis 
+                                dataKey="month" 
+                                tick={{ fontSize: isMobile ? 8 : 12 }}
+                                angle={isMobile ? -60 : -45}
+                                textAnchor="end"
+                                height={isMobile ? 60 : 60}
+                                interval={isMobile ? 'preserveStartEnd' : 0}
+                                tickFormatter={isMobile ? (value) => value.slice(0, 3) : undefined}
+                              />
+                              <YAxis 
+                                tick={{ fontSize: isMobile ? 8 : 12 }}
+                                tickFormatter={(value) => isMobile ? `${(value / 1000).toFixed(0)}K` : `Rs ${(value / 1000).toFixed(0)}K`}
+                                width={isMobile ? 35 : 60}
+                              />
+                              <Tooltip 
+                                content={({ active, payload, label }) => {
+                                  if (active && payload && payload.length) {
+                                    const monthData = memoizedChartData.find(data => data.month === label);
+                                    return (
+                                      <div className={`bg-popover border rounded shadow-lg text-popover-foreground ${isMobile ? 'p-2 max-w-[160px]' : 'p-4 max-w-sm'}`}>
+                                        <p className={`font-semibold mb-1 ${isMobile ? 'text-[10px]' : 'text-sm'}`}>{isMobile ? label.slice(0, 6) : `Month: ${label}`}</p>
+                                        <p className={`font-medium mb-1 text-green-600 ${isMobile ? 'text-[10px]' : 'text-sm'}`}>
+                                          {`${isMobile ? '' : 'Total: '}${isMobile ? `Rs ${(monthData?.total / 1000).toFixed(0)}K` : formatCurrency(monthData?.total || 0)}`}
                                         </p>
-                                      ))}
-                                      {isMobile && payload.length > 3 && (
-                                        <p className="text-[10px] text-muted-foreground">
-                                          +{payload.length - 3} more
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                );
-                              }
-                              return null;
-                            }}
-                          />
-                          <Legend {...getLegendProps()} />
-                          {/* Dynamic bars for each category */}
-                          {categoryList.map((category, index) => (
-                            <Bar
-                              key={category}
-                              dataKey={category}
-                              stackId="spending"
-                              fill={categoryColors[category] || `hsl(${(index * 137) % 360}, 70%, 50%)`}
-                              name={category}
-                            />
-                          ))}
-                        </BarChart>
-                      </ResponsiveContainer>
-                    ) : (
-                      /* Category Breakdown Donut Chart */
-                      memoizedCategoryBreakdown && memoizedCategoryBreakdown.length > 0 ? (
-                        <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
-                          <div className="relative">
-                            <ResponsiveContainer width="100%" height={getChartHeight(300)}>
-                              <PieChart>
-                                <Pie
-                                  data={memoizedCategoryBreakdown}
-                                  cx="50%"
-                                  cy="50%"
-                                  labelLine={false}
-                                  label={false}
-                                  outerRadius={isMobile ? 70 : 100}
-                                  innerRadius={isMobile ? 40 : 60}
-                                  fill="#8884d8"
-                                  dataKey="value"
-                                  stroke="none"
-                                >
-                                  {memoizedCategoryBreakdown.map((entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={entry.color} />
-                                  ))}
-                                </Pie>
-                                <Tooltip 
-                                  formatter={(value, name, props) => [
-                                    formatCurrency(value), 
-                                    props.payload.name
-                                  ]}
-                                  labelFormatter={() => ''}
-                                  contentStyle={{
-                                    backgroundColor: 'hsl(var(--popover))',
-                                    border: '1px solid hsl(var(--border))',
-                                    borderRadius: '8px',
-                                    padding: isMobile ? '8px' : '12px',
-                                    color: 'hsl(var(--popover-foreground))',
-                                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                                    fontSize: isMobile ? '12px' : '14px',
-                                    maxWidth: isMobile ? '200px' : '300px'
-                                  }}
-                                  itemStyle={{
-                                    color: 'hsl(var(--popover-foreground))'
-                                  }}
-                                  labelStyle={{
-                                    color: 'hsl(var(--popover-foreground))'
-                                  }}
+                                        <div className="space-y-0.5">
+                                          {payload.slice(0, isMobile ? 2 : payload.length).map((entry, index) => (
+                                            <p key={index} style={{ color: entry.color }} className={isMobile ? 'text-[9px]' : 'text-sm'}>
+                                              {`${entry.dataKey.slice(0, isMobile ? 8 : 20)}: ${isMobile ? `${(entry.value / 1000).toFixed(0)}K` : formatCurrency(entry.value)}`}
+                                            </p>
+                                          ))}
+                                          {isMobile && payload.length > 2 && (
+                                            <p className="text-[8px] text-muted-foreground">
+                                              +{payload.length - 2} more
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                }}
+                              />
+                              {!isMobile && <Legend {...getLegendProps()} />}
+                              {/* Dynamic bars for each category - limit on mobile */}
+                              {(isMobile ? categoryList.slice(0, 6) : categoryList).map((category, index) => (
+                                <Bar
+                                  key={category}
+                                  dataKey={category}
+                                  stackId="spending"
+                                  fill={categoryColors[category] || `hsl(${(index * 137) % 360}, 70%, 50%)`}
+                                  name={category}
                                 />
-                              </PieChart>
-                            </ResponsiveContainer>
+                              ))}
+                            </LazyBarChart>
+                          </LazyResponsiveContainer>
+                        </Suspense>
+                      </ChartErrorBoundary>
+                    ) : (
+                      /* Mobile-Optimized Category Breakdown Donut Chart */
+                      memoizedCategoryBreakdown && memoizedCategoryBreakdown.length > 0 ? (
+                        <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 lg:grid-cols-2'}`}>
+                          <div className="relative">
+                            <ChartErrorBoundary chartName="Category Breakdown Chart" onRetry={refreshData}>
+                              <Suspense fallback={<ChartSkeleton type="pie" />}>
+                                <LazyResponsiveContainer width="100%" height={getChartHeight(300)}>
+                                  <LazyPieChart>
+                                    <Pie
+                                      data={isMobile ? memoizedCategoryBreakdown.slice(0, 8) : memoizedCategoryBreakdown}
+                                      cx="50%"
+                                      cy="50%"
+                                      labelLine={false}
+                                      label={false}
+                                      outerRadius={isMobile ? 60 : 100}
+                                      innerRadius={isMobile ? 30 : 60}
+                                      fill="#8884d8"
+                                      dataKey="value"
+                                      stroke={isMobile ? "#fff" : "none"}
+                                      strokeWidth={isMobile ? 1 : 0}
+                                    >
+                                      {(isMobile ? memoizedCategoryBreakdown.slice(0, 8) : memoizedCategoryBreakdown).map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                      ))}
+                                    </Pie>
+                                    <Tooltip 
+                                      formatter={(value, name, props) => [
+                                        isMobile ? `Rs ${(value / 1000).toFixed(1)}K` : formatCurrency(value), 
+                                        props.payload.name
+                                      ]}
+                                      labelFormatter={() => ''}
+                                      contentStyle={{
+                                        backgroundColor: 'hsl(var(--popover))',
+                                        border: '1px solid hsl(var(--border))',
+                                        borderRadius: '6px',
+                                        padding: isMobile ? '4px 6px' : '12px',
+                                        color: 'hsl(var(--popover-foreground))',
+                                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                                        fontSize: isMobile ? '10px' : '14px',
+                                        maxWidth: isMobile ? '140px' : '300px',
+                                        lineHeight: isMobile ? '1.2' : '1.4'
+                                      }}
+                                      itemStyle={{
+                                        color: 'hsl(var(--popover-foreground))',
+                                        fontSize: isMobile ? '10px' : '14px'
+                                      }}
+                                      labelStyle={{
+                                        color: 'hsl(var(--popover-foreground))'
+                                      }}
+                                    />
+                                  </LazyPieChart>
+                                </LazyResponsiveContainer>
+                              </Suspense>
+                            </ChartErrorBoundary>
                             
-                            {/* Center Total Display */}
+                            {/* Mobile-Optimized Center Total Display */}
                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <div className="text-center">
-                                <div className={`font-medium text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>Total Expenses</div>
-                                <div className={`font-bold text-foreground ${isMobile ? 'text-lg' : 'text-2xl'}`}>
+                              <div className="text-center px-2">
+                                <div className={`font-medium text-muted-foreground ${isMobile ? 'text-[10px]' : 'text-sm'}`}>
+                                  {isMobile ? 'Total' : 'Total Expenses'}
+                                </div>
+                                <div className={`font-bold text-foreground ${isMobile ? 'text-sm' : 'text-2xl'} break-words`}>
                                   {isMobile ? `Rs ${(kpiData.totalSpent / 1000).toFixed(0)}K` : formatCurrency(kpiData.totalSpent)}
                                 </div>
+                                {isMobile && kpiData.totalExpenses > 0 && (
+                                  <div className="text-[9px] text-muted-foreground mt-1">
+                                    {kpiData.totalExpenses} items
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
 
-                          {/* Enhanced Legend */}
-                          <div className="space-y-3">
-                            <h4 className={`font-semibold text-foreground mb-4 ${isMobile ? 'text-xs' : 'text-sm'}`}>Categories</h4>
-                            <div className={`space-y-2 overflow-y-auto ${isMobile ? 'max-h-[200px]' : 'max-h-[250px]'}`}>
-                              {memoizedCategoryBreakdown
+                          {/* Mobile-Optimized Enhanced Legend */}
+                          <div className={`space-y-2 ${isMobile ? 'mt-2' : 'mt-0'}`}>
+                            <h4 className={`font-semibold text-foreground ${isMobile ? 'text-[11px] mb-2' : 'text-sm mb-4'}`}>
+                              {isMobile ? 'Categories' : 'Category Breakdown'}
+                            </h4>
+                            <div className={`space-y-1 overflow-y-auto ${isMobile ? 'max-h-[160px]' : 'max-h-[250px]'}`}>
+                              {(isMobile ? memoizedCategoryBreakdown.slice(0, 8) : memoizedCategoryBreakdown)
                                 .map((category, index) => {
                                   const percentage = kpiData.totalSpent > 0 ? (category.value / kpiData.totalSpent * 100) : 0;
                                   return (
-                                    <div key={index} className={`flex items-center justify-between rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors ${isMobile ? 'py-1.5 px-2' : 'py-2 px-3'}`}>
-                                      <div className="flex items-center gap-2">
+                                    <div key={index} className={`flex items-center justify-between rounded-md hover:bg-accent hover:text-accent-foreground transition-colors ${isMobile ? 'py-1 px-1.5' : 'py-2 px-3'}`}>
+                                      <div className="flex items-center gap-1.5">
                                         <div
-                                          className={`rounded-full flex-shrink-0 ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`}
+                                          className={`rounded-full flex-shrink-0 ${isMobile ? 'w-2.5 h-2.5' : 'w-4 h-4'}`}
                                           style={{ backgroundColor: category.color }}
                                         />
-                                        <div>
-                                          <div className={`font-medium text-foreground truncate ${isMobile ? 'text-xs max-w-[80px]' : 'text-sm max-w-[120px]'}`}>
-                                            {category.name}
+                                        <div className="min-w-0 flex-1">
+                                          <div className={`font-medium text-foreground truncate ${isMobile ? 'text-[10px] max-w-[60px]' : 'text-sm max-w-[120px]'}`}>
+                                            {isMobile ? category.name.slice(0, 8) : category.name}
                                           </div>
-                                          <div className={`text-muted-foreground ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
-                                            {category.count} transaction{category.count !== 1 ? 's' : ''}
-                                          </div>
+                                          {!isMobile && (
+                                            <div className="text-xs text-muted-foreground">
+                                              {category.count} transaction{category.count !== 1 ? 's' : ''}
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                       <div className="text-right flex-shrink-0">
-                                        <div className={`font-semibold text-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>
-                                          {isMobile ? `Rs ${(category.value / 1000).toFixed(0)}K` : formatCurrency(category.value)}
+                                        <div className={`font-semibold text-foreground ${isMobile ? 'text-[10px]' : 'text-sm'}`}>
+                                          {isMobile ? `${(category.value / 1000).toFixed(0)}K` : formatCurrency(category.value)}
                                         </div>
-                                        <div className={`text-muted-foreground ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
+                                        <div className={`text-muted-foreground ${isMobile ? 'text-[8px]' : 'text-xs'}`}>
                                           {percentage.toFixed(1)}%
                                         </div>
                                       </div>
@@ -1051,6 +1246,13 @@ const EnhancedAnalytics = memo(() => {
                                   );
                                 })
                               }
+                              {isMobile && memoizedCategoryBreakdown.length > 8 && (
+                                <div className="text-center py-1">
+                                  <span className="text-[9px] text-muted-foreground">
+                                    +{memoizedCategoryBreakdown.length - 8} more categories
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1135,6 +1337,7 @@ const EnhancedAnalytics = memo(() => {
 
       </Tabs>
     </div>
+    </ProductionErrorBoundary>
   );
 });
 
