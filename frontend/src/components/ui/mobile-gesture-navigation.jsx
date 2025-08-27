@@ -62,17 +62,8 @@ const MobileGestureNavigation = ({
       }
     }
     
-    // Handle horizontal swipes
-    if (enableSwipeNavigation && Math.abs(offset.x) > Math.abs(offset.y)) {
-      if (Math.abs(offset.x) > swipeThreshold) {
-        if (offset.x > 0) {
-          setActiveGesture('swipe-right');
-        } else {
-          setActiveGesture('swipe-left');
-        }
-        triggerHaptic('light');
-      }
-    }
+    // Removed horizontal swipes as they were causing navigation issues with 1000+ expenses
+    // Focus only on pull-to-refresh functionality for mobile
   }, [enablePullToRefresh, enableSwipeNavigation, refreshThreshold, swipeThreshold, triggerHaptic]);
 
   // Handle pan end
@@ -94,8 +85,9 @@ const MobileGestureNavigation = ({
       setPullDistance(0);
     }
     
-    // Swipe navigation logic
-    if (enableSwipeNavigation) {
+    // Removed swipe navigation logic to prevent conflicts with scrolling
+    // This improves UX for large datasets (1000+ expenses)
+    if (false) { // Disabled swipe navigation
       const swipeVelocityThreshold = 500;
       const isHorizontalSwipe = Math.abs(offset.x) > Math.abs(offset.y);
       const isFastSwipe = Math.abs(velocity.x) > swipeVelocityThreshold;

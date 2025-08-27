@@ -1126,7 +1126,7 @@ const EnhancedAnalytics = memo(() => {
                                   dataKey={category}
                                   stackId="spending"
                                   fill={categoryColors[category] || `hsl(${(index * 137) % 360}, 70%, 50%)`}
-                                  name={category}
+                                  name={isMobile ? category.slice(0, 8) + (category.length > 8 ? '...' : '') : category}
                                 />
                               ))}
                             </LazyBarChart>

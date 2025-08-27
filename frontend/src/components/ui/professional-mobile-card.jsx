@@ -88,28 +88,30 @@ const ProfessionalMobileCard = ({
     }
   }, [expense.id, onDelete, triggerHaptic]);
 
-  // Swipe gesture handlers
-  const [swipePosition, setSwipePosition] = useState(0);
-  const swipeThreshold = 100;
+  // Removed swipe gestures to prevent unwanted interactions
+  // Users can now tap safely without triggering unintended actions
+  // const [swipePosition, setSwipePosition] = useState(0);
+  // const swipeThreshold = 100;
 
-  const handleDragEnd = useCallback((event, info) => {
-    const { offset, velocity } = info;
-    
-    if (Math.abs(offset.x) > swipeThreshold || Math.abs(velocity.x) > 500) {
-      if (offset.x > 0) {
-        // Swipe right - edit action
-        triggerHaptic('medium');
-        onEdit?.(expense);
-      } else {
-        // Swipe left - delete action (with confirmation)
-        triggerHaptic('heavy');
-        // Trigger delete confirmation
-      }
-      setSwipePosition(0);
-    } else {
-      setSwipePosition(0);
-    }
-  }, [expense, onEdit, triggerHaptic]);
+  // Disabled drag handlers that were causing unwanted edit dialogs
+  // const handleDragEnd = useCallback((event, info) => {
+  //   const { offset, velocity } = info;
+  //   
+  //   if (Math.abs(offset.x) > swipeThreshold || Math.abs(velocity.x) > 500) {
+  //     if (offset.x > 0) {
+  //       // Swipe right - edit action (DISABLED)
+  //       triggerHaptic('medium');
+  //       onEdit?.(expense);
+  //     } else {
+  //       // Swipe left - delete action (DISABLED)
+  //       triggerHaptic('heavy');
+  //       // Trigger delete confirmation
+  //     }
+  //     setSwipePosition(0);
+  //   } else {
+  //     setSwipePosition(0);
+  //   }
+  // }, [expense, onEdit, triggerHaptic]);
 
   // Amount formatting with visual hierarchy
   const getAmountColor = (amount) => {
@@ -132,17 +134,7 @@ const ProfessionalMobileCard = ({
       whileHover={{ scale: 1.01 }}
       // Removed whileTap to prevent unwanted interactions
     >
-      {/* Swipe Action Background */}
-      <div className="absolute inset-0 flex items-center justify-between px-6 rounded-2xl">
-        <div className="flex items-center gap-2 text-blue-600">
-          <Edit className="w-5 h-5" />
-          <span className="text-sm font-medium">Edit</span>
-        </div>
-        <div className="flex items-center gap-2 text-red-600">
-          <Trash2 className="w-5 h-5" />
-          <span className="text-sm font-medium">Delete</span>
-        </div>
-      </div>
+      {/* Removed swipe action background - no longer needed */}
 
       <Card className={`
         relative z-10 border-0 shadow-lg transition-all duration-300
