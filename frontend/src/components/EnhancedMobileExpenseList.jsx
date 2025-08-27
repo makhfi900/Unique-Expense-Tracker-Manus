@@ -50,7 +50,10 @@ import {
   DollarSign,
   BarChart3,
   Zap,
-  Star
+  Star,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
 
 const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory }) => {
@@ -307,6 +310,22 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
     }
     triggerHaptic('medium');
   }, [expenses, triggerHaptic]);
+
+  // Sort handler with mobile optimizations
+  const handleSort = useCallback((column) => {
+    if (sortBy === column) {
+      // Toggle sort order for same column
+      const newOrder = sortOrder === 'asc' ? 'desc' : 'asc';
+      setSortOrder(newOrder);
+      triggerHaptic('medium');
+    } else {
+      // Set new column with default desc order
+      setSortBy(column);
+      setSortOrder('desc');
+      triggerHaptic('light');
+    }
+    setCurrentPage(1); // Reset pagination when sorting
+  }, [sortBy, sortOrder, triggerHaptic]);
 
   // Enhanced action handlers
   const handleEditExpense = useCallback((expense) => {
@@ -648,6 +667,253 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
               </motion.div>
             )}
           </AnimatePresence>
+
+          {/* Mobile Sort Controls - Positioned after filters */}
+          <AnimatePresence>
+            {!loading && expenses.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+                className="mt-4"
+              >
+                <div className="sticky top-32 z-30 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm rounded-2xl p-4 shadow-lg border border-gray-200/50 dark:border-gray-700/50">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <ArrowUpDown className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        Sort by:
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">
+                      {expenses.length} expenses
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-center gap-2">
+                    {/* Date Sort Button */}
+                    <Button
+                      variant={sortBy === 'expense_date' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => handleSort('expense_date')}
+                      className={`
+                        min-w-[44px] h-11 px-4 rounded-xl transition-all duration-200
+                        ${sortBy === 'expense_date' 
+                          ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' 
+                          : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                        }
+                      `}
+                      style={{ minHeight: '44px' }} // Ensure 44px touch target
+                    >
+                      <Calendar className="w-4 h-4 mr-2" />
+                      <span className="font-medium">Date</span>
+                      {sortBy === 'expense_date' && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="ml-1"
+                        >
+                          {sortOrder === 'asc' ? (
+                            <ArrowUp className="w-3 h-3" />
+                          ) : (
+                            <ArrowDown className="w-3 h-3" />
+                          )}
+                        </motion.div>
+                      )}
+                    </Button>
+
+                    {/* Amount Sort Button */}
+                    <Button
+                      variant={sortBy === 'amount' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => handleSort('amount')}
+                      className={`
+                        min-w-[44px] h-11 px-4 rounded-xl transition-all duration-200
+                        ${sortBy === 'amount' 
+                          ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' 
+                          : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                        }
+                      `}
+                      style={{ minHeight: '44px' }} // Ensure 44px touch target
+                    >
+                      <DollarSign className="w-4 h-4 mr-2" />
+                      <span className="font-medium">Amount</span>
+                      {sortBy === 'amount' && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="ml-1"
+                        >
+                          {sortOrder === 'asc' ? (
+                            <ArrowUp className="w-3 h-3" />
+                          ) : (
+                            <ArrowDown className="w-3 h-3" />
+                          )}
+                        </motion.div>
+                      )}
+                    </Button>
+
+                    {/* Description Sort Button */}
+                    <Button
+                      variant={sortBy === 'description' ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => handleSort('description')}
+                      className={`
+                        min-w-[44px] h-11 px-4 rounded-xl transition-all duration-200
+                        ${sortBy === 'description' 
+                          ? 'bg-blue-600 text-white shadow-md hover:bg-blue-700' 
+                          : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                        }
+                      `}
+                      style={{ minHeight: '44px' }} // Ensure 44px touch target
+                    >
+                      <span className="font-medium">Name</span>
+                      {sortBy === 'description' && (
+                        <motion.div
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="ml-1"
+                        >
+                          {sortOrder === 'asc' ? (
+                            <ArrowUp className="w-3 h-3" />
+                          ) : (
+                            <ArrowDown className="w-3 h-3" />
+                          )}
+                        </motion.div>
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {/* Sort Direction Indicator */}
+                  <div className="mt-3 flex items-center justify-center">
+                    <div className="flex items-center gap-2 px-3 py-1 bg-gray-100 dark:bg-gray-800 rounded-full">
+                      <span className="text-xs text-gray-600 dark:text-gray-400">
+                        {sortOrder === 'asc' ? 'Oldest first' : 'Newest first'}
+                        {sortBy === 'amount' && (sortOrder === 'asc' ? ' (Low to High)' : ' (High to Low)')}
+                        {sortBy === 'description' && (sortOrder === 'asc' ? ' (A-Z)' : ' (Z-A)')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Mobile Sort Controls - Only show when expenses are loaded */}
+          {!loading && expenses.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="sticky top-32 bg-white/90 dark:bg-gray-900/90 backdrop-blur-sm z-30 rounded-2xl p-4 mx-1 mb-4 shadow-lg border border-gray-200/50 dark:border-gray-700/50"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <ArrowUpDown className="w-4 h-4 text-gray-600 dark:text-gray-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Sort expenses
+                  </span>
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  {sortBy === 'expense_date' && 'Date'}
+                  {sortBy === 'amount' && 'Amount'}
+                  {sortBy === 'description' && 'Name'}
+                  {' • '}
+                  {sortBy === 'expense_date' && (sortOrder === 'asc' ? 'Oldest first' : 'Newest first')}
+                  {sortBy === 'amount' && (sortOrder === 'asc' ? 'Lowest first' : 'Highest first')}
+                  {sortBy === 'description' && (sortOrder === 'asc' ? 'A → Z' : 'Z → A')}
+                </div>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                {/* Date Sort Button */}
+                <motion.div
+                  whileTap={{ scale: 0.95 }}
+                  transition={{ duration: 0.1 }}
+                >
+                  <Button
+                    variant={sortBy === 'expense_date' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => handleSort('expense_date')}
+                    className="flex items-center gap-2 h-11 px-4 rounded-xl min-w-[88px] touch-manipulation"
+                    style={{ minHeight: '44px', minWidth: '44px' }} // iOS guidelines
+                  >
+                    <Calendar className="h-4 w-4" />
+                    <span className="text-sm font-medium">Date</span>
+                    {sortBy === 'expense_date' && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        {sortOrder === 'asc' ? 
+                          <ArrowUp className="h-3 w-3" /> : 
+                          <ArrowDown className="h-3 w-3" />
+                        }
+                      </motion.div>
+                    )}
+                  </Button>
+                </motion.div>
+
+                {/* Amount Sort Button */}
+                <motion.div
+                  whileTap={{ scale: 0.95 }}
+                  transition={{ duration: 0.1 }}
+                >
+                  <Button
+                    variant={sortBy === 'amount' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => handleSort('amount')}
+                    className="flex items-center gap-2 h-11 px-4 rounded-xl min-w-[100px] touch-manipulation"
+                    style={{ minHeight: '44px', minWidth: '44px' }}
+                  >
+                    <DollarSign className="h-4 w-4" />
+                    <span className="text-sm font-medium">Amount</span>
+                    {sortBy === 'amount' && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        {sortOrder === 'asc' ? 
+                          <ArrowUp className="h-3 w-3" /> : 
+                          <ArrowDown className="h-3 w-3" />
+                        }
+                      </motion.div>
+                    )}
+                  </Button>
+                </motion.div>
+
+                {/* Name/Description Sort Button */}
+                <motion.div
+                  whileTap={{ scale: 0.95 }}
+                  transition={{ duration: 0.1 }}
+                >
+                  <Button
+                    variant={sortBy === 'description' ? 'default' : 'ghost'}
+                    size="sm"
+                    onClick={() => handleSort('description')}
+                    className="flex items-center gap-2 h-11 px-4 rounded-xl min-w-[88px] touch-manipulation"
+                    style={{ minHeight: '44px', minWidth: '44px' }}
+                  >
+                    <span className="text-sm font-medium">Name</span>
+                    {sortBy === 'description' && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        {sortOrder === 'asc' ? 
+                          <ArrowUp className="h-3 w-3" /> : 
+                          <ArrowDown className="h-3 w-3" />
+                        }
+                      </motion.div>
+                    )}
+                  </Button>
+                </motion.div>
+              </div>
+            </motion.div>
+          )}
         </div>
       </div>
 
