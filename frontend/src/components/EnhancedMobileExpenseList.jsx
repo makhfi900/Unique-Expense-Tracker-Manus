@@ -499,9 +499,15 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
       onSwipeLeft={handleSwipeLeft}
       onSwipeRight={handleSwipeRight}
       onPullToRefresh={handleRefresh}
-      enableSwipeNavigation={gestureEnabled && totalPages > 1}
+      enableSwipeNavigation={false} // Disabled to prevent conflicts with scrolling
       enablePullToRefresh={true}
       className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/40 dark:from-gray-950 dark:via-gray-900 dark:to-indigo-950/40"
+      style={{
+        // Enhanced mobile scrolling compatibility
+        WebkitOverflowScrolling: 'touch',
+        touchAction: 'pan-y',
+        overscrollBehavior: 'contain'
+      }}
     >
       {/* Enhanced Mobile Header */}
       <div className="sticky top-0 z-40 bg-white/85 dark:bg-gray-900/85 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50">
@@ -670,8 +676,18 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
         </motion.div>
       )}
 
-      {/* Enhanced Content */}
-      <div className="px-5 pb-32">
+      {/* Enhanced Content - Optimized for native scrolling */}
+      <div 
+        className="px-5 pb-32"
+        style={{
+          // Native scrolling optimization for mobile
+          WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-y',
+          overscrollBehavior: 'contain',
+          // Prevent scroll chaining issues
+          overscrollBehaviorY: 'contain'
+        }}
+      >
         {loading ? (
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}

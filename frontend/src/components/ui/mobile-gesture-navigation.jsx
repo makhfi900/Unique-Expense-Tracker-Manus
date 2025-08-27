@@ -14,7 +14,7 @@ import {
   Hand
 } from 'lucide-react';
 
-// Gesture-based navigation component for mobile
+// Enhanced mobile gesture navigation with improved touch handling
 const MobileGestureNavigation = ({
   children,
   onSwipeLeft,
@@ -33,7 +33,11 @@ const MobileGestureNavigation = ({
   const [pullDistance, setPullDistance] = useState(0);
   const [showHints, setShowHints] = useState(showGestureHints);
   const [activeGesture, setActiveGesture] = useState(null);
+  const [touchStart, setTouchStart] = useState(null);
+  const [scrollingAllowed, setScrollingAllowed] = useState(true);
   const containerRef = useRef(null);
+  const isScrollingRef = useRef(false);
+  const startScrollTop = useRef(0);
 
   // Haptic feedback
   const triggerHaptic = useCallback((type = 'light') => {
@@ -46,29 +50,79 @@ const MobileGestureNavigation = ({
     }
   }, []);
 
-  // Handle pull to refresh
-  const handlePan = useCallback((event, info) => {
-    const { offset, velocity } = info;
-    const scrollTop = containerRef.current?.scrollTop || 0;
+  // Enhanced touch handling for native scrolling compatibility
+  const handleTouchStart = useCallback((e) => {
+    const touch = e.touches[0];
+    setTouchStart({
+      x: touch.clientX,
+      y: touch.clientY,
+      timestamp: Date.now()
+    });
     
-    // Only enable pull-to-refresh when at the top
-    if (enablePullToRefresh && scrollTop === 0 && offset.y > 0) {
-      const distance = Math.min(offset.y, refreshThreshold * 2);
+    // Get initial scroll position
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    startScrollTop.current = scrollTop;
+    isScrollingRef.current = false;
+    
+    // Allow native scrolling by default
+    setScrollingAllowed(true);
+  }, []);
+  
+  const handleTouchMove = useCallback((e) => {
+    if (!touchStart || !scrollingAllowed) return;
+    
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStart.x;
+    const deltaY = touch.clientY - touchStart.y;
+    const currentScrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    
+    // Determine if user is scrolling vs gesturing
+    const isVerticalMovement = Math.abs(deltaY) > Math.abs(deltaX);
+    const isHorizontalMovement = Math.abs(deltaX) > Math.abs(deltaY);
+    
+    // Check if user is actually scrolling the content
+    const hasScrolled = Math.abs(currentScrollTop - startScrollTop.current) > 5;
+    
+    if (hasScrolled || (isVerticalMovement && Math.abs(deltaY) > 10)) {
+      isScrollingRef.current = true;
+      // Allow native scrolling - don't prevent default
+      return;
+    }
+    
+    // Only handle pull-to-refresh at the top of the page
+    if (enablePullToRefresh && currentScrollTop === 0 && deltaY > 0 && isVerticalMovement) {
+      const distance = Math.min(deltaY * 0.5, refreshThreshold * 1.5);
       setPullDistance(distance);
       setActiveGesture('pull-refresh');
       
       if (distance > refreshThreshold * 0.5) {
         triggerHaptic('light');
       }
+      
+      // Only prevent default when pull-to-refresh is active
+      if (distance > 10) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
     }
-    
-    // Removed horizontal swipes as they were causing navigation issues with 1000+ expenses
-    // Focus only on pull-to-refresh functionality for mobile
-  }, [enablePullToRefresh, enableSwipeNavigation, refreshThreshold, swipeThreshold, triggerHaptic]);
+  }, [touchStart, scrollingAllowed, enablePullToRefresh, refreshThreshold, triggerHaptic]);
 
-  // Handle pan end
-  const handlePanEnd = useCallback(async (event, info) => {
-    const { offset, velocity } = info;
+  const handleTouchEnd = useCallback(async (e) => {
+    if (!touchStart) return;
+    
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - touchStart.x;
+    const deltaY = touch.clientY - touchStart.y;
+    const deltaTime = Date.now() - touchStart.timestamp;
+    const velocity = Math.sqrt(deltaX * deltaX + deltaY * deltaY) / deltaTime;
+    
+    // If user was scrolling, don't process gestures
+    if (isScrollingRef.current) {
+      setTouchStart(null);
+      setPullDistance(0);
+      setActiveGesture(null);
+      return;
+    }
     
     // Pull to refresh logic
     if (activeGesture === 'pull-refresh' && pullDistance > refreshThreshold) {
@@ -85,43 +139,44 @@ const MobileGestureNavigation = ({
       setPullDistance(0);
     }
     
-    // Removed swipe navigation logic to prevent conflicts with scrolling
-    // This improves UX for large datasets (1000+ expenses)
-    if (false) { // Disabled swipe navigation
-      const swipeVelocityThreshold = 500;
-      const isHorizontalSwipe = Math.abs(offset.x) > Math.abs(offset.y);
-      const isFastSwipe = Math.abs(velocity.x) > swipeVelocityThreshold;
-      const isLongSwipe = Math.abs(offset.x) > swipeThreshold;
+    // Optional: Re-enable swipe navigation with proper touch detection
+    // Only trigger if the gesture was intentional (not accidental while scrolling)
+    if (enableSwipeNavigation && !isScrollingRef.current && deltaTime < 500) {
+      const isHorizontalSwipe = Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > swipeThreshold;
+      const isFastSwipe = velocity > 0.5;
       
-      if (isHorizontalSwipe && (isFastSwipe || isLongSwipe)) {
-        triggerHaptic('medium');
-        
-        if (offset.x > 0) {
+      if (isHorizontalSwipe || isFastSwipe) {
+        if (deltaX > swipeThreshold) {
+          triggerHaptic('medium');
           onSwipeRight?.();
-        } else {
+        } else if (deltaX < -swipeThreshold) {
+          triggerHaptic('medium');
           onSwipeLeft?.();
-        }
-      }
-      
-      // Vertical swipes
-      const isVerticalSwipe = Math.abs(offset.y) > Math.abs(offset.x);
-      const isFastVerticalSwipe = Math.abs(velocity.y) > swipeVelocityThreshold;
-      const isLongVerticalSwipe = Math.abs(offset.y) > swipeThreshold;
-      
-      if (isVerticalSwipe && (isFastVerticalSwipe || isLongVerticalSwipe)) {
-        if (offset.y > 0 && onSwipeDown) {
-          triggerHaptic('light');
-          onSwipeDown();
-        } else if (offset.y < 0 && onSwipeUp) {
-          triggerHaptic('light');
-          onSwipeUp();
         }
       }
     }
     
+    setTouchStart(null);
     setActiveGesture(null);
-  }, [activeGesture, pullDistance, refreshThreshold, enableSwipeNavigation, swipeThreshold, triggerHaptic, onPullToRefresh, onSwipeLeft, onSwipeRight, onSwipeUp, onSwipeDown]);
+  }, [touchStart, activeGesture, pullDistance, refreshThreshold, enableSwipeNavigation, swipeThreshold, triggerHaptic, onPullToRefresh, onSwipeLeft, onSwipeRight]);
 
+  // Add native touch event listeners for better scroll compatibility
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    
+    // Use passive: false only for specific gestures, allow native scrolling otherwise
+    container.addEventListener('touchstart', handleTouchStart, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchend', handleTouchEnd, { passive: true });
+    
+    return () => {
+      container.removeEventListener('touchstart', handleTouchStart);
+      container.removeEventListener('touchmove', handleTouchMove);
+      container.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd]);
+  
   // Auto-hide hints after delay
   useEffect(() => {
     if (showHints) {
@@ -244,15 +299,16 @@ const MobileGestureNavigation = ({
   );
 
   return (
-    <motion.div
+    <div
       ref={containerRef}
-      drag
-      dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-      dragElastic={0.2}
-      onPan={handlePan}
-      onPanEnd={handlePanEnd}
-      className={`relative overflow-hidden ${className}`}
+      className={`relative ${className}`}
       onClick={() => showHints && setShowHints(false)}
+      style={{
+        // Enable native scrolling with proper touch handling
+        WebkitOverflowScrolling: 'touch',
+        overscrollBehavior: 'contain',
+        touchAction: enablePullToRefresh ? 'pan-x pan-down' : 'auto'
+      }}
     >
       <PullToRefreshIndicator />
       <SwipeFeedback />
@@ -261,17 +317,20 @@ const MobileGestureNavigation = ({
       {/* Main content with transform based on pull distance */}
       <motion.div
         animate={{ 
-          y: pullDistance * 0.5,
-          scale: pullDistance > 0 ? 1 - (pullDistance / refreshThreshold) * 0.05 : 1
+          y: pullDistance * 0.3,
+          scale: pullDistance > 0 ? 1 - (pullDistance / refreshThreshold) * 0.02 : 1
         }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        transition={{ type: "spring", stiffness: 400, damping: 40 }}
         className="relative z-10"
+        style={{
+          // Ensure content can scroll naturally
+          minHeight: '100%',
+          touchAction: 'auto'
+        }}
       >
         {children}
       </motion.div>
-      
-      {/* Removed non-functional navigation arrows - gestures work properly */}
-    </motion.div>
+    </div>
   );
 };
 

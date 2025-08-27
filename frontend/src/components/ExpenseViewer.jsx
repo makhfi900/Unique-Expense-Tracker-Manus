@@ -493,32 +493,15 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
     setExpandedCards(newExpanded);
   };
 
-  // Mobile swipe handler for pagination
-  const handleTouchStart = (e) => {
-    const touch = e.touches[0];
-    setSwipeStart({ x: touch.clientX, y: touch.clientY });
-  };
-
-  const handleTouchEnd = (e) => {
-    if (!swipeStart) return;
-    
-    const touch = e.changedTouches[0];
-    const deltaX = touch.clientX - swipeStart.x;
-    const deltaY = touch.clientY - swipeStart.y;
-    
-    // Only handle horizontal swipes that are longer than vertical
-    if (Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 50) {
-      if (deltaX > 0 && currentPage > 1) {
-        // Swipe right - previous page
-        setCurrentPage(currentPage - 1);
-      } else if (deltaX < 0 && currentPage < totalPages) {
-        // Swipe left - next page
-        setCurrentPage(currentPage + 1);
-      }
+  // Mobile swipe handling is now managed by MobileGestureNavigation component
+  // Removed conflicting touch handlers to allow native scrolling
+  const handleSwipeNavigation = useCallback((direction) => {
+    if (direction === 'left' && currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    } else if (direction === 'right' && currentPage > 1) {
+      setCurrentPage(currentPage - 1);
     }
-    
-    setSwipeStart(null);
-  };
+  }, [currentPage, totalPages]);
 
   // Priority columns for mobile display (for future mobile table implementation)
   // const mobileColumns = {
@@ -1402,12 +1385,16 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
             </div>
           ) : expenses.length > 0 ? (
             <>
-              {/* Mobile Card Layout */}
+              {/* Mobile Card Layout - Enhanced for native scrolling */}
               {isMobile ? (
                 <div 
-                  className="space-y-3 touch-pan-y"
-                  onTouchStart={handleTouchStart}
-                  onTouchEnd={handleTouchEnd}
+                  className="space-y-3"
+                  style={{
+                    // Enable smooth native scrolling on mobile
+                    WebkitOverflowScrolling: 'touch',
+                    touchAction: 'pan-y',
+                    overscrollBehavior: 'contain'
+                  }}
                 >
                   {/* Mobile Select All */}
                   <div className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
