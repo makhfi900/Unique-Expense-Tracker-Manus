@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { useTimeRange } from '../context/TimeRangeContext';
@@ -73,10 +73,12 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
   const [sortBy, setSortBy] = useState('expense_date');
   const [sortOrder, setSortOrder] = useState('desc');
 
-  // Pagination
+  // Enhanced Pagination with Virtual Scrolling
   const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(20);
+  const [pageSize, setPageSize] = useState(50); // Increased for better performance
   const [totalPages, setTotalPages] = useState(1);
+  const [hasMoreData, setHasMoreData] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
 
   // Selection states
   const [selectedExpenses, setSelectedExpenses] = useState(new Set());
@@ -93,6 +95,11 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
   const [lastRefresh, setLastRefresh] = useState(null);
   const [gestureEnabled, setGestureEnabled] = useState(true);
   const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'compact'
+  
+  // Virtual scrolling and performance refs
+  const scrollContainerRef = useRef(null);
+  const loadMoreObserverRef = useRef(null);
+  const lastExpenseElementRef = useRef(null);
 
   // Haptic feedback with enhanced patterns
   const triggerHaptic = useCallback((type = 'light') => {
@@ -143,17 +150,24 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
     }
   }, [apiCall, isAdmin, triggerHaptic]);
 
-  const fetchExpenses = useCallback(async () => {
+  // Enhanced fetchExpenses with infinite scrolling support
+  const fetchExpenses = useCallback(async (isLoadMore = false) => {
     if (!session || !dateRange.startDate || !dateRange.endDate) {
       return;
     }
 
-    setLoading(true);
-    setError('');
+    if (isLoadMore) {
+      setIsLoadingMore(true);
+    } else {
+      setLoading(true);
+      setError('');
+    }
 
     try {
+      const targetPage = isLoadMore ? currentPage + 1 : currentPage;
+      
       const params = new URLSearchParams({
-        page: currentPage.toString(),
+        page: targetPage.toString(),
         limit: pageSize.toString(),
         start_date: dateRange.startDate,
         end_date: dateRange.endDate,
@@ -174,9 +188,22 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
       const response = await apiCall(`/expenses?${params.toString()}`);
       
       if (response?.expenses) {
-        setExpenses(response.expenses);
-        setTotalExpenses(response.pagination?.total || response.expenses.length);
-        setTotalPages(response.pagination?.totalPages || Math.ceil(response.expenses.length / pageSize));
+        if (isLoadMore) {
+          // Append new expenses for infinite scroll
+          setExpenses(prev => [...prev, ...response.expenses]);
+          setCurrentPage(targetPage);
+        } else {
+          // Replace expenses for new search/filter
+          setExpenses(response.expenses);
+        }
+        
+        const totalItems = response.pagination?.total || response.expenses.length;
+        const totalPagesCount = response.pagination?.totalPages || Math.ceil(totalItems / pageSize);
+        
+        setTotalExpenses(totalItems);
+        setTotalPages(totalPagesCount);
+        setHasMoreData(targetPage < totalPagesCount);
+        
         triggerHaptic('success');
       }
     } catch (err) {
@@ -185,6 +212,7 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
       triggerHaptic('error');
     } finally {
       setLoading(false);
+      setIsLoadingMore(false);
     }
   }, [apiCall, session, dateRange, currentPage, pageSize, sortBy, sortOrder, selectedCategory, selectedUser, searchTerm, isAdmin, triggerHaptic]);
 
@@ -199,9 +227,40 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
   // Fetch expenses when dependencies change
   useEffect(() => {
     if (dateRange.startDate && dateRange.endDate) {
+      // Reset pagination for new filters
+      setCurrentPage(1);
+      setHasMoreData(true);
       fetchExpenses();
     }
-  }, [fetchExpenses]);
+  }, [dateRange, selectedCategory, selectedUser, searchTerm, sortBy, sortOrder]);
+
+  // Infinite scroll intersection observer
+  useEffect(() => {
+    if (!hasMoreData || isLoadingMore || loading) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreData && !isLoadingMore) {
+          fetchExpenses(true); // Load more data
+        }
+      },
+      {
+        threshold: 0.1,
+        rootMargin: '100px'
+      }
+    );
+
+    const currentElement = lastExpenseElementRef.current;
+    if (currentElement) {
+      observer.observe(currentElement);
+    }
+
+    return () => {
+      if (currentElement) {
+        observer.unobserve(currentElement);
+      }
+    };
+  }, [hasMoreData, isLoadingMore, loading, fetchExpenses]);
 
   // Enhanced pull to refresh handler
   const handleRefresh = useCallback(async () => {
@@ -209,6 +268,10 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
     triggerHaptic('light');
     
     try {
+      // Reset to first page and clear existing data
+      setCurrentPage(1);
+      setHasMoreData(true);
+      setExpenses([]); // Clear existing data for fresh load
       await fetchExpenses();
       setLastRefresh(new Date());
       triggerHaptic('success');
@@ -675,18 +738,22 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
               </div>
             </motion.div>
 
-            {/* Enhanced Expense Cards */}
-            <div className="space-y-4">
+            {/* Enhanced Expense Cards with Virtual Scrolling */}
+            <div 
+              className="space-y-4" 
+              ref={scrollContainerRef}
+            >
               <AnimatePresence mode="popLayout">
                 {expenses.map((expense, index) => (
                   <motion.div
                     key={expense.id}
+                    ref={index === expenses.length - 1 ? lastExpenseElementRef : null}
                     layout
                     initial={{ opacity: 0, y: 20, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -20, scale: 0.95 }}
                     transition={{ 
-                      delay: index * 0.03, 
+                      delay: Math.min(index * 0.03, 0.3), // Cap animation delay for performance
                       duration: 0.3,
                       type: "spring",
                       stiffness: 300,
@@ -707,31 +774,42 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
               </AnimatePresence>
             </div>
 
-            {/* Enhanced Load More */}
-            {currentPage < totalPages && (
+            {/* Infinite Scroll Loading Indicator */}
+            {isLoadingMore && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center justify-center py-8"
+              >
+                <div className="flex items-center gap-3 px-6 py-3 bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Loading more expenses...
+                  </span>
+                </div>
+              </motion.div>
+            )}
+
+            {/* End of List Indicator */}
+            {!hasMoreData && expenses.length > 0 && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 className="text-center py-8"
               >
-                <Button
-                  variant="outline"
-                  onClick={() => setCurrentPage(currentPage + 1)}
-                  disabled={loading}
-                  className="h-12 px-6 rounded-2xl border-2 border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      Loading...
-                    </>
-                  ) : (
-                    <>
-                      <Zap className="w-4 h-4 mr-2" />
-                      Load More ({totalPages - currentPage} pages left)
-                    </>
-                  )}
-                </Button>
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900 dark:to-green-800 rounded-full flex items-center justify-center">
+                    <Star className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div className="text-center">
+                    <p className="font-medium text-gray-900 dark:text-gray-100">
+                      All expenses loaded
+                    </p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      Showing {expenses.length} of {totalExpenses} expenses
+                    </p>
+                  </div>
+                </div>
               </motion.div>
             )}
           </>

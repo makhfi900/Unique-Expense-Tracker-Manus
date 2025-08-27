@@ -278,30 +278,7 @@ const MobileGestureNavigation = ({
         {children}
       </motion.div>
       
-      {/* Navigation Buttons for Accessibility */}
-      {enableSwipeNavigation && (
-        <div className="fixed bottom-20 left-0 right-0 flex justify-between px-4 z-20 pointer-events-none">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onSwipeRight}
-            className="w-12 h-12 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-lg pointer-events-auto"
-            aria-label="Previous page"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </Button>
-          
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onSwipeLeft}
-            className="w-12 h-12 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm shadow-lg pointer-events-auto"
-            aria-label="Next page"
-          >
-            <ChevronRight className="w-6 h-6" />
-          </Button>
-        </div>
-      )}
+      {/* Removed non-functional navigation arrows - gestures work properly */}
     </motion.div>
   );
 };

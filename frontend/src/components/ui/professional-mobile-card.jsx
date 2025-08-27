@@ -127,15 +127,10 @@ const ProfessionalMobileCard = ({
 
   return (
     <motion.div
-      drag="x"
-      dragElastic={0.1}
-      dragConstraints={{ left: -200, right: 200 }}
-      onDragEnd={handleDragEnd}
-      animate={{ x: swipePosition }}
-      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+      className="relative touch-pan-y"
+      // Removed drag gestures that were causing touch conflicts
       whileHover={{ scale: 1.01 }}
-      whileTap={{ scale: 0.98 }}
-      className="relative"
+      // Removed whileTap to prevent unwanted interactions
     >
       {/* Swipe Action Background */}
       <div className="absolute inset-0 flex items-center justify-between px-6 rounded-2xl">
