@@ -130,8 +130,8 @@ const EnhancedAnalytics = memo(() => {
   // Dynamic chart heights based on screen size with mobile optimization
   const getChartHeight = useCallback((baseHeight) => {
     if (isMobile) {
-      // Reduce height significantly for mobile to prevent memory issues
-      return Math.max(baseHeight * 0.6, 180);
+      // Optimize height for mobile readability
+      return Math.max(baseHeight * 0.8, 220);
     }
     return baseHeight;
   }, [isMobile]);
@@ -605,7 +605,7 @@ const EnhancedAnalytics = memo(() => {
           <div>
             <h3 className="font-semibold text-red-800">Unable to Load Analytics</h3>
             <p className="text-sm text-red-600 mt-1">
-              {networkError ? 'Check your internet connection' : error}
+              {networkError ? 'Check your internet connection' : (typeof error === 'string' ? error : 'An error occurred while loading analytics')}
             </p>
           </div>
           <div className="flex gap-2">
@@ -635,12 +635,12 @@ const EnhancedAnalytics = memo(() => {
       {/* Main Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className={`
-          flex flex-col sm:grid w-full 
+          grid w-full 
           ${isAdmin 
-            ? 'sm:grid-cols-3 lg:grid-cols-3' 
-            : 'sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-4'
+            ? 'grid-cols-3' 
+            : 'grid-cols-2 sm:grid-cols-4'
           }
-          gap-1 sm:gap-0 p-1 sm:p-1
+          gap-1 p-1
         `}>
           <TabsTrigger 
             value="overview" 
@@ -675,7 +675,19 @@ const EnhancedAnalytics = memo(() => {
         </TabsList>
 
         {/* Overview Tab - Original Analytics */}
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-4">
+          
+          {/* Mobile-optimized title section */}
+          <div className={`text-center ${isMobile ? 'pb-2' : 'pb-4'}`}>
+            <h2 className={`font-bold text-foreground ${isMobile ? 'text-lg' : 'text-2xl'}`}>
+              Analytics Dashboard
+            </h2>
+            {!isMobile && (
+              <p className="text-sm text-muted-foreground mt-1">
+                Comprehensive insights and reports on expense data
+              </p>
+            )}
+          </div>
 
           {/* Enhanced Loading State for Analytics with Mobile Optimization */}
           {loading && (
@@ -954,67 +966,71 @@ const EnhancedAnalytics = memo(() => {
 
           {/* Enhanced KPI Cards - Only show if data exists */}
           {categoryBreakdown.length > 0 && (
-          <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'}`}>
+          <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'}`}>
             <Card>
-              <CardContent className="p-6">
+              <CardContent className={`${isMobile ? 'p-4' : 'p-6'}`}>
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Spent</p>
-                    <p className="text-2xl font-bold">{formatCurrency(kpiData.totalSpent)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {dateRange.startDate} to {dateRange.endDate}
-                    </p>
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-medium text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>Total Spent</p>
+                    <p className={`font-bold ${isMobile ? 'text-lg' : 'text-2xl'}`}>{formatCurrency(kpiData.totalSpent)}</p>
+                    {!isMobile && (
+                      <p className="text-xs text-muted-foreground">
+                        {dateRange.startDate} to {dateRange.endDate}
+                      </p>
+                    )}
                   </div>
-                  <div className="h-8 w-8 text-green-600 flex items-center justify-center">
-                    <span className="text-green-600 font-bold text-lg">Rs</span>
+                  <div className={`text-green-600 flex items-center justify-center ${isMobile ? 'h-6 w-6' : 'h-8 w-8'}`}>
+                    <span className={`text-green-600 font-bold ${isMobile ? 'text-sm' : 'text-lg'}`}>Rs</span>
                   </div>
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
+              <CardContent className={`${isMobile ? 'p-4' : 'p-6'}`}>
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Expenses</p>
-                    <p className="text-2xl font-bold">{kpiData.totalExpenses}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Avg: {formatCurrency(kpiData.averageExpense)}
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-medium text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>Total Expenses</p>
+                    <p className={`font-bold ${isMobile ? 'text-lg' : 'text-2xl'}`}>{kpiData.totalExpenses}</p>
+                    <p className={`text-muted-foreground ${isMobile ? 'text-xs' : 'text-xs'}`}>
+                      {isMobile ? `Avg: ${Math.round(kpiData.averageExpense)}` : `Avg: ${formatCurrency(kpiData.averageExpense)}`}
                     </p>
                   </div>
-                  <BarChart3 className="h-8 w-8 text-blue-600" />
+                  <BarChart3 className={`text-blue-600 ${isMobile ? 'h-6 w-6' : 'h-8 w-8'}`} />
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
+              <CardContent className={`${isMobile ? 'p-4' : 'p-6'}`}>
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Top Category</p>
-                    <p className="text-lg font-bold">
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-medium text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>Top Category</p>
+                    <p className={`font-bold ${isMobile ? 'text-sm' : 'text-lg'} truncate`}>
                       {kpiData.topCategory ? kpiData.topCategory.name : 'N/A'}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      {kpiData.topCategory ? formatCurrency(kpiData.topCategory.amount) : ''}
+                    <p className={`text-muted-foreground ${isMobile ? 'text-xs' : 'text-xs'}`}>
+                      {kpiData.topCategory ? 
+                        (isMobile ? `Rs ${Math.round(kpiData.topCategory.amount / 1000)}K` : formatCurrency(kpiData.topCategory.amount)) 
+                        : ''}
                     </p>
                   </div>
-                  <TrendingUp className="h-8 w-8 text-orange-600" />
+                  <TrendingUp className={`text-orange-600 ${isMobile ? 'h-6 w-6' : 'h-8 w-8'}`} />
                 </div>
               </CardContent>
             </Card>
 
             <Card>
-              <CardContent className="p-6">
+              <CardContent className={`${isMobile ? 'p-4' : 'p-6'}`}>
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Categories Used</p>
-                    <p className="text-2xl font-bold">
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-medium text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>Categories Used</p>
+                    <p className={`font-bold ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                       {kpiData.categoriesUsed} of {kpiData.totalCategories}
                     </p>
-                    <p className="text-xs text-muted-foreground">Available</p>
+                    <p className={`text-muted-foreground ${isMobile ? 'text-xs' : 'text-xs'}`}>Available</p>
                   </div>
-                  <PieChartIcon className="h-8 w-8 text-purple-600" />
+                  <PieChartIcon className={`text-purple-600 ${isMobile ? 'h-6 w-6' : 'h-8 w-8'}`} />
                 </div>
               </CardContent>
             </Card>
@@ -1033,12 +1049,14 @@ const EnhancedAnalytics = memo(() => {
                       <BarChart3 className="h-5 w-5" />
                       Monthly Spending by Category
                     </CardTitle>
-                    <p className="text-sm text-muted-foreground">
-                      {monthlyChartType === 'donut' 
-                        ? 'Monthly spending data displayed as donut charts with category breakdown'
-                        : 'Each bar shows the total monthly spending with category breakdown'
-                      }
-                    </p>
+                    {!isMobile && (
+                      <p className="text-sm text-muted-foreground">
+                        {monthlyChartType === 'donut' 
+                          ? 'Category breakdown with spending totals'
+                          : 'Monthly spending by category'
+                        }
+                      </p>
+                    )}
                   </div>
                   {/* Chart Type Toggle - DONUT is now primary, STACKED is secondary */}
                   <div className="flex items-center gap-2">
@@ -1140,7 +1158,7 @@ const EnhancedAnalytics = memo(() => {
                           <div className="relative">
                             <ChartErrorBoundary chartName="Category Breakdown Chart" onRetry={refreshData}>
                               <Suspense fallback={<ChartSkeleton type="pie" />}>
-                                <LazyResponsiveContainer width="100%" height={getChartHeight(300)}>
+                                <LazyResponsiveContainer width="100%" height={getChartHeight(isMobile ? 400 : 300)}>
                                   <LazyPieChart>
                                     <Pie
                                       data={isMobile ? memoizedCategoryBreakdown.slice(0, 8) : memoizedCategoryBreakdown}
@@ -1148,8 +1166,8 @@ const EnhancedAnalytics = memo(() => {
                                       cy="50%"
                                       labelLine={false}
                                       label={false}
-                                      outerRadius={isMobile ? 60 : 100}
-                                      innerRadius={isMobile ? 30 : 60}
+                                      outerRadius={isMobile ? 80 : 100}
+                                      innerRadius={isMobile ? 45 : 60}
                                       fill="#8884d8"
                                       dataKey="value"
                                       stroke={isMobile ? "#fff" : "none"}

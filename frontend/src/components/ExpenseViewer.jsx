@@ -212,19 +212,8 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
   const { apiCall, isAdmin, session } = useAuth();
   const isMobile = useIsMobile();
 
-  // Use enhanced mobile interface on mobile devices
-  if (isMobile) {
-    return (
-      <Suspense fallback={
-        <div className="flex justify-center items-center h-64 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950 dark:to-indigo-900 rounded-2xl">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600"></div>
-          <span className="ml-3 text-gray-700 dark:text-gray-300 font-medium">Loading professional mobile interface...</span>
-        </div>
-      }>
-        <EnhancedMobileExpenseList selectedCategory={parentSelectedCategory} />
-      </Suspense>
-    );
-  }
+  // ALWAYS call all hooks first before any conditional returns
+  // This is required by the Rules of Hooks
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
@@ -973,6 +962,20 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
       </div>
     );
   };
+
+  // Use enhanced mobile interface on mobile devices after all hooks are called
+  if (isMobile) {
+    return (
+      <Suspense fallback={
+        <div className="flex justify-center items-center h-64 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950 dark:to-indigo-900 rounded-2xl">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-blue-600"></div>
+          <span className="ml-3 text-gray-700 dark:text-gray-300 font-medium">Loading professional mobile interface...</span>
+        </div>
+      }>
+        <EnhancedMobileExpenseList selectedCategory={parentSelectedCategory} />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="space-y-6">

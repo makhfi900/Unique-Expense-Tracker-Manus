@@ -99,11 +99,9 @@ const MobileGestureNavigation = ({
         triggerHaptic('light');
       }
       
-      // Only prevent default when pull-to-refresh is active
-      if (distance > 10) {
-        e.preventDefault();
-        e.stopPropagation();
-      }
+      // Only prevent default when pull-to-refresh is active at the very top
+      // But since we switched to passive: true, we can't call preventDefault anyway
+      // This allows native scrolling to work properly
     }
   }, [touchStart, scrollingAllowed, enablePullToRefresh, refreshThreshold, triggerHaptic]);
 
@@ -165,9 +163,9 @@ const MobileGestureNavigation = ({
     const container = containerRef.current;
     if (!container) return;
     
-    // Use passive: false only for specific gestures, allow native scrolling otherwise
+    // Use passive: true for better scroll performance, only prevent default when necessary
     container.addEventListener('touchstart', handleTouchStart, { passive: true });
-    container.addEventListener('touchmove', handleTouchMove, { passive: false });
+    container.addEventListener('touchmove', handleTouchMove, { passive: true });
     container.addEventListener('touchend', handleTouchEnd, { passive: true });
     
     return () => {
@@ -306,8 +304,8 @@ const MobileGestureNavigation = ({
       style={{
         // Enable native scrolling with proper touch handling
         WebkitOverflowScrolling: 'touch',
-        overscrollBehavior: 'contain',
-        touchAction: enablePullToRefresh ? 'pan-x pan-down' : 'auto'
+        overscrollBehavior: 'auto',
+        touchAction: 'auto'
       }}
     >
       <PullToRefreshIndicator />
