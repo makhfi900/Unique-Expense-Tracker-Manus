@@ -425,13 +425,51 @@ const routes = {
       }
     }
 
-    const { data: expenses, error } = await queryBuilder.order('expense_date', { ascending: false });
+    // Apply sorting based on query parameters
+    const sortField = query.sort_by || 'expense_date';
+    const sortOrder = query.sort_order || 'desc';
+    const isAscending = sortOrder.toLowerCase() === 'asc';
+    
+    console.log(`🔄 APPLYING SORT: ${sortField} ${sortOrder} (ascending: ${isAscending})`);
+    
+    queryBuilder = queryBuilder.order(sortField, { ascending: isAscending });
+    
+    // Apply pagination
+    const page = parseInt(query.page) || 1;
+    const limit = parseInt(query.limit) || 50;
+    const offset = (page - 1) * limit;
+    
+    console.log(`📄 APPLYING PAGINATION: page=${page}, limit=${limit}, offset=${offset}`);
+    
+    // Get total count for pagination info
+    const { count: totalCount } = await supabaseAdmin
+      .from('expenses')
+      .select('*', { count: 'exact', head: true })
+      .eq('is_active', true);
+    
+    const { data: expenses, error } = await queryBuilder.range(offset, offset + limit - 1);
 
     if (error) {
       return { statusCode: 500, body: { error: 'Failed to fetch expenses' } };
     }
 
-    return { statusCode: 200, body: { expenses } };
+    const totalPages = Math.ceil(totalCount / limit);
+    
+    console.log(`📦 API RESPONSE: ${expenses.length} expenses returned (page ${page}/${totalPages}, total: ${totalCount})`);
+    
+    return { 
+      statusCode: 200, 
+      body: { 
+        expenses,
+        pagination: {
+          page,
+          limit,
+          total: totalCount,
+          totalPages,
+          hasMore: page < totalPages
+        }
+      } 
+    };
   },
 
   'POST /expenses': async (body, user) => {
