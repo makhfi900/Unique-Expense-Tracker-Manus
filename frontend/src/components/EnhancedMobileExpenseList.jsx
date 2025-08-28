@@ -248,7 +248,7 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
         fetchExpenses();
       }
     }
-  }, [dateRange, selectedCategory, selectedUser, searchTerm, sortBy, sortOrder, fetchExpenses]);
+  }, [dateRange, selectedCategory, selectedUser, searchTerm, sortBy, sortOrder]);
 
   // Infinite scroll intersection observer
   useEffect(() => {
@@ -358,12 +358,9 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
     
     console.log(`✅ SORT STATE UPDATED: ${newSortBy} ${newSortOrder}`);
     
-    // Force a re-render by triggering fetchExpenses manually if state update doesn't work
-    setTimeout(() => {
-      console.log(`🔄 DELAYED FETCH: sortBy=${newSortBy}, sortOrder=${newSortOrder}`);
-      fetchExpenses();
-    }, 100);
-  }, [sortBy, sortOrder, triggerHaptic, fetchExpenses]);
+    // Remove the manual fetchExpenses call - let useEffect handle it to prevent race conditions
+    console.log(`🎯 STATE UPDATE COMPLETE: ${newSortBy} ${newSortOrder} - letting useEffect handle fetch`);
+  }, [sortBy, sortOrder, triggerHaptic]);
 
   // Enhanced action handlers
   const handleEditExpense = useCallback((expense) => {
