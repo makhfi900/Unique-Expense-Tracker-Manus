@@ -326,7 +326,14 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
 
   // Enhanced sort handler with immediate data refresh
   const handleSort = useCallback((column) => {
-    console.log(`🔄 SORT TRIGGERED: ${column} (current: ${sortBy} ${sortOrder})`);
+    // Emergency debugging for production issues
+    console.log(`🚨 PRODUCTION DEBUG: handleSort called with column=${column}`);
+    console.log(`🚨 Current state: sortBy=${sortBy}, sortOrder=${sortOrder}`);
+    
+    // Alert for production debugging
+    if (typeof window !== 'undefined') {
+      window.SORT_DEBUG = { column, sortBy, sortOrder, timestamp: Date.now() };
+    }
     
     let newSortBy = column;
     let newSortOrder = 'desc';
@@ -350,7 +357,13 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
     triggerHaptic(sortBy === column ? 'medium' : 'light');
     
     console.log(`✅ SORT STATE UPDATED: ${newSortBy} ${newSortOrder}`);
-  }, [sortBy, sortOrder, triggerHaptic]);
+    
+    // Force a re-render by triggering fetchExpenses manually if state update doesn't work
+    setTimeout(() => {
+      console.log(`🔄 DELAYED FETCH: sortBy=${newSortBy}, sortOrder=${newSortOrder}`);
+      fetchExpenses();
+    }, 100);
+  }, [sortBy, sortOrder, triggerHaptic, fetchExpenses]);
 
   // Enhanced action handlers
   const handleEditExpense = useCallback((expense) => {
@@ -722,7 +735,18 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
                       <Button
                         variant={sortBy === 'expense_date' ? 'default' : 'ghost'}
                         size="sm"
-                        onClick={() => handleSort('expense_date')}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('🔘 Date button clicked');
+                          handleSort('expense_date');
+                        }}
+                        onTouchEnd={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('📱 Date button touched');
+                          handleSort('expense_date');
+                        }}
                         className={`
                           flex items-center gap-2 h-11 px-4 rounded-xl min-w-[88px] touch-manipulation transition-all duration-200
                           ${sortBy === 'expense_date' 
@@ -747,7 +771,18 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
                       <Button
                         variant={sortBy === 'amount' ? 'default' : 'ghost'}
                         size="sm"
-                        onClick={() => handleSort('amount')}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('🔘 Amount button clicked');
+                          handleSort('amount');
+                        }}
+                        onTouchEnd={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('📱 Amount button touched');
+                          handleSort('amount');
+                        }}
                         className={`
                           flex items-center gap-2 h-11 px-4 rounded-xl min-w-[100px] touch-manipulation transition-all duration-200
                           ${sortBy === 'amount' 
@@ -772,7 +807,18 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
                       <Button
                         variant={sortBy === 'description' ? 'default' : 'ghost'}
                         size="sm"
-                        onClick={() => handleSort('description')}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('🔘 Description button clicked');
+                          handleSort('description');
+                        }}
+                        onTouchEnd={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('📱 Description button touched');
+                          handleSort('description');
+                        }}
                         className={`
                           flex items-center gap-2 h-11 px-4 rounded-xl min-w-[88px] touch-manipulation transition-all duration-200
                           ${sortBy === 'description' 
