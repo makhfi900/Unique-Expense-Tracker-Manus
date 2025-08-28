@@ -243,7 +243,6 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
         return () => clearTimeout(timeoutId);
       } else {
         // Immediate execution for non-search changes (sort, category, date)
-        console.log('🔄 FETCH TRIGGERED:', { sortBy, sortOrder, selectedCategory, currentPage });
         fetchExpenses();
       }
     }
@@ -325,9 +324,6 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
 
   // Sort handler for mobile interface
   const handleSort = useCallback((column) => {
-    // Emergency debugging - check if function is called
-    alert(`SORT DEBUG: ${column} clicked. Current: ${sortBy} ${sortOrder}`);
-    console.log('🚨 EMERGENCY SORT DEBUG:', { column, sortBy, sortOrder, timestamp: new Date().toISOString() });
     
     let newSortBy = column;
     let newSortOrder = 'desc';
@@ -345,9 +341,6 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
     setSortOrder(newSortOrder);
     setCurrentPage(1); // Reset pagination when sorting
     
-    // Log after state update
-    console.log('🔄 STATE UPDATE:', { newSortBy, newSortOrder });
-    alert(`State updated to: ${newSortBy} ${newSortOrder}`);
     
     // Provide haptic feedback
     triggerHaptic(sortBy === column ? 'medium' : 'light');
@@ -726,14 +719,10 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log('🔘 Date button clicked - calling handleSort');
-                          alert('Date button clicked!');
                           handleSort('expense_date');
                         }}
                         onTouchEnd={(e) => {
                           e.preventDefault();
-                          console.log('📱 Date button touched');
-                          alert('Date button touched!');
                           handleSort('expense_date');
                         }}
                         className={`
@@ -763,14 +752,10 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log('🔘 Amount button clicked - calling handleSort');
-                          alert('Amount button clicked!');
                           handleSort('amount');
                         }}
                         onTouchEnd={(e) => {
                           e.preventDefault();
-                          console.log('📱 Amount button touched');
-                          alert('Amount button touched!');
                           handleSort('amount');
                         }}
                         className={`
@@ -800,14 +785,10 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log('🔘 Description button clicked - calling handleSort');
-                          alert('Description button clicked!');
                           handleSort('description');
                         }}
                         onTouchEnd={(e) => {
                           e.preventDefault();
-                          console.log('📱 Description button touched');
-                          alert('Description button touched!');
                           handleSort('description');
                         }}
                         className={`

@@ -368,15 +368,6 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
         sort_order: sortOrder
       });
       
-      console.log('🔍 QUERY PARAMS BUILT:', {
-        page: currentPage,
-        limit: pageSize,
-        dateRange: `${dateRange.startDate} to ${dateRange.endDate}`,
-        sort: `${sortBy} ${sortOrder}`,
-        category: selectedCategory,
-        user: selectedUser,
-        search: searchTerm
-      });
 
       // SWARM FIX: Enhanced category filter with proper type validation and 'all' handling
       if (selectedCategory !== 'all' && selectedCategory !== null && selectedCategory !== undefined) {
@@ -404,10 +395,8 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
 
       // FUNCTIONAL FIX: Log the actual API URL being called
       const apiUrl = `/expenses?${params.toString()}`;
-      console.log(`🌐 API CALL: ${apiUrl}`);
 
       const response = await apiCall(apiUrl);
-      console.log(`📦 API Response: ${response?.expenses?.length || 0} expenses returned`);
       
       // SWARM FIX: Enhanced response validation and error handling
       if (response && response.expenses) {
@@ -617,7 +606,6 @@ const ExpenseViewer = ({ selectedCategory: parentSelectedCategory }) => {
   // SWARM FIX: Sync with parent category selection without race conditions
   useEffect(() => {
     if (parentSelectedCategory !== undefined && parentSelectedCategory !== selectedCategory) {
-      console.log('🔄 SYNCING CATEGORY FROM PARENT:', parentSelectedCategory);
       setSelectedCategory(parentSelectedCategory);
       // Reset pagination and selections when parent category changes
       setCurrentPage(1);

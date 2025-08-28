@@ -430,7 +430,6 @@ const routes = {
     const sortOrder = query.sort_order || 'desc';
     const isAscending = sortOrder.toLowerCase() === 'asc';
     
-    console.log(`🔄 APPLYING SORT: ${sortField} ${sortOrder} (ascending: ${isAscending})`);
     
     queryBuilder = queryBuilder.order(sortField, { ascending: isAscending });
     
@@ -439,7 +438,6 @@ const routes = {
     const limit = parseInt(query.limit) || 50;
     const offset = (page - 1) * limit;
     
-    console.log(`📄 APPLYING PAGINATION: page=${page}, limit=${limit}, offset=${offset}`);
     
     // Get total count for pagination info
     const { count: totalCount } = await supabaseAdmin
@@ -455,7 +453,6 @@ const routes = {
 
     const totalPages = Math.ceil(totalCount / limit);
     
-    console.log(`📦 API RESPONSE: ${expenses.length} expenses returned (page ${page}/${totalPages}, total: ${totalCount})`);
     
     return { 
       statusCode: 200, 
