@@ -238,13 +238,11 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
       if (searchTerm !== '' && searchTerm.length > 0) {
         // Debounce search queries
         const timeoutId = setTimeout(() => {
-          console.log('🔍 DEBOUNCED SEARCH TRIGGERED:', searchTerm);
           fetchExpenses();
         }, 500);
         return () => clearTimeout(timeoutId);
       } else {
         // Immediate execution for non-search changes (sort, category, date)
-        console.log('🔄 IMMEDIATE FETCH TRIGGERED:', { sortBy, sortOrder, selectedCategory });
         fetchExpenses();
       }
     }
@@ -324,28 +322,17 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
     triggerHaptic('medium');
   }, [expenses, triggerHaptic]);
 
-  // Enhanced sort handler with immediate data refresh
+  // Sort handler for mobile interface
   const handleSort = useCallback((column) => {
-    // Emergency debugging for production issues
-    console.log(`🚨 PRODUCTION DEBUG: handleSort called with column=${column}`);
-    console.log(`🚨 Current state: sortBy=${sortBy}, sortOrder=${sortOrder}`);
-    
-    // Alert for production debugging
-    if (typeof window !== 'undefined') {
-      window.SORT_DEBUG = { column, sortBy, sortOrder, timestamp: Date.now() };
-    }
-    
     let newSortBy = column;
     let newSortOrder = 'desc';
     
     if (sortBy === column) {
       // Toggle sort order for same column
       newSortOrder = sortOrder === 'asc' ? 'desc' : 'asc';
-      console.log(`📊 Sort order toggled: ${column} ${newSortOrder}`);
     } else {
       // Set new column with default desc order
       newSortOrder = 'desc';
-      console.log(`📊 Sort column changed: ${column} ${newSortOrder}`);
     }
     
     // Update state immediately
@@ -355,11 +342,6 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
     
     // Provide haptic feedback
     triggerHaptic(sortBy === column ? 'medium' : 'light');
-    
-    console.log(`✅ SORT STATE UPDATED: ${newSortBy} ${newSortOrder}`);
-    
-    // Remove the manual fetchExpenses call - let useEffect handle it to prevent race conditions
-    console.log(`🎯 STATE UPDATE COMPLETE: ${newSortBy} ${newSortOrder} - letting useEffect handle fetch`);
   }, [sortBy, sortOrder, triggerHaptic]);
 
   // Enhanced action handlers
@@ -735,13 +717,6 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log('🔘 Date button clicked');
-                          handleSort('expense_date');
-                        }}
-                        onTouchEnd={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          console.log('📱 Date button touched');
                           handleSort('expense_date');
                         }}
                         className={`
@@ -771,13 +746,6 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log('🔘 Amount button clicked');
-                          handleSort('amount');
-                        }}
-                        onTouchEnd={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          console.log('📱 Amount button touched');
                           handleSort('amount');
                         }}
                         className={`
@@ -807,13 +775,6 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log('🔘 Description button clicked');
-                          handleSort('description');
-                        }}
-                        onTouchEnd={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          console.log('📱 Description button touched');
                           handleSort('description');
                         }}
                         className={`
