@@ -1256,7 +1256,7 @@ const EnhancedAnalytics = memo(() => {
                                         <div className={`font-semibold text-foreground ${isMobile ? 'text-[10px]' : 'text-sm'}`}>
                                           {isMobile ? `${(category.value / 1000).toFixed(0)}K` : formatCurrency(category.value)}
                                         </div>
-                                        <div className={`text-muted-foreground ${isMobile ? 'text-[8px]' : 'text-xs'}`}>
+                                        <div className={`text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>
                                           {percentage.toFixed(1)}%
                                         </div>
                                       </div>
