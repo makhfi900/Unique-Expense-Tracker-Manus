@@ -3,8 +3,9 @@ import { AuthProvider, useAuth } from './context/SupabaseAuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { TimeRangeProvider } from './context/TimeRangeContext';
 import { DemoProvider, useDemo } from './context/DemoContext';
+import { NavigationProvider } from './context/NavigationContext';
 import SupabaseLogin from './components/SupabaseLogin';
-import Dashboard from './components/Dashboard';
+import AppContainer from './components/AppContainer';
 import DemoDashboard from './components/DemoDashboard';
 import InstallNotification from './components/InstallNotification';
 import { useInstallNotification } from './hooks/useInstallNotification';
@@ -51,7 +52,7 @@ function AppContent() {
   // Otherwise, use normal authentication flow
   return (
     <>
-      {user ? <Dashboard /> : <SupabaseLogin />}
+      {user ? <AppContainer /> : <SupabaseLogin />}
       {/* Show install notification if PWA is not installed and conditions are met */}
       <InstallNotification
         isVisible={showInstallNotification && !isInstalled}
@@ -69,9 +70,11 @@ function SupabaseApp() {
     <ThemeProvider>
       <DemoProvider>
         <AuthProvider>
-          <TimeRangeProvider>
-            <AppContent />
-          </TimeRangeProvider>
+          <NavigationProvider>
+            <TimeRangeProvider>
+              <AppContent />
+            </TimeRangeProvider>
+          </NavigationProvider>
         </AuthProvider>
       </DemoProvider>
     </ThemeProvider>

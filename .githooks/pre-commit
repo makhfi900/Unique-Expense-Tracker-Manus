@@ -1,0 +1,27 @@
+#!/bin/sh
+# TDD Pre-commit Hook - Ensures all tests pass before commits
+
+echo "🧪 Running TDD test suite before commit..."
+
+# Change to project root
+cd "$(git rev-parse --show-toplevel)"
+
+# Run TDD tests with fail-fast
+node run-tdd-tests.js
+
+# Check exit code
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "❌ TDD TESTS FAILED - COMMIT BLOCKED"
+    echo "🔧 Fix failing tests before committing"
+    echo "💡 Run 'node run-tdd-tests.js' to see detailed failures"
+    echo ""
+    exit 1
+fi
+
+echo ""
+echo "✅ ALL TDD TESTS PASS - COMMIT ALLOWED"
+echo "🚀 Your changes are protected by comprehensive test coverage"
+echo ""
+
+exit 0

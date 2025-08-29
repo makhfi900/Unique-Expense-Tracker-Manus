@@ -1,0 +1,407 @@
+name: Automated Test Suite
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  NODE_VERSION: '18'
+  CI: true
+
+jobs:
+  # Critical path tests that must pass for any deployment
+  smoke-tests:
+    name: 🚨 Critical Smoke Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+          
+      - name: Run critical smoke tests
+        run: |
+          cd frontend
+          npm run test -- --testNamePattern="SMOKE|CI:" --coverage=false --silent --maxWorkers=2
+        env:
+          NODE_ENV: test
+          
+      - name: Upload smoke test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: smoke-test-results
+          path: frontend/test-results/
+
+  # Regression tests for recent fixes
+  regression-tests:
+    name: 🔄 Regression Prevention Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: smoke-tests
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+          
+      - name: Run sorting/pagination regression tests
+        run: |
+          cd frontend
+          npm run test -- --testNamePattern="REGRESSION" --coverage=false --maxWorkers=2
+        env:
+          NODE_ENV: test
+          
+      - name: Upload regression test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: regression-test-results
+          path: frontend/test-results/
+
+  # Mobile-specific tests
+  mobile-tests:
+    name: 📱 Mobile Compatibility Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: smoke-tests
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+          
+      - name: Run mobile viewport tests
+        run: |
+          cd frontend
+          npm run test:mobile -- --coverage=false --maxWorkers=2
+        env:
+          NODE_ENV: test
+          
+      - name: Run mobile UI regression tests
+        run: |
+          cd frontend
+          npm run test -- src/__tests__/regression/mobile-ui.test.js --coverage=false --maxWorkers=2
+        env:
+          NODE_ENV: test
+          
+      - name: Upload mobile test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: mobile-test-results
+          path: frontend/test-results/
+
+  # Performance benchmarking
+  performance-tests:
+    name: ⚡ Performance Benchmarks
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: smoke-tests
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+          
+      - name: Run performance benchmark tests
+        run: |
+          cd frontend
+          npm run test:performance -- --coverage=false --maxWorkers=1
+        env:
+          NODE_ENV: test
+          NODE_OPTIONS: '--max-old-space-size=4096'
+          
+      - name: Upload performance test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-test-results
+          path: frontend/test-results/
+
+  # Comprehensive test suite with coverage
+  full-test-suite:
+    name: 🧪 Full Test Suite with Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [smoke-tests, regression-tests]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+          
+      - name: Run complete test suite
+        run: |
+          cd frontend
+          npm run test:coverage -- --maxWorkers=2 --collectCoverageFrom="src/**/*.{js,jsx}" --coverageDirectory=coverage
+        env:
+          NODE_ENV: test
+          
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          directory: ./frontend/coverage/
+          flags: frontend
+          name: codecov-frontend
+          fail_ci_if_error: false
+          
+      - name: Upload test coverage results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-reports
+          path: |
+            frontend/coverage/
+            frontend/test-results/
+
+  # Cross-platform testing matrix
+  cross-platform-tests:
+    name: 🌐 Cross-Platform Tests
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    needs: smoke-tests
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        node-version: ['18', '20']
+        
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+          
+      - name: Run cross-platform tests
+        run: |
+          cd frontend
+          npm run test -- --testNamePattern="SMOKE" --coverage=false --silent --maxWorkers=2
+        env:
+          NODE_ENV: test
+          
+      - name: Upload cross-platform test results
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: cross-platform-test-results-${{ matrix.os }}-node${{ matrix.node-version }}
+          path: frontend/test-results/
+
+  # Security and dependency checks
+  security-tests:
+    name: 🔒 Security & Dependency Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: |
+          cd frontend
+          npm ci
+          
+      - name: Run security audit
+        run: |
+          cd frontend
+          npm audit --audit-level=moderate
+          
+      - name: Run dependency check
+        run: |
+          cd frontend
+          npx npm-check-updates --errorLevel 2
+          
+      - name: Check for vulnerable packages
+        run: |
+          cd frontend
+          npx audit-ci --moderate
+
+  # Test result summary and notification
+  test-summary:
+    name: 📊 Test Results Summary
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [smoke-tests, regression-tests, mobile-tests, performance-tests, full-test-suite]
+    
+    steps:
+      - name: Download all test artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: test-artifacts/
+          
+      - name: Create test summary
+        run: |
+          echo "# Test Results Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ "${{ needs.smoke-tests.result }}" == "success" ]; then
+            echo "✅ **Smoke Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Smoke Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.regression-tests.result }}" == "success" ]; then
+            echo "✅ **Regression Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Regression Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.mobile-tests.result }}" == "success" ]; then
+            echo "✅ **Mobile Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Mobile Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.performance-tests.result }}" == "success" ]; then
+            echo "✅ **Performance Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Performance Tests**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [ "${{ needs.full-test-suite.result }}" == "success" ]; then
+            echo "✅ **Full Test Suite**: PASSED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **Full Test Suite**: FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Coverage reports and test results are available in the Actions artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "- Performance benchmarks can be found in performance-test-results" >> $GITHUB_STEP_SUMMARY
+          
+      - name: Comment PR with test results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const testResults = {
+              smoke: '${{ needs.smoke-tests.result }}',
+              regression: '${{ needs.regression-tests.result }}',
+              mobile: '${{ needs.mobile-tests.result }}',
+              performance: '${{ needs.performance-tests.result }}',
+              fullSuite: '${{ needs.full-test-suite.result }}'
+            };
+            
+            const passed = Object.values(testResults).filter(r => r === 'success').length;
+            const total = Object.keys(testResults).length;
+            
+            let comment = `## 🧪 Test Results Summary\n\n`;
+            comment += `**${passed}/${total} test suites passed**\n\n`;
+            
+            Object.entries(testResults).forEach(([test, result]) => {
+              const emoji = result === 'success' ? '✅' : '❌';
+              const name = test.charAt(0).toUpperCase() + test.slice(1).replace(/([A-Z])/g, ' $1');
+              comment += `${emoji} **${name}**: ${result.toUpperCase()}\n`;
+            });
+            
+            if (passed === total) {
+              comment += `\n🎉 All tests passed! This PR is ready for review.`;
+            } else {
+              comment += `\n⚠️ Some tests failed. Please check the failing tests before merging.`;
+            }
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+# Deployment gate - only proceed if critical tests pass
+deployment-gate:
+  name: 🚀 Deployment Gate
+  runs-on: ubuntu-latest
+  if: github.ref == 'refs/heads/main'
+  needs: [smoke-tests, regression-tests, mobile-tests]
+  
+  steps:
+    - name: Verify deployment readiness
+      run: |
+        echo "✅ Critical smoke tests passed"
+        echo "✅ Regression tests passed"
+        echo "✅ Mobile compatibility confirmed"
+        echo ""
+        echo "🚀 Application is ready for deployment!"
+        
+    - name: Create deployment marker
+      run: |
+        echo "DEPLOYMENT_READY=true" >> $GITHUB_ENV
+        echo "DEPLOYMENT_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
+        
+    - name: Tag successful build
+      if: env.DEPLOYMENT_READY == 'true'
+      run: |
+        echo "Build ${{ github.sha }} passed all critical tests at ${{ env.DEPLOYMENT_TIMESTAMP }}"

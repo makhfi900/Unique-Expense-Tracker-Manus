@@ -1,0 +1,50 @@
+name: TDD Test Suite Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  tdd-tests:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: '**/package-lock.json'
+    
+    - name: Install dependencies
+      run: |
+        if [ -f "frontend/package-lock.json" ]; then
+          cd frontend && npm ci
+        else
+          npm install
+        fi
+    
+    - name: Run TDD Test Suite
+      run: node run-tdd-tests.js
+    
+    - name: Generate test report
+      if: always()
+      run: |
+        echo "## TDD Test Results" >> $GITHUB_STEP_SUMMARY
+        if [ $? -eq 0 ]; then
+          echo "✅ All TDD tests passed - deployment ready" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "❌ TDD tests failed - fix before merging" >> $GITHUB_STEP_SUMMARY
+        fi
+    
+    - name: Block merge on test failure
+      if: failure()
+      run: |
+        echo "🚨 TDD tests failed - merge blocked"
+        echo "Fix failing tests before proceeding with deployment"
+        exit 1
