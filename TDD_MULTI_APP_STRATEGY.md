@@ -68,28 +68,38 @@ tests/
 
 ### 2. Role-Based Access Control Testing Matrix
 
-#### Core Role Definitions
+#### Enhanced 5-Role System Definitions
 ```typescript
 interface RoleTestMatrix {
   administrator: {
-    apps: ['expenses', 'exams', 'settings'],
-    permissions: ['create', 'read', 'update', 'delete', 'manage'],
-    scope: 'global'
+    apps: ['expenses', 'exams', 'settings', 'notifications'],
+    permissions: ['create', 'read', 'update', 'delete', 'manage', 'configure'],
+    scope: 'global',
+    features: ['user_management', 'system_config', 'analytics', 'notification_config']
   },
   manager: {
-    apps: ['expenses', 'exams', 'settings'],
-    permissions: ['read', 'update', 'manage'],
-    scope: 'department'
+    apps: ['expenses', 'exams', 'settings', 'notifications'],
+    permissions: ['read', 'update', 'manage', 'approve'],
+    scope: 'department',
+    features: ['department_oversight', 'performance_reports', 'budget_management']
+  },
+  exam_officer: {
+    apps: ['exams', 'settings', 'notifications'],
+    permissions: ['create', 'read', 'update', 'schedule', 'track'],
+    scope: 'academic_compliance',
+    features: ['schedule_creation', 'deadline_management', 'compliance_tracking', 'notification_triggers']
   },
   teacher: {
-    apps: ['expenses', 'exams'],
-    permissions: ['read', 'create', 'update'],
-    scope: 'personal+classes'
+    apps: ['expenses', 'exams', 'notifications'],
+    permissions: ['read', 'create', 'update', 'submit'],
+    scope: 'personal+classes',
+    features: ['grade_entry', 'class_management', 'deadline_compliance']
   },
   account_officer: {
-    apps: ['expenses', 'settings'],
-    permissions: ['create', 'read', 'update', 'delete'],
-    scope: 'financial'
+    apps: ['expenses', 'settings', 'notifications'],
+    permissions: ['create', 'read', 'update', 'delete', 'audit'],
+    scope: 'financial',
+    features: ['expense_management', 'financial_reporting', 'audit_trails']
   }
 }
 ```
@@ -97,10 +107,11 @@ interface RoleTestMatrix {
 #### Role-Based Test Strategy
 
 ```javascript
-describe('Role-Based Access Control', () => {
+describe('Enhanced 5-Role Access Control', () => {
   describe.each([
     ['administrator', 'full system access'],
     ['manager', 'departmental oversight'],
+    ['exam_officer', 'academic compliance management'],
     ['teacher', 'academic focus'],
     ['account_officer', 'financial management']
   ])('Role: %s (%s)', (role, description) => {
@@ -406,6 +417,588 @@ describe('Academic Performance Analytics', () => {
         expect(screen.getByText(/institution-wide performance/i)).toBeInTheDocument();
       }
     }
+  });
+});
+```
+
+---
+
+## 👨‍🎓 **Exam Officer Role Testing Framework**
+
+### 1. Schedule Creation and Management Testing
+
+```javascript
+describe('Exam Officer Role - Schedule Management', () => {
+  describe('Schedule Creation Workflow', () => {
+    test('EXAM_OFFICER: Should create comprehensive exam schedules', async () => {
+      const { user } = setupUserWithRole('exam_officer');
+      render(<ScheduleCreationDashboard />);
+      
+      // Should have access to all scheduling tools
+      expect(screen.getByRole('button', { name: /create schedule/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /bulk import/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /template library/i })).toBeInTheDocument();
+      
+      // Create new schedule
+      await user.click(screen.getByRole('button', { name: /create schedule/i }));
+      
+      // Fill schedule details
+      await user.type(screen.getByLabelText(/semester/i), 'Fall 2024');
+      await user.selectOptions(screen.getByLabelText(/academic year/i), '2024-2025');
+      await user.type(screen.getByLabelText(/start date/i), '2024-09-15');
+      await user.type(screen.getByLabelText(/end date/i), '2024-12-15');
+      
+      // Configure notification settings
+      expect(screen.getByLabelText(/enable notifications/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/notification frequency/i)).toBeInTheDocument();
+      
+      await user.click(screen.getByRole('button', { name: /save schedule/i }));
+      
+      expect(await screen.findByText(/schedule created successfully/i)).toBeInTheDocument();
+      expect(mockAPI.createSchedule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          semester: 'Fall 2024',
+          notifications_enabled: true
+        })
+      );
+    });
+
+    test('EXAM_OFFICER: Should manage deadline enforcement', async () => {
+      const { user } = setupUserWithRole('exam_officer');
+      const schedules = generateMockSchedules(3);
+      
+      render(<DeadlineManagement schedules={schedules} />);
+      
+      // Should see all active schedules with deadline status
+      await waitFor(() => {
+        expect(screen.getAllByTestId('schedule-item')).toHaveLength(3);
+      });
+      
+      // Should be able to set strict deadlines
+      const firstSchedule = screen.getAllByTestId('schedule-item')[0];
+      const strictModeToggle = within(firstSchedule).getByRole('switch', { name: /strict mode/i });
+      
+      await user.click(strictModeToggle);
+      
+      expect(await screen.findByText(/strict mode enabled/i)).toBeInTheDocument();
+      
+      // Should configure escalation rules
+      const escalationButton = within(firstSchedule).getByRole('button', { name: /escalation rules/i });
+      await user.click(escalationButton);
+      
+      expect(screen.getByText(/notification escalation/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/manager notification/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/admin notification/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('Student and Class Data Management', () => {
+    test('EXAM_OFFICER: Should manage student enrollment with permissions', async () => {
+      const { user } = setupUserWithRole('exam_officer');
+      const students = generateMockStudents(100);
+      const classes = generateMockClasses(20);
+      
+      render(<StudentDataManagement students={students} classes={classes} />);
+      
+      // Should have comprehensive view of student data
+      await waitFor(() => {
+        expect(screen.getByTestId('student-count')).toHaveTextContent('100');
+        expect(screen.getByTestId('class-count')).toHaveTextContent('20');
+      });
+      
+      // Should be able to bulk assign students to exams
+      const bulkAssignButton = screen.getByRole('button', { name: /bulk assign/i });
+      await user.click(bulkAssignButton);
+      
+      // Select multiple students
+      const studentCheckboxes = screen.getAllByRole('checkbox', { name: /select student/i });
+      for (let i = 0; i < 5; i++) {
+        await user.click(studentCheckboxes[i]);
+      }
+      
+      // Assign to exam schedule
+      const examSelect = screen.getByLabelText(/exam schedule/i);
+      await user.selectOptions(examSelect, 'midterm-2024');
+      
+      await user.click(screen.getByRole('button', { name: /assign selected/i }));
+      
+      expect(await screen.findByText(/5 students assigned/i)).toBeInTheDocument();
+    });
+
+    test('EXAM_OFFICER: Should have appropriate data access permissions', async () => {
+      const { user } = setupUserWithRole('exam_officer');
+      render(<StudentDataManagement />);
+      
+      // Should see academic data but NOT financial/personal data
+      expect(screen.getByText(/student grades/i)).toBeInTheDocument();
+      expect(screen.getByText(/class enrollment/i)).toBeInTheDocument();
+      expect(screen.getByText(/exam history/i)).toBeInTheDocument();
+      
+      // Should NOT see sensitive information
+      expect(screen.queryByText(/social security/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/financial aid/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/medical records/i)).not.toBeInTheDocument();
+      
+      // Should have limited editing permissions
+      const editButtons = screen.getAllByRole('button', { name: /edit/i });
+      editButtons.forEach(button => {
+        expect(button).toHaveAttribute('data-scope', 'academic-only');
+      });
+    });
+  });
+
+  describe('Compliance Dashboard Functionality', () => {
+    test('EXAM_OFFICER: Should monitor compliance across all departments', async () => {
+      const { user } = setupUserWithRole('exam_officer');
+      const complianceData = generateMockComplianceData();
+      
+      render(<ComplianceDashboard data={complianceData} />);
+      
+      // Should see comprehensive compliance overview
+      await waitFor(() => {
+        expect(screen.getByTestId('overall-compliance-rate')).toBeInTheDocument();
+        expect(screen.getByTestId('department-breakdown')).toBeInTheDocument();
+        expect(screen.getByTestId('deadline-alerts')).toBeInTheDocument();
+      });
+      
+      // Should identify non-compliant teachers
+      expect(screen.getByText(/overdue submissions/i)).toBeInTheDocument();
+      const overdueList = screen.getByTestId('overdue-submissions');
+      const overdueItems = within(overdueList).getAllByTestId('overdue-item');
+      
+      expect(overdueItems.length).toBeGreaterThan(0);
+      
+      // Should be able to send targeted reminders
+      const firstOverdueItem = overdueItems[0];
+      const reminderButton = within(firstOverdueItem).getByRole('button', { name: /send reminder/i });
+      
+      await user.click(reminderButton);
+      
+      expect(await screen.findByText(/reminder sent/i)).toBeInTheDocument();
+      expect(mockAPI.sendNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'reminder',
+          recipient: expect.any(String),
+          urgency: 'high'
+        })
+      );
+    });
+  });
+});
+```
+
+---
+
+## 📬 **Notification System Testing Framework**
+
+### 1. WhatsApp API Integration Testing
+
+```javascript
+describe('Notification System - WhatsApp Integration', () => {
+  let mockWhatsAppAPI;
+
+  beforeEach(() => {
+    mockWhatsAppAPI = {
+      sendMessage: jest.fn(),
+      verifyWebhook: jest.fn(),
+      getDeliveryStatus: jest.fn(),
+    };
+    
+    // Mock WhatsApp Business API
+    global.fetch = jest.fn();
+  });
+
+  describe('Message Sending and Delivery', () => {
+    test('Should send WhatsApp notifications successfully', async () => {
+      mockWhatsAppAPI.sendMessage.mockResolvedValue({
+        id: 'msg-12345',
+        status: 'sent',
+        timestamp: Date.now()
+      });
+      
+      const notification = {
+        recipient: '+1234567890',
+        message: 'Assignment deadline approaching: Submit by 5 PM today',
+        type: 'deadline_reminder',
+        priority: 'high'
+      };
+      
+      const result = await sendWhatsAppNotification(notification);
+      
+      expect(result).toEqual({
+        success: true,
+        messageId: 'msg-12345',
+        provider: 'whatsapp'
+      });
+      
+      expect(mockWhatsAppAPI.sendMessage).toHaveBeenCalledWith(
+        '+1234567890',
+        'Assignment deadline approaching: Submit by 5 PM today',
+        expect.objectContaining({
+          priority: 'high',
+          template: 'deadline_reminder'
+        })
+      );
+    });
+
+    test('Should handle WhatsApp API failures with retry logic', async () => {
+      mockWhatsAppAPI.sendMessage
+        .mockRejectedValueOnce(new Error('Rate limit exceeded'))
+        .mockRejectedValueOnce(new Error('Rate limit exceeded'))
+        .mockResolvedValueOnce({ id: 'msg-retry-123', status: 'sent' });
+      
+      const notification = {
+        recipient: '+1234567890',
+        message: 'Test notification',
+        type: 'reminder'
+      };
+      
+      const result = await sendWhatsAppNotification(notification, { retries: 3 });
+      
+      expect(result.success).toBe(true);
+      expect(mockWhatsAppAPI.sendMessage).toHaveBeenCalledTimes(3);
+      
+      // Should implement exponential backoff
+      expect(mockAPI.retryLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          attempt: 1,
+          delay: 1000
+        })
+      );
+    });
+
+    test('Should respect rate limits and queue messages', async () => {
+      const notifications = Array.from({ length: 50 }, (_, i) => ({
+        recipient: `+123456789${i}`,
+        message: `Notification ${i}`,
+        type: 'bulk_reminder'
+      }));
+      
+      // Mock rate limit: 20 messages per minute
+      const rateLimiter = createRateLimiter({ limit: 20, window: 60000 });
+      
+      const startTime = Date.now();
+      const results = await sendBulkWhatsAppNotifications(notifications, { rateLimiter });
+      const endTime = Date.now();
+      
+      // Should process all notifications
+      expect(results.length).toBe(50);
+      expect(results.filter(r => r.success)).toHaveLength(50);
+      
+      // Should take at least 2 windows due to rate limiting (120 seconds minimum)
+      expect(endTime - startTime).toBeGreaterThanOrEqual(120000);
+      
+      // Should queue messages appropriately
+      expect(mockAPI.queueMessage).toHaveBeenCalledTimes(30); // 50 - 20 = 30 queued
+    });
+  });
+
+  describe('Template and Formatting', () => {
+    test('Should format deadline notifications correctly', async () => {
+      const deadlineData = {
+        teacherName: 'John Smith',
+        subject: 'Mathematics',
+        deadline: '2024-01-15T17:00:00Z',
+        assignmentType: 'Grade Submission'
+      };
+      
+      const message = formatDeadlineNotification(deadlineData);
+      
+      expect(message).toContain('John Smith');
+      expect(message).toContain('Mathematics');
+      expect(message).toContain('Grade Submission');
+      expect(message).toContain('5:00 PM');
+      expect(message).toMatch(/deadline.*approaching/i);
+      
+      // Should include action items
+      expect(message).toMatch(/submit|complete|action required/i);
+    });
+
+    test('Should support multiple languages', async () => {
+      const deadlineData = {
+        teacherName: 'María García',
+        subject: 'Español',
+        deadline: '2024-01-15T17:00:00Z'
+      };
+      
+      const englishMessage = formatDeadlineNotification(deadlineData, 'en');
+      const spanishMessage = formatDeadlineNotification(deadlineData, 'es');
+      
+      expect(englishMessage).toMatch(/deadline approaching/i);
+      expect(spanishMessage).toMatch(/fecha límite se acerca/i);
+      
+      expect(englishMessage).toContain('María García');
+      expect(spanishMessage).toContain('María García');
+    });
+  });
+
+  describe('Compliance and Privacy', () => {
+    test('Should validate phone numbers before sending', async () => {
+      const invalidNumbers = [
+        '123',
+        'invalid-phone',
+        '+1-not-a-number',
+        '+999999999999999' // Too long
+      ];
+      
+      for (const number of invalidNumbers) {
+        const result = await sendWhatsAppNotification({
+          recipient: number,
+          message: 'Test',
+          type: 'test'
+        });
+        
+        expect(result.success).toBe(false);
+        expect(result.error).toMatch(/invalid phone number/i);
+      }
+    });
+
+    test('Should respect user opt-out preferences', async () => {
+      const optedOutUsers = ['+1111111111', '+2222222222'];
+      
+      mockDatabase.getUserPreferences = jest.fn().mockImplementation(phone => ({
+        whatsapp_notifications: !optedOutUsers.includes(phone)
+      }));
+      
+      const notifications = [
+        { recipient: '+1111111111', message: 'Test 1' }, // Opted out
+        { recipient: '+3333333333', message: 'Test 2' }, // Opted in
+        { recipient: '+2222222222', message: 'Test 3' }  // Opted out
+      ];
+      
+      const results = await sendBulkWhatsAppNotifications(notifications);
+      
+      expect(results[0].success).toBe(false);
+      expect(results[0].error).toMatch(/user opted out/i);
+      expect(results[1].success).toBe(true);
+      expect(results[2].success).toBe(false);
+      
+      // Should only send to opted-in users
+      expect(mockWhatsAppAPI.sendMessage).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+```
+
+### 2. Email Fallback System Testing
+
+```javascript
+describe('Notification System - Email Fallback', () => {
+  describe('Fallback Logic', () => {
+    test('Should fallback to email when WhatsApp fails', async () => {
+      mockWhatsAppAPI.sendMessage.mockRejectedValue(new Error('WhatsApp service unavailable'));
+      mockEmailService.sendEmail.mockResolvedValue({ id: 'email-123', status: 'sent' });
+      
+      const notification = {
+        recipient: '+1234567890',
+        email: 'teacher@school.edu',
+        message: 'Deadline reminder',
+        type: 'deadline'
+      };
+      
+      const result = await sendNotificationWithFallback(notification);
+      
+      expect(result).toEqual({
+        success: true,
+        primary: { success: false, provider: 'whatsapp', error: 'WhatsApp service unavailable' },
+        fallback: { success: true, provider: 'email', messageId: 'email-123' }
+      });
+      
+      expect(mockEmailService.sendEmail).toHaveBeenCalledWith(
+        'teacher@school.edu',
+        expect.objectContaining({
+          subject: expect.stringContaining('Deadline'),
+          body: expect.stringContaining('Deadline reminder')
+        })
+      );
+    });
+
+    test('Should attempt multiple fallback channels', async () => {
+      mockWhatsAppAPI.sendMessage.mockRejectedValue(new Error('WhatsApp failed'));
+      mockEmailService.sendEmail.mockRejectedValue(new Error('Email server down'));
+      mockSMSService.sendSMS.mockResolvedValue({ id: 'sms-123', status: 'sent' });
+      
+      const notification = {
+        recipient: '+1234567890',
+        email: 'teacher@school.edu',
+        message: 'Critical deadline alert',
+        priority: 'critical'
+      };
+      
+      const result = await sendNotificationWithFallback(notification);
+      
+      expect(result.success).toBe(true);
+      expect(result.fallback.provider).toBe('sms');
+      
+      // Should try all channels in order
+      expect(mockWhatsAppAPI.sendMessage).toHaveBeenCalled();
+      expect(mockEmailService.sendEmail).toHaveBeenCalled();
+      expect(mockSMSService.sendSMS).toHaveBeenCalled();
+    });
+  });
+
+  describe('Email Template System', () => {
+    test('Should generate professional email templates', async () => {
+      const data = {
+        teacherName: 'Dr. Sarah Johnson',
+        subject: 'Advanced Physics',
+        deadline: '2024-01-20T23:59:59Z',
+        submissionType: 'Final Grades'
+      };
+      
+      const email = generateEmailTemplate('deadline_reminder', data);
+      
+      expect(email.subject).toContain('Deadline Reminder');
+      expect(email.subject).toContain('Advanced Physics');
+      
+      expect(email.body).toContain('Dr. Sarah Johnson');
+      expect(email.body).toContain('Final Grades');
+      expect(email.body).toMatch(/January 20.*11:59 PM/);
+      
+      // Should include professional formatting
+      expect(email.body).toContain('<!DOCTYPE html>'); // HTML email
+      expect(email.body).toContain('school logo');
+      expect(email.body).toContain('contact information');
+    });
+  });
+});
+```
+
+### 3. Deadline Tracking Integration Testing
+
+```javascript
+describe('Deadline Tracking System Integration', () => {
+  describe('Automated Deadline Detection', () => {
+    test('Should automatically calculate deadline status', async () => {
+      const schedules = [
+        { id: 1, deadline: '2024-01-15T17:00:00Z', subject: 'Math', teacher_id: 'teacher1' },
+        { id: 2, deadline: '2024-01-10T17:00:00Z', subject: 'Science', teacher_id: 'teacher2' },
+        { id: 3, deadline: '2024-01-25T17:00:00Z', subject: 'History', teacher_id: 'teacher3' }
+      ];
+      
+      // Mock current time: 2024-01-12T10:00:00Z
+      jest.useFakeTimers().setSystemTime(new Date('2024-01-12T10:00:00Z'));
+      
+      const deadlineStatus = await calculateDeadlineStatuses(schedules);
+      
+      expect(deadlineStatus).toEqual([
+        { id: 1, status: 'approaching', hoursRemaining: 79, shouldNotify: true },
+        { id: 2, status: 'overdue', hoursOverdue: 41, shouldEscalate: true },
+        { id: 3, status: 'upcoming', daysRemaining: 13, shouldNotify: false }
+      ]);
+      
+      jest.useRealTimers();
+    });
+
+    test('Should trigger notifications based on deadline thresholds', async () => {
+      const schedule = {
+        id: 1,
+        deadline: '2024-01-15T17:00:00Z',
+        teacher_id: 'teacher1',
+        subject: 'Mathematics',
+        notification_settings: {
+          remind_24h: true,
+          remind_4h: true,
+          escalate_overdue: true
+        }
+      };
+      
+      // Test 24-hour reminder
+      jest.useFakeTimers().setSystemTime(new Date('2024-01-14T17:00:00Z')); // 24h before
+      
+      await processDeadlineNotifications([schedule]);
+      
+      expect(mockNotificationService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipient: 'teacher1',
+          type: '24_hour_reminder',
+          urgency: 'medium'
+        })
+      );
+      
+      // Test 4-hour reminder
+      jest.setSystemTime(new Date('2024-01-15T13:00:00Z')); // 4h before
+      
+      await processDeadlineNotifications([schedule]);
+      
+      expect(mockNotificationService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: '4_hour_reminder',
+          urgency: 'high'
+        })
+      );
+      
+      // Test overdue escalation
+      jest.setSystemTime(new Date('2024-01-15T19:00:00Z')); // 2h overdue
+      
+      await processDeadlineNotifications([schedule]);
+      
+      expect(mockNotificationService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'overdue_escalation',
+          urgency: 'critical',
+          escalation_level: 1
+        })
+      );
+      
+      jest.useRealTimers();
+    });
+  });
+
+  describe('Real-time Status Updates', () => {
+    test('Should update dashboard in real-time as submissions occur', async () => {
+      const { user } = setupUserWithRole('exam_officer');
+      render(<ComplianceDashboard />);
+      
+      // Initial state: 5 pending submissions
+      await waitFor(() => {
+        expect(screen.getByTestId('pending-count')).toHaveTextContent('5');
+      });
+      
+      // Simulate real-time submission
+      const submissionEvent = {
+        type: 'submission_received',
+        teacher_id: 'teacher1',
+        schedule_id: 1,
+        timestamp: Date.now()
+      };
+      
+      // Trigger real-time update
+      fireEvent(window, new CustomEvent('submission_update', { detail: submissionEvent }));
+      
+      // Dashboard should update immediately
+      await waitFor(() => {
+        expect(screen.getByTestId('pending-count')).toHaveTextContent('4');
+      });
+      
+      // Should show success notification
+      expect(screen.getByText(/submission received/i)).toBeInTheDocument();
+    });
+
+    test('Should handle concurrent deadline updates efficiently', async () => {
+      const multipleUpdates = Array.from({ length: 20 }, (_, i) => ({
+        type: 'deadline_update',
+        schedule_id: i + 1,
+        new_deadline: `2024-01-${15 + i}T17:00:00Z`
+      }));
+      
+      const startTime = performance.now();
+      
+      // Process multiple updates concurrently
+      await Promise.all(multipleUpdates.map(update => processDeadlineUpdate(update)));
+      
+      const endTime = performance.now();
+      const processingTime = endTime - startTime;
+      
+      // Should process efficiently (under 1 second for 20 updates)
+      expect(processingTime).toBeLessThan(1000);
+      
+      // Should batch database updates
+      expect(mockDatabase.batchUpdate).toHaveBeenCalledTimes(1);
+      expect(mockDatabase.batchUpdate).toHaveBeenCalledWith(
+        expect.arrayContaining(multipleUpdates)
+      );
+    });
   });
 });
 ```
@@ -1022,11 +1615,12 @@ describe('Multi-App Performance Testing', () => {
     });
   });
 
-  describe('Concurrent User Performance', () => {
-    test('Should handle multiple users in different apps', async () => {
+  describe('5-Role Concurrent User Performance', () => {
+    test('Should handle multiple users across all 5 roles simultaneously', async () => {
       const users = [
         { role: 'administrator', app: 'settings' },
         { role: 'manager', app: 'exams' },
+        { role: 'exam_officer', app: 'notifications' },
         { role: 'teacher', app: 'exams' },
         { role: 'account_officer', app: 'expenses' }
       ];
@@ -1120,12 +1714,13 @@ describe('Multi-App Performance Testing', () => {
 
 ```javascript
 describe('Role-Based Performance Impact', () => {
-  test('Should maintain performance across different role complexities', async () => {
+  test('Should maintain performance across all 5 role complexities', async () => {
     const roles = [
-      { name: 'teacher', complexity: 'low', expectedApps: 2 },
-      { name: 'account_officer', complexity: 'medium', expectedApps: 2 },
-      { name: 'manager', complexity: 'high', expectedApps: 3 },
-      { name: 'administrator', complexity: 'highest', expectedApps: 3 }
+      { name: 'teacher', complexity: 'low', expectedApps: 3 },
+      { name: 'account_officer', complexity: 'medium', expectedApps: 3 },
+      { name: 'exam_officer', complexity: 'medium-high', expectedApps: 3 },
+      { name: 'manager', complexity: 'high', expectedApps: 4 },
+      { name: 'administrator', complexity: 'highest', expectedApps: 4 }
     ];
     
     for (const role of roles) {
@@ -1149,6 +1744,7 @@ describe('Role-Based Performance Impact', () => {
       const complexityMultiplier = {
         'low': 1,
         'medium': 1.1,
+        'medium-high': 1.15,
         'high': 1.2,
         'highest': 1.3
       };
@@ -1162,90 +1758,453 @@ describe('Role-Based Performance Impact', () => {
 
 ---
 
-## 🔧 **TDD Implementation Timeline**
+## 🔗 **Enhanced 5-Role Integration Testing Patterns**
 
-### Phase 1: Foundation Setup (Week 1-2)
-```bash
-# Test infrastructure setup
-- [ ] Configure Jest for multi-app testing
-- [ ] Set up role-based test utilities
-- [ ] Create mock data generators for all apps
-- [ ] Implement test database seeding
-- [ ] Configure CI/CD for TDD workflow
+### 1. Cross-Role Workflow Integration Testing
 
-# Core shared component testing
-- [ ] Navigation system tests
-- [ ] Authentication provider tests
-- [ ] Permission system tests
-- [ ] Event bus communication tests
+```javascript
+describe('5-Role Workflow Integration', () => {
+  describe('Exam Officer → Teacher → Manager Workflow', () => {
+    test('Should handle complete examination lifecycle across roles', async () => {
+      // EXAM OFFICER: Creates schedule with notifications
+      const { user: examOfficer } = setupUserWithRole('exam_officer');
+      render(<ScheduleCreationDashboard />);
+      
+      const scheduleData = {
+        semester: 'Spring 2024',
+        deadline: '2024-05-15T17:00:00Z',
+        subjects: ['Mathematics', 'Physics', 'Chemistry'],
+        notification_enabled: true
+      };
+      
+      await createExamSchedule(scheduleData);
+      
+      // Verify schedule created with notification triggers
+      expect(mockAPI.createSchedule).toHaveBeenCalledWith(
+        expect.objectContaining({
+          ...scheduleData,
+          notification_triggers: expect.arrayContaining([
+            '24_hours_before',
+            '4_hours_before',
+            'on_overdue'
+          ])
+        })
+      );
+      
+      // TEACHER: Receives notification and submits grades
+      const { user: teacher } = setupUserWithRole('teacher');
+      
+      // Simulate notification received
+      const notificationEvent = {
+        type: 'deadline_reminder',
+        schedule_id: 'schedule-123',
+        teacher_id: teacher.id,
+        hours_remaining: 24
+      };
+      
+      await processNotificationEvent(notificationEvent);
+      
+      // Teacher responds to notification
+      render(<GradeSubmissionForm scheduleId="schedule-123" />);
+      
+      const grades = generateMockGrades(25);
+      await submitGrades(grades);
+      
+      expect(mockAPI.submitGrades).toHaveBeenCalledWith(
+        'schedule-123',
+        teacher.id,
+        grades
+      );
+      
+      // MANAGER: Reviews submission status and approves
+      const { user: manager } = setupUserWithRole('manager');
+      render(<DepartmentOverview />);
+      
+      // Should see real-time update of submission
+      await waitFor(() => {
+        expect(screen.getByTestId('recent-submissions')).toHaveTextContent(teacher.name);
+      });
+      
+      const approveButton = screen.getByRole('button', { name: /approve grades/i });
+      fireEvent.click(approveButton);
+      
+      // Should complete workflow
+      expect(await screen.findByText(/grades approved/i)).toBeInTheDocument();
+      
+      // ADMINISTRATOR: Can monitor entire workflow
+      const { user: admin } = setupUserWithRole('administrator');
+      render(<SystemOverview />);
+      
+      await waitFor(() => {
+        expect(screen.getByTestId('completed-workflows')).toHaveTextContent('1');
+      });
+    });
+
+    test('Should handle workflow failures and recovery', async () => {
+      // Test scenario where teacher misses deadline
+      const { user: examOfficer } = setupUserWithRole('exam_officer');
+      const schedule = {
+        id: 'schedule-456',
+        deadline: '2024-01-15T17:00:00Z',
+        teacher_id: 'teacher-123'
+      };
+      
+      // Mock time past deadline
+      jest.useFakeTimers().setSystemTime(new Date('2024-01-15T19:00:00Z'));
+      
+      await processDeadlineCheck([schedule]);
+      
+      // Should escalate to manager
+      expect(mockNotificationService.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'escalation',
+          recipient: 'manager-456',
+          urgency: 'critical',
+          original_assignee: 'teacher-123'
+        })
+      );
+      
+      // Manager should be able to reassign or extend deadline
+      const { user: manager } = setupUserWithRole('manager');
+      render(<EscalationManagement />);
+      
+      const extendButton = screen.getByRole('button', { name: /extend deadline/i });
+      fireEvent.click(extendButton);
+      
+      await userEvent.type(screen.getByLabelText(/new deadline/i), '2024-01-16T17:00:00Z');
+      fireEvent.click(screen.getByRole('button', { name: /confirm extension/i }));
+      
+      // Should update schedule and notify all parties
+      expect(mockAPI.updateSchedule).toHaveBeenCalledWith(
+        'schedule-456',
+        expect.objectContaining({
+          deadline: '2024-01-16T17:00:00Z',
+          extension_reason: expect.any(String)
+        })
+      );
+      
+      jest.useRealTimers();
+    });
+  });
+
+  describe('Multi-Role Permission Boundary Testing', () => {
+    test('Should enforce strict permission boundaries between roles', async () => {
+      const sensitiveOperations = [
+        { operation: 'delete_user', allowedRoles: ['administrator'] },
+        { operation: 'modify_deadlines', allowedRoles: ['exam_officer', 'administrator'] },
+        { operation: 'approve_expenses', allowedRoles: ['manager', 'administrator'] },
+        { operation: 'view_all_grades', allowedRoles: ['administrator'] },
+        { operation: 'send_bulk_notifications', allowedRoles: ['exam_officer', 'administrator'] }
+      ];
+      
+      const allRoles = ['administrator', 'manager', 'exam_officer', 'teacher', 'account_officer'];
+      
+      for (const { operation, allowedRoles } of sensitiveOperations) {
+        for (const role of allRoles) {
+          const { user } = setupUserWithRole(role);
+          
+          const result = await attemptOperation(operation, user);
+          
+          if (allowedRoles.includes(role)) {
+            expect(result.success).toBe(true);
+            expect(result.message).not.toMatch(/unauthorized|forbidden/i);
+          } else {
+            expect(result.success).toBe(false);
+            expect(result.error).toMatch(/unauthorized|insufficient permissions/i);
+          }
+        }
+      }
+    });
+  });
+});
 ```
 
-### Phase 2: App-Specific Test Development (Week 3-5)
+### 2. Notification System Cross-Role Integration
+
+```javascript
+describe('Notification System Cross-Role Integration', () => {
+  describe('Multi-Channel Notification Delivery', () => {
+    test('Should deliver role-appropriate notifications via preferred channels', async () => {
+      const users = [
+        { id: 'admin-1', role: 'administrator', preferences: { whatsapp: true, email: true } },
+        { id: 'manager-1', role: 'manager', preferences: { whatsapp: false, email: true } },
+        { id: 'exam-officer-1', role: 'exam_officer', preferences: { whatsapp: true, email: false } },
+        { id: 'teacher-1', role: 'teacher', preferences: { whatsapp: true, email: true } },
+        { id: 'account-1', role: 'account_officer', preferences: { whatsapp: false, email: true } }
+      ];
+      
+      const systemAlert = {
+        type: 'system_maintenance',
+        message: 'System will be down for maintenance at 2 AM',
+        urgency: 'medium',
+        target_roles: ['all']
+      };
+      
+      await sendSystemNotification(systemAlert, users);
+      
+      // Verify notifications sent via appropriate channels
+      expect(mockWhatsAppAPI.sendMessage).toHaveBeenCalledTimes(3); // admin, exam_officer, teacher
+      expect(mockEmailService.sendEmail).toHaveBeenCalledTimes(4); // admin, manager, teacher, account_officer
+      
+      // Verify role-specific message content
+      const whatsappCalls = mockWhatsAppAPI.sendMessage.mock.calls;
+      const emailCalls = mockEmailService.sendEmail.mock.calls;
+      
+      // Administrator should get detailed technical information
+      expect(whatsappCalls.find(call => call[0] === users[0].phone)[1])
+        .toMatch(/maintenance window|technical details|system impact/i);
+      
+      // Teacher should get user-friendly information
+      expect(whatsappCalls.find(call => call[0] === users[3].phone)[1])
+        .toMatch(/temporarily unavailable|grade submission/i);
+    });
+
+    test('Should handle notification delivery failures gracefully', async () => {
+      const criticalAlert = {
+        type: 'security_breach',
+        message: 'Immediate action required',
+        urgency: 'critical',
+        recipients: ['admin-1', 'manager-1']
+      };
+      
+      // Mock WhatsApp failure for admin
+      mockWhatsAppAPI.sendMessage.mockImplementation((phone) => {
+        if (phone === 'admin-phone') {
+          return Promise.reject(new Error('WhatsApp service down'));
+        }
+        return Promise.resolve({ id: 'msg-123', status: 'sent' });
+      });
+      
+      const results = await sendCriticalNotification(criticalAlert);
+      
+      // Should fallback to email for admin
+      expect(results.find(r => r.recipient === 'admin-1')).toEqual({
+        recipient: 'admin-1',
+        primary: { success: false, channel: 'whatsapp', error: 'WhatsApp service down' },
+        fallback: { success: true, channel: 'email', messageId: expect.any(String) }
+      });
+      
+      // Should succeed via WhatsApp for manager
+      expect(results.find(r => r.recipient === 'manager-1')).toEqual({
+        recipient: 'manager-1',
+        primary: { success: true, channel: 'whatsapp', messageId: 'msg-123' }
+      });
+      
+      // Should log delivery issues for monitoring
+      expect(mockLogger.warn).toHaveBeenCalledWith(
+        'Notification delivery failed',
+        expect.objectContaining({
+          recipient: 'admin-1',
+          channel: 'whatsapp',
+          error: 'WhatsApp service down'
+        })
+      );
+    });
+  });
+});
+```
+
+### 3. Performance Integration Under Load
+
+```javascript
+describe('5-Role System Performance Under Load', () => {
+  test('Should handle peak usage across all roles simultaneously', async () => {
+    // Simulate peak examination period with all roles active
+    const peakScenario = {
+      administrators: 2,
+      managers: 5,
+      exam_officers: 3,
+      teachers: 50,
+      account_officers: 4
+    };
+    
+    const startTime = performance.now();
+    
+    // Spawn concurrent users
+    const userSessions = [];
+    
+    for (const [role, count] of Object.entries(peakScenario)) {
+      for (let i = 0; i < count; i++) {
+        userSessions.push(simulateUserSession({
+          role: role.slice(0, -1), // Remove 's' from plural
+          duration: 300000, // 5 minutes
+          actions: getTypicalActionsForRole(role.slice(0, -1))
+        }));
+      }
+    }
+    
+    // Execute all sessions concurrently
+    const results = await Promise.all(userSessions);
+    
+    const endTime = performance.now();
+    const totalDuration = endTime - startTime;
+    
+    // System should handle peak load efficiently
+    expect(totalDuration).toBeLessThan(320000); // Max 20 seconds overhead
+    
+    // All sessions should complete successfully
+    expect(results.every(r => r.success)).toBe(true);
+    
+    // Response times should remain reasonable
+    const avgResponseTime = results.reduce((sum, r) => sum + r.avgResponseTime, 0) / results.length;
+    expect(avgResponseTime).toBeLessThan(2000); // Under 2 seconds average
+    
+    // Memory usage should be reasonable
+    expect(process.memoryUsage().heapUsed).toBeLessThan(500 * 1024 * 1024); // Under 500MB
+  });
+
+  test('Should maintain notification delivery performance under bulk load', async () => {
+    // Simulate end-of-semester bulk notifications
+    const bulkNotifications = [
+      { type: 'grade_deadline', recipients: 50, urgency: 'high' },
+      { type: 'exam_schedule', recipients: 200, urgency: 'medium' },
+      { type: 'system_update', recipients: 300, urgency: 'low' }
+    ];
+    
+    const deliveryPromises = bulkNotifications.map(notification => 
+      processBulkNotification(notification)
+    );
+    
+    const startTime = Date.now();
+    const results = await Promise.all(deliveryPromises);
+    const endTime = Date.now();
+    
+    const totalNotifications = bulkNotifications.reduce((sum, n) => sum + n.recipients, 0);
+    const deliveryTime = endTime - startTime;
+    const notificationsPerSecond = (totalNotifications / deliveryTime) * 1000;
+    
+    // Should deliver at least 10 notifications per second
+    expect(notificationsPerSecond).toBeGreaterThan(10);
+    
+    // High priority notifications should be delivered first
+    const highPriorityResult = results.find(r => r.type === 'grade_deadline');
+    const lowPriorityResult = results.find(r => r.type === 'system_update');
+    
+    expect(highPriorityResult.completedAt).toBeLessThan(lowPriorityResult.completedAt);
+    
+    // Should maintain high success rate even under load
+    const successRate = results.reduce((sum, r) => sum + r.successRate, 0) / results.length;
+    expect(successRate).toBeGreaterThan(0.95); // 95% success rate minimum
+  });
+});
+```
+
+---
+
+## 🔧 **TDD Implementation Timeline**
+
+### Phase 1: Enhanced Foundation Setup (Week 1-2)
 ```bash
-# Enhanced Expenses App tests
-- [ ] Role-based access control tests
+# Enhanced test infrastructure for 5-role system
+- [ ] Configure Jest for multi-app testing with notification system mocking
+- [ ] Set up 5-role test utilities (administrator, manager, exam_officer, teacher, account_officer)
+- [ ] Create mock data generators for all apps + notification services
+- [ ] Implement test database seeding with exam schedules and deadlines
+- [ ] Configure CI/CD for TDD workflow with notification delivery testing
+
+# Core shared component testing
+- [ ] Enhanced navigation system tests (4 apps)
+- [ ] 5-role authentication provider tests
+- [ ] Enhanced permission system tests with exam_officer role
+- [ ] Event bus communication tests with notification triggers
+- [ ] WhatsApp/Email API mocking and testing utilities
+```
+
+### Phase 2: Enhanced App-Specific Test Development (Week 3-6)
+```bash
+# Enhanced Expenses App tests (4 roles)
+- [ ] 5-role-based access control tests
 - [ ] Backward compatibility tests
 - [ ] Performance regression tests
-- [ ] Integration with other apps
+- [ ] Integration with notification system
 
-# Exams App test suite
-- [ ] Exam creation and management
-- [ ] Grade entry and calculation
+# Enhanced Exams App test suite
+- [ ] Exam Officer role: Schedule creation and management
+- [ ] Exam Officer role: Deadline enforcement and tracking
+- [ ] Exam Officer role: Student/class data management with permissions
+- [ ] Exam Officer role: Compliance dashboard functionality
+- [ ] Teacher role: Deadline compliance and notification responses
+- [ ] Manager role: Approval workflows and escalation handling
+- [ ] Grade entry and calculation with notification triggers
 - [ ] Student enrollment workflows
 - [ ] Academic performance analytics
 
-# Settings App test suite
-- [ ] Role-based settings access
-- [ ] Configuration management
-- [ ] User preference handling
-- [ ] System-wide settings impact
+# Enhanced Settings App test suite
+- [ ] 5-role-based settings access (including exam_officer)
+- [ ] Notification system configuration management
+- [ ] User preference handling for notification channels
+- [ ] System-wide settings impact on deadline tracking
+
+# New: Notification System App test suite
+- [ ] WhatsApp API integration testing
+- [ ] Email fallback system testing
+- [ ] Multi-channel notification delivery
+- [ ] Rate limiting and retry logic testing
+- [ ] Template and formatting system testing
+- [ ] Privacy and compliance testing
 ```
 
-### Phase 3: Integration and Performance (Week 6-7)
+### Phase 3: Enhanced Integration and Performance (Week 7-8)
 ```bash
-# Cross-app integration tests
-- [ ] Event bus communication
-- [ ] Shared state management
-- [ ] Data consistency across apps
-- [ ] Navigation state preservation
+# 5-role cross-app integration tests
+- [ ] Enhanced event bus communication with notification triggers
+- [ ] Shared state management across 4 apps
+- [ ] Data consistency across apps with real-time deadline tracking
+- [ ] Navigation state preservation with notification system
 
-# Performance and load testing
-- [ ] Multi-user concurrent usage
-- [ ] Large dataset handling
-- [ ] Memory usage optimization
-- [ ] App switching performance
+# Enhanced cross-role workflow testing
+- [ ] Exam Officer → Teacher → Manager workflow testing
+- [ ] Multi-role permission boundary testing
+- [ ] Notification system cross-role integration
+- [ ] Workflow failure and recovery testing
+
+# Performance and load testing for 5-role system
+- [ ] 5-role concurrent usage testing
+- [ ] Large dataset handling with notification system under load
+- [ ] Memory usage optimization with notification queue management
+- [ ] App switching performance with notification background processing
+- [ ] Bulk notification delivery performance testing
 ```
 
-### Phase 4: Regression and Deployment (Week 8)
+### Phase 4: Enhanced Regression and Deployment (Week 9)
 ```bash
-# Comprehensive regression suite
-- [ ] Existing functionality protection
-- [ ] Critical path validation
-- [ ] Database migration testing
-- [ ] Legacy data compatibility
+# Comprehensive regression suite for 5-role system
+- [ ] Existing functionality protection with backward compatibility
+- [ ] Critical path validation for all 5 roles
+- [ ] Database migration testing with exam schedules and notification logs
+- [ ] Legacy data compatibility with role system expansion
 
-# Production readiness
-- [ ] End-to-end workflow testing
-- [ ] Security and access control validation
-- [ ] Performance benchmark validation
-- [ ] Documentation and training materials
+# Enhanced production readiness
+- [ ] End-to-end 5-role workflow testing
+- [ ] Security and access control validation for exam_officer role
+- [ ] Performance benchmark validation with notification system load
+- [ ] External service integration testing (WhatsApp/Email APIs)
+- [ ] Notification delivery SLA validation
+- [ ] Documentation and training materials for enhanced system
 ```
 
 ---
 
 ## 🎯 **Success Metrics and KPIs**
 
-### Test Coverage Targets
+### Enhanced Test Coverage Targets
 - **Overall Coverage**: 85%+
-- **Role-based Features**: 90%+
+- **5-Role-based Features**: 90%+
 - **Critical Paths**: 95%+
 - **Integration Points**: 80%+
+- **Notification System**: 95%+
+- **Exam Officer Role**: 90%+
+- **Cross-Role Workflows**: 85%+
 
-### Performance Benchmarks
-- **App Load Time**: <2 seconds
+### Enhanced Performance Benchmarks
+- **App Load Time**: <2 seconds (all 4 apps)
 - **App Switch Time**: <500ms
 - **API Response Time**: <1 second
 - **Memory Usage**: <100MB per app
+- **Notification Delivery**: <5 seconds (WhatsApp), <30 seconds (Email)
+- **Bulk Notification Rate**: >10 messages/second
+- **5-Role Concurrent Performance**: <2 seconds response time
+- **Real-time Dashboard Updates**: <1 second latency
 
 ### Quality Metrics
 - **Test Reliability**: 99%+ pass rate
@@ -1257,13 +2216,16 @@ describe('Role-Based Performance Impact', () => {
 
 ## 📋 **Conclusion**
 
-This comprehensive TDD strategy ensures the successful transformation from a single expense tracker to a robust multi-app educational institution management system. By emphasizing role-based testing, component dependency validation, and comprehensive integration testing, we can confidently deliver a system that meets all user needs while maintaining the reliability and performance of the existing expense tracking functionality.
+This comprehensive enhanced TDD strategy ensures the successful transformation from a single expense tracker to a robust 5-role educational institution management system with integrated notification capabilities. By emphasizing enhanced role-based testing, notification system validation, deadline tracking system testing, and comprehensive cross-role integration testing, we can confidently deliver a system that meets all user needs while maintaining the reliability and performance of the existing expense tracking functionality.
 
-The strategy prioritizes:
-1. **Backward Compatibility** - Existing functionality remains intact
-2. **Role-Based Security** - Comprehensive testing of access control
-3. **Performance Excellence** - Multi-app system meets performance standards
-4. **Integration Reliability** - Seamless communication between applications
-5. **Regression Protection** - Comprehensive prevention of functionality breaks
+The enhanced strategy prioritizes:
+1. **Backward Compatibility** - Existing functionality remains intact during 5-role expansion
+2. **Enhanced Role-Based Security** - Comprehensive testing of 5-role access control including Exam Officer
+3. **Notification System Reliability** - WhatsApp/Email integration with fallback mechanisms
+4. **Deadline Tracking Accuracy** - Real-time compliance monitoring and automated notifications
+5. **Performance Excellence** - Multi-app system with notification system meets performance standards
+6. **Integration Reliability** - Seamless communication between 4 applications and notification services
+7. **Cross-Role Workflow Validation** - Complete lifecycle testing from Exam Officer to Teacher to Manager
+8. **Regression Protection** - Comprehensive prevention of functionality breaks during system enhancement
 
 Implementation follows TDD principles with test-first development, ensuring high code quality and maintainability throughout the transformation process.

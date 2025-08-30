@@ -23,22 +23,29 @@ Educational Institution System
 
 #### 2. Extended Role-Based Access Control
 
-##### Role Hierarchy
+##### Role Hierarchy (Enhanced - 5 Roles)
 ```
 Administrator (Highest Privilege)
 ├── Manager (Departmental Oversight)
+├── Exam Officer/Coordinator (Academic Scheduling & Compliance)
 ├── Teacher (Academic Focus)
 └── Account Officer (Financial Focus)
 ```
 
-##### Role Capabilities Matrix
-| Feature Category | Administrator | Manager | Teacher | Account Officer |
-|------------------|---------------|---------|---------|-----------------|
-| **Financial Management** | Full Access | Department View | Read-only | Full Management |
-| **Academic Management** | Full Access | Department Management | Full Teaching Tools | Read-only |
-| **User Management** | Full Control | Department Users | Class Students | No Access |
-| **System Settings** | All Settings | Department Settings | Personal Settings | Financial Settings |
-| **Reports & Analytics** | Global Reports | Department Reports | Class Reports | Financial Reports |
+##### Enhanced Role Capabilities Matrix
+| Feature Category | Administrator | Manager | Exam Officer | Teacher | Account Officer |
+|------------------|---------------|---------|--------------|---------|-----------------|
+| **Financial Management** | Full Access | Department View | Read-only | Personal Expenses | Full Management |
+| **Academic Management** | Full Access | Department Management | Full Exam Scheduling | Teaching Tools | Read-only |
+| **Exam Scheduling** | Full Access | Department Approval | Full Control | View/Request | No Access |
+| **Test Result Deadlines** | Full Access | Department View | Full Enforcement | Compliance | No Access |
+| **Notification Management** | Full Access | Department Scope | Exam-related | Personal | Financial Alerts |
+| **Student/Class Management** | Full Access | Department Students | Full Management | Class Students | No Access |
+| **Subject Assignment** | Full Access | Department Subjects | Shared Control | Shared Control | No Access |
+| **Compliance Tracking** | Global View | Department View | Full Control | Personal View | No Access |
+| **User Management** | Full Control | Department Users | Student Records | Class Students | No Access |
+| **System Settings** | All Settings | Department Settings | Exam Settings | Personal Settings | Financial Settings |
+| **Reports & Analytics** | Global Reports | Department Reports | Compliance Reports | Class Reports | Financial Reports |
 
 #### 3. Application-Specific Architecture
 
@@ -56,19 +63,23 @@ Administrator (Highest Privilege)
 - **Teacher:** Personal expense submission, travel expense requests
 - **Account Officer:** Comprehensive expense management, financial reporting
 
-##### 3.2 Exams App (New)
-**Purpose:** Academic assessment and examination management
+##### 3.2 Exams App (Enhanced with Exam Officer Role)
+**Purpose:** Academic assessment and examination management with deadline tracking and compliance
 **Core Components:**
-- ExamScheduler (Scheduling and timetabling)
-- GradeManager (Grade entry and management)
-- ResultAnalytics (Performance analysis)
+- ExamScheduler (Scheduling and timetabling with deadline enforcement)
+- GradeManager (Grade entry with submission tracking)
+- ResultAnalytics (Performance analysis and compliance monitoring)
 - StudentManager (Student records and enrollment)
+- DeadlineTracker (Test result submission deadline management)
+- NotificationEngine (WhatsApp/Email automated reminders and escalation)
+- ComplianceMonitor (Real-time teacher compliance tracking)
 
 **Role-Specific Features:**
-- **Administrator:** Global academic oversight, system configuration
-- **Manager:** Departmental exam coordination, performance monitoring
-- **Teacher:** Exam creation, grade entry, result analysis
-- **Account Officer:** Financial aspects of examinations (fees, costs)
+- **Administrator:** Global academic oversight, system configuration, all compliance data
+- **Manager:** Departmental exam coordination, performance monitoring, departmental compliance
+- **Exam Officer:** Test scheduling, deadline setting/enforcement, teacher compliance tracking, notification management, student/class data management, subject assignment (shared with teachers)
+- **Teacher:** Exam creation, grade entry with deadline compliance, result analysis, subject assignment (shared with exam officers)
+- **Account Officer:** Financial aspects of examinations (fees, costs), read-only access to exam data
 
 ##### 3.3 Settings App (New)
 **Purpose:** System configuration and personalization
@@ -297,36 +308,120 @@ CREATE TABLE feature_flags (
 );
 ```
 
-##### 8.2 Exams Management Schema
+##### 8.2 Enhanced Exams Management Schema with Exam Officer Support
 ```sql
+-- Enhanced subjects table with assignment tracking
 CREATE TABLE subjects (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(100) NOT NULL,
     code VARCHAR(20) UNIQUE NOT NULL,
     department_id UUID REFERENCES departments(id),
     credits INTEGER DEFAULT 3,
+    assigned_by UUID REFERENCES users(id), -- Exam Officer or Administrator
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Classes/Groups management
+CREATE TABLE classes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(100) NOT NULL,
+    code VARCHAR(20) UNIQUE NOT NULL,
+    department_id UUID REFERENCES departments(id),
+    semester INTEGER,
+    academic_year VARCHAR(10),
+    managed_by UUID REFERENCES users(id), -- Exam Officer
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enhanced exams table with deadline tracking
 CREATE TABLE exams (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     subject_id UUID REFERENCES subjects(id),
+    class_id UUID REFERENCES classes(id),
     exam_type VARCHAR(50) NOT NULL, -- 'midterm', 'final', 'quiz'
     exam_date DATE NOT NULL,
     duration INTEGER NOT NULL, -- in minutes
     total_marks INTEGER NOT NULL,
     pass_marks INTEGER NOT NULL,
+    result_submission_deadline DATE NOT NULL,
     created_by UUID REFERENCES users(id),
+    approved_by UUID REFERENCES users(id), -- Manager or Exam Officer approval
+    status VARCHAR(20) DEFAULT 'scheduled',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- Student enrollments with class tracking
 CREATE TABLE student_enrollments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     student_id UUID REFERENCES users(id),
+    class_id UUID REFERENCES classes(id),
     subject_id UUID REFERENCES subjects(id),
     enrollment_date DATE DEFAULT CURRENT_DATE,
+    enrolled_by UUID REFERENCES users(id), -- Exam Officer
     status VARCHAR(20) DEFAULT 'active',
     grade VARCHAR(5),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Subject assignments (shared between Exam Officers and Teachers)
+CREATE TABLE subject_assignments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    subject_id UUID REFERENCES subjects(id),
+    teacher_id UUID REFERENCES users(id),
+    assigned_by UUID REFERENCES users(id), -- Exam Officer or Administrator
+    assignment_date DATE DEFAULT CURRENT_DATE,
+    status VARCHAR(20) DEFAULT 'active',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(subject_id, teacher_id)
+);
+
+-- Test result submission tracking
+CREATE TABLE result_submissions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    exam_id UUID REFERENCES exams(id),
+    teacher_id UUID REFERENCES users(id),
+    submission_date TIMESTAMP WITH TIME ZONE,
+    deadline_date DATE NOT NULL,
+    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'submitted', 'overdue'
+    reminder_count INTEGER DEFAULT 0,
+    last_reminder_sent TIMESTAMP WITH TIME ZONE,
+    escalated_to UUID REFERENCES users(id),
+    escalation_date TIMESTAMP WITH TIME ZONE,
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(exam_id, teacher_id)
+);
+
+-- Notification tracking system
+CREATE TABLE notifications (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    recipient_id UUID REFERENCES users(id),
+    sender_id UUID REFERENCES users(id),
+    type VARCHAR(50) NOT NULL, -- 'deadline_reminder', 'overdue_alert', 'escalation'
+    method VARCHAR(20) NOT NULL, -- 'whatsapp', 'email', 'system'
+    subject VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    related_exam_id UUID REFERENCES exams(id),
+    related_submission_id UUID REFERENCES result_submissions(id),
+    status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'sent', 'failed', 'read'
+    sent_at TIMESTAMP WITH TIME ZONE,
+    read_at TIMESTAMP WITH TIME ZONE,
+    retry_count INTEGER DEFAULT 0,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Compliance tracking for reporting
+CREATE TABLE compliance_tracking (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    exam_id UUID REFERENCES exams(id),
+    teacher_id UUID REFERENCES users(id),
+    submission_deadline DATE NOT NULL,
+    submitted_on_time BOOLEAN,
+    days_overdue INTEGER DEFAULT 0,
+    compliance_score DECIMAL(5,2), -- 0-100 score
+    department_id UUID REFERENCES departments(id),
+    tracked_by UUID REFERENCES users(id), -- Exam Officer
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 ```
