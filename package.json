@@ -11,7 +11,8 @@
     "test": "cd frontend && npm test",
     "api": "node api-server.js",
     "dev:api": "nodemon api-server.js",
-    "dev:full": "concurrently \"npm run dev:api\" \"npm run dev\""
+    "dev:full": "concurrently -n \"API,Frontend\" -c \"bgBlue.bold,bgMagenta.bold\" \"npm run dev:api\" \"npm run dev\" --restart-tries 3",
+    "start:dev": "node start-development.js"
   },
   "keywords": [
     "expense-tracker",
@@ -25,6 +26,7 @@
   "license": "MIT",
   "devDependencies": {
     "@netlify/functions": "^2.4.1",
+    "@testing-library/dom": "^10.4.1",
     "concurrently": "^9.2.0",
     "jsdom": "^26.1.0",
     "nodemon": "^3.1.10",

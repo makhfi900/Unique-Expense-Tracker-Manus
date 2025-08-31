@@ -1852,8 +1852,17 @@ app.use((error, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`🚀 API server running on http://localhost:${PORT}`);
-  console.log(`📋 Health check: http://localhost:${PORT}/api/health`);
+  console.log('\n' + '='.repeat(60));
+  console.log('🚀 EXPENSE TRACKER API SERVER STARTED');
+  console.log('='.repeat(60));
+  console.log(`📡 API Server: http://localhost:${PORT}`);
+  console.log(`🏥 Health Check: http://localhost:${PORT}/api/health`);
+  console.log(`📊 Endpoints: ${PORT}/api/expenses, ${PORT}/api/bulk-recategorize`);
+  console.log(`🔐 Supabase Integration: ACTIVE`);
+  console.log('='.repeat(60));
+  console.log('💡 Frontend should be running on http://localhost:5173');
+  console.log('🌐 Full App: Frontend + API working together');
+  console.log('='.repeat(60) + '\n');
 });
 
 module.exports = app;
