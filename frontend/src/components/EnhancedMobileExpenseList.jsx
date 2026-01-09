@@ -1051,55 +1051,73 @@ const EnhancedMobileExpenseList = ({ selectedCategory: parentSelectedCategory })
         selectedCount={filterStats.selected}
       />
 
-      {/* Enhanced Modals */}
+      {/* Enhanced Modals - Mobile optimized with safe area support */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-        <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Edit Expense</DialogTitle>
-            <DialogDescription>
-              Update the details for this expense with enhanced controls.
+        <DialogContent
+          className="w-[calc(100vw-2rem)] max-w-md rounded-2xl p-4 sm:p-6"
+          style={{
+            maxHeight: 'calc(100vh - 4rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-lg sm:text-xl font-bold">Edit Expense</DialogTitle>
+            <DialogDescription className="text-sm">
+              Update the details for this expense.
             </DialogDescription>
           </DialogHeader>
-          
+
           {editingExpense && (
-            <ExpenseForm
-              expense={editingExpense}
-              onSuccess={() => {
-                setEditModalOpen(false);
-                setEditingExpense(null);
-                fetchExpenses();
-                triggerHaptic('success');
-              }}
-              onCancel={() => {
-                setEditModalOpen(false);
-                setEditingExpense(null);
-                triggerHaptic('light');
-              }}
-            />
+            <div className="pt-2">
+              <ExpenseForm
+                expense={editingExpense}
+                onSuccess={() => {
+                  setEditModalOpen(false);
+                  setEditingExpense(null);
+                  fetchExpenses();
+                  triggerHaptic('success');
+                }}
+                onCancel={() => {
+                  setEditModalOpen(false);
+                  setEditingExpense(null);
+                  triggerHaptic('light');
+                }}
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>
 
       <Dialog open={addExpenseModalOpen} onOpenChange={setAddExpenseModalOpen}>
-        <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto rounded-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Add New Expense</DialogTitle>
-            <DialogDescription>
-              Record a new expense with professional mobile interface.
+        <DialogContent
+          className="w-[calc(100vw-2rem)] max-w-md rounded-2xl p-4 sm:p-6"
+          style={{
+            maxHeight: 'calc(100vh - 4rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-lg sm:text-xl font-bold">Add New Expense</DialogTitle>
+            <DialogDescription className="text-sm">
+              Record a new expense quickly.
             </DialogDescription>
           </DialogHeader>
-          
-          <ExpenseForm
-            onSuccess={() => {
-              setAddExpenseModalOpen(false);
-              fetchExpenses();
-              triggerHaptic('success');
-            }}
-            onCancel={() => {
-              setAddExpenseModalOpen(false);
-              triggerHaptic('light');
-            }}
-          />
+
+          <div className="pt-2">
+            <ExpenseForm
+              onSuccess={() => {
+                setAddExpenseModalOpen(false);
+                fetchExpenses();
+                triggerHaptic('success');
+              }}
+              onCancel={() => {
+                setAddExpenseModalOpen(false);
+                triggerHaptic('light');
+              }}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </MobileGestureNavigation>
