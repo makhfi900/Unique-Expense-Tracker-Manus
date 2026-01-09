@@ -634,52 +634,70 @@ const MobileExpenseList = ({ selectedCategory: parentSelectedCategory }) => {
         isAdmin={isAdmin}
       />
 
-      {/* Edit Expense Modal */}
+      {/* Edit Expense Modal - Mobile optimized */}
       <Dialog open={editModalOpen} onOpenChange={setEditModalOpen}>
-        <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Expense</DialogTitle>
-            <DialogDescription>
+        <DialogContent
+          className="w-[calc(100vw-2rem)] max-w-md rounded-xl p-4 sm:p-6"
+          style={{
+            maxHeight: 'calc(100vh - 4rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-lg font-bold">Edit Expense</DialogTitle>
+            <DialogDescription className="text-sm">
               Update the details for this expense.
             </DialogDescription>
           </DialogHeader>
-          
+
           {editingExpense && (
-            <ExpenseForm
-              expense={editingExpense}
-              onSuccess={() => {
-                setEditModalOpen(false);
-                setEditingExpense(null);
-                fetchExpenses();
-              }}
-              onCancel={() => {
-                setEditModalOpen(false);
-                setEditingExpense(null);
-              }}
-            />
+            <div className="pt-2">
+              <ExpenseForm
+                expense={editingExpense}
+                onSuccess={() => {
+                  setEditModalOpen(false);
+                  setEditingExpense(null);
+                  fetchExpenses();
+                }}
+                onCancel={() => {
+                  setEditModalOpen(false);
+                  setEditingExpense(null);
+                }}
+              />
+            </div>
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Add Expense Modal */}
+      {/* Add Expense Modal - Mobile optimized */}
       <Dialog open={addExpenseModalOpen} onOpenChange={setAddExpenseModalOpen}>
-        <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Add New Expense</DialogTitle>
-            <DialogDescription>
-              Record a new expense with detailed information.
+        <DialogContent
+          className="w-[calc(100vw-2rem)] max-w-md rounded-xl p-4 sm:p-6"
+          style={{
+            maxHeight: 'calc(100vh - 4rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch'
+          }}
+        >
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-lg font-bold">Add New Expense</DialogTitle>
+            <DialogDescription className="text-sm">
+              Record a new expense quickly.
             </DialogDescription>
           </DialogHeader>
-          
-          <ExpenseForm
-            onSuccess={() => {
-              setAddExpenseModalOpen(false);
-              fetchExpenses();
-            }}
-            onCancel={() => {
-              setAddExpenseModalOpen(false);
-            }}
-          />
+
+          <div className="pt-2">
+            <ExpenseForm
+              onSuccess={() => {
+                setAddExpenseModalOpen(false);
+                fetchExpenses();
+              }}
+              onCancel={() => {
+                setAddExpenseModalOpen(false);
+              }}
+            />
+          </div>
         </DialogContent>
       </Dialog>
     </div>

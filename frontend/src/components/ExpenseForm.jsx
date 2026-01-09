@@ -47,15 +47,10 @@ const ExpenseForm = ({ expense = null, onSuccess, onCancel }) => {
 
   const fetchCategories = async () => {
     try {
-      console.log('🔄 Fetching categories...');
       const data = await apiCall('/categories');
-      console.log('📦 Categories response:', data);
       setCategories(data.categories || []);
-      console.log('✅ Categories loaded successfully:', data.categories?.length || 0);
     } catch (err) {
-      console.error('❌ Failed to fetch categories:', err);
       setError(`Failed to fetch categories: ${err.message || 'Unknown error'}`);
-      // Fallback: set empty array so form still works
       setCategories([]);
     }
   };
@@ -125,25 +120,27 @@ const ExpenseForm = ({ expense = null, onSuccess, onCancel }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
       {error && (
-        <Alert variant="destructive">
+        <Alert variant="destructive" className="text-sm">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
 
       {success && (
-        <Alert>
+        <Alert className="text-sm">
           <AlertDescription>{success}</AlertDescription>
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {/* Amount and Date - Stack on mobile, side by side on tablet+ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
         <div className="space-y-2">
-          <Label htmlFor="amount">Amount *</Label>
+          <Label htmlFor="amount" className="text-sm font-medium">Amount *</Label>
           <Input
             id="amount"
             type="number"
+            inputMode="decimal"
             step="0.01"
             min="0"
             placeholder="0.00"
@@ -151,11 +148,12 @@ const ExpenseForm = ({ expense = null, onSuccess, onCancel }) => {
             onChange={(e) => handleInputChange('amount', e.target.value)}
             required
             disabled={loading}
+            className="h-12 sm:h-10 text-base sm:text-sm"
           />
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="expense_date">Date *</Label>
+          <Label htmlFor="expense_date" className="text-sm font-medium">Date *</Label>
           <Input
             id="expense_date"
             type="date"
@@ -163,12 +161,13 @@ const ExpenseForm = ({ expense = null, onSuccess, onCancel }) => {
             onChange={(e) => handleInputChange('expense_date', e.target.value)}
             required
             disabled={loading}
+            className="h-12 sm:h-10 text-base sm:text-sm"
           />
         </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="description">Description *</Label>
+        <Label htmlFor="description" className="text-sm font-medium">Description *</Label>
         <Input
           id="description"
           type="text"
@@ -177,28 +176,33 @@ const ExpenseForm = ({ expense = null, onSuccess, onCancel }) => {
           onChange={(e) => handleInputChange('description', e.target.value)}
           required
           disabled={loading}
+          className="h-12 sm:h-10 text-base sm:text-sm"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="category">Category *</Label>
-        <Select 
-          value={formData.category_id} 
+        <Label htmlFor="category" className="text-sm font-medium">Category *</Label>
+        <Select
+          value={formData.category_id}
           onValueChange={(value) => handleInputChange('category_id', value)}
           disabled={loading}
         >
-          <SelectTrigger>
+          <SelectTrigger className="h-12 sm:h-10 text-base sm:text-sm">
             <SelectValue placeholder="Select a category" />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="max-h-[50vh]">
             {categories.map((category) => (
-              <SelectItem key={category.id} value={category.id}>
+              <SelectItem
+                key={category.id}
+                value={category.id}
+                className="py-3 sm:py-2"
+              >
                 <div className="flex items-center">
-                  <div 
-                    className="w-3 h-3 rounded-full mr-2" 
+                  <div
+                    className="w-4 h-4 sm:w-3 sm:h-3 rounded-full mr-3 sm:mr-2 flex-shrink-0"
                     style={{ backgroundColor: category.color }}
                   ></div>
-                  {category.name}
+                  <span className="text-base sm:text-sm">{category.name}</span>
                 </div>
               </SelectItem>
             ))}
@@ -207,19 +211,21 @@ const ExpenseForm = ({ expense = null, onSuccess, onCancel }) => {
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="receipt_url">Receipt URL</Label>
+        <Label htmlFor="receipt_url" className="text-sm font-medium">Receipt URL</Label>
         <Input
           id="receipt_url"
           type="url"
+          inputMode="url"
           placeholder="https://example.com/receipt.jpg"
           value={formData.receipt_url}
           onChange={(e) => handleInputChange('receipt_url', e.target.value)}
           disabled={loading}
+          className="h-12 sm:h-10 text-base sm:text-sm"
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="notes">Notes</Label>
+        <Label htmlFor="notes" className="text-sm font-medium">Notes</Label>
         <Textarea
           id="notes"
           placeholder="Additional notes about this expense"
@@ -227,17 +233,29 @@ const ExpenseForm = ({ expense = null, onSuccess, onCancel }) => {
           onChange={(e) => handleInputChange('notes', e.target.value)}
           disabled={loading}
           rows={3}
+          className="text-base sm:text-sm min-h-[80px]"
         />
       </div>
 
-      <div className="flex justify-end space-x-4">
+      {/* Action buttons - Full width on mobile */}
+      <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 sm:gap-4 pt-2">
         {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel} disabled={loading}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            disabled={loading}
+            className="h-12 sm:h-10 text-base sm:text-sm w-full sm:w-auto"
+          >
             <X className="h-4 w-4 mr-2" />
             Cancel
           </Button>
         )}
-        <Button type="submit" disabled={loading}>
+        <Button
+          type="submit"
+          disabled={loading}
+          className="h-12 sm:h-10 text-base sm:text-sm w-full sm:w-auto"
+        >
           {loading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />

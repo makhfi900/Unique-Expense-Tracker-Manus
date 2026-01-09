@@ -81,8 +81,8 @@ const FloatingActionButton = ({ onAddExpense, onImportData, onViewAnalytics, isA
         )}
       </AnimatePresence>
 
-      {/* Action Menu */}
-      <div className="fixed bottom-6 right-6 z-50">
+      {/* Action Menu - with safe area support for notched devices */}
+      <div className="fixed z-50" style={{ bottom: 'calc(1.5rem + env(safe-area-inset-bottom, 0px))', right: 'calc(1.5rem + env(safe-area-inset-right, 0px))' }}>
         <div className="relative">
           {/* Action Buttons */}
           <AnimatePresence>

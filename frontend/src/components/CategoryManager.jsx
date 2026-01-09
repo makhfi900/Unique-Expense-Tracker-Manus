@@ -158,8 +158,9 @@ const CategoryManager = () => {
     }
   };
 
-  const CategoryForm = () => (
-    <form onSubmit={handleSubmit} className="space-y-4">
+  // Form content rendered inline to prevent focus loss on re-render
+  const renderFormContent = (isEditMode) => (
+    <>
       {formError && (
         <Alert variant="destructive">
           <AlertDescription>{formError}</AlertDescription>
@@ -173,22 +174,23 @@ const CategoryManager = () => {
       )}
 
       <div className="space-y-2">
-        <Label htmlFor="name">Category Name *</Label>
+        <Label htmlFor={isEditMode ? "edit-name" : "create-name"}>Category Name *</Label>
         <Input
-          id="name"
+          id={isEditMode ? "edit-name" : "create-name"}
           type="text"
           placeholder="Enter category name"
           value={formData.name}
           onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
           required
           disabled={formLoading}
+          autoFocus
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="description">Description</Label>
+        <Label htmlFor={isEditMode ? "edit-description" : "create-description"}>Description</Label>
         <Textarea
-          id="description"
+          id={isEditMode ? "edit-description" : "create-description"}
           placeholder="Enter category description"
           value={formData.description}
           onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
@@ -248,17 +250,17 @@ const CategoryManager = () => {
           {formLoading ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {editingCategory ? 'Updating...' : 'Creating...'}
+              {isEditMode ? 'Updating...' : 'Creating...'}
             </>
           ) : (
             <>
               <Tag className="h-4 w-4 mr-2" />
-              {editingCategory ? 'Update Category' : 'Create Category'}
+              {isEditMode ? 'Update Category' : 'Create Category'}
             </>
           )}
         </Button>
       </div>
-    </form>
+    </>
   );
 
   if (loading) {
@@ -293,7 +295,9 @@ const CategoryManager = () => {
                 Add a new expense category to organize your expenses.
               </DialogDescription>
             </DialogHeader>
-            <CategoryForm />
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {renderFormContent(false)}
+            </form>
           </DialogContent>
         </Dialog>
       </div>
@@ -392,7 +396,9 @@ const CategoryManager = () => {
               Update the category details below.
             </DialogDescription>
           </DialogHeader>
-          <CategoryForm />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {renderFormContent(true)}
+          </form>
         </DialogContent>
       </Dialog>
     </div>
