@@ -38,7 +38,7 @@ export const formatAmount = (amount) => {
  * Format large amounts in compact form for better mobile readability
  * @param {number} amount - The amount to format
  * @param {boolean} includeSymbol - Whether to include Rs symbol (default: true)
- * @returns {string} Compact formatted string (e.g., "Rs 16.6M", "Rs 5.4K", "Rs 850")
+ * @returns {string} Compact formatted string (e.g., "Rs 165.8 Lakh", "Rs 5.4K", "Rs 850")
  */
 export const formatCompactCurrency = (amount, includeSymbol = true) => {
   if (amount === null || amount === undefined || isNaN(amount)) {
@@ -51,14 +51,11 @@ export const formatCompactCurrency = (amount, includeSymbol = true) => {
 
   let formatted;
   if (absAmount >= 10000000) {
-    // 10 Million+ -> show as "16.6M" (crore equivalent)
-    formatted = `${(absAmount / 1000000).toFixed(1)}M`;
-  } else if (absAmount >= 1000000) {
-    // 1 Million+ -> show as "1.5M"
-    formatted = `${(absAmount / 1000000).toFixed(1)}M`;
+    // 1 Crore+ (10 Million) -> show in Lakhs "165.8 Lakh"
+    formatted = `${(absAmount / 100000).toFixed(1)} Lakh`;
   } else if (absAmount >= 100000) {
-    // 100K+ (Lakh) -> show as "5.4L" or "540K"
-    formatted = `${(absAmount / 100000).toFixed(1)}L`;
+    // 1 Lakh+ -> show as "5.4 Lakh"
+    formatted = `${(absAmount / 100000).toFixed(1)} Lakh`;
   } else if (absAmount >= 10000) {
     // 10K+ -> show as "54K"
     formatted = `${(absAmount / 1000).toFixed(0)}K`;
@@ -71,7 +68,7 @@ export const formatCompactCurrency = (amount, includeSymbol = true) => {
   }
 
   // Remove .0 suffixes for cleaner display
-  formatted = formatted.replace('.0K', 'K').replace('.0M', 'M').replace('.0L', 'L');
+  formatted = formatted.replace('.0K', 'K').replace('.0 Lakh', ' Lakh');
 
   return `${prefix}${sign}${formatted}`;
 };
@@ -98,12 +95,9 @@ export const formatTooltipCurrency = (amount) => {
 
   const absAmount = Math.abs(amount);
 
-  if (absAmount >= 1000000) {
-    // Millions: show 2 decimal places
-    return `Rs ${(amount / 1000000).toFixed(2)}M`;
-  } else if (absAmount >= 100000) {
+  if (absAmount >= 100000) {
     // Lakhs: show 2 decimal places
-    return `Rs ${(amount / 100000).toFixed(2)}L`;
+    return `Rs ${(amount / 100000).toFixed(2)} Lakh`;
   } else if (absAmount >= 1000) {
     // Thousands: show full number with commas
     return `Rs ${amount.toLocaleString('en-PK', { maximumFractionDigits: 0 })}`;
