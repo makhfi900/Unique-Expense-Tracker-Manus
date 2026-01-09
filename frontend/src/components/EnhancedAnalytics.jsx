@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, memo, Suspense, lazy 
 import { useAuth } from '../context/SupabaseAuthContext';
 import { useTimeRange } from '../context/TimeRangeContext';
 import { useIsMobile } from '../hooks/use-mobile';
-import { formatCurrency } from '../utils/currency';
+import { formatCurrency, formatCompactCurrency, formatChartValue, formatTooltipCurrency } from '../utils/currency';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Alert, AlertDescription } from './ui/alert';
@@ -858,15 +858,15 @@ const EnhancedAnalytics = memo(() => {
                         />
                         <YAxis 
                           tick={{ fontSize: isMobile ? 10 : 12 }}
-                          tickFormatter={(value) => isMobile ? `${(value / 1000).toFixed(0)}K` : formatCurrency(value)}
+                          tickFormatter={(value) => formatChartValue(value)}
                         />
                         <Tooltip 
                           formatter={(value) => {
                             const avgSpending = categoryAnalysis.totalSpent / categoryAnalysis.monthlyTrend.length;
                             const isAboveAverage = value > avgSpending;
                             return [
-                              isMobile ? `Rs ${(value / 1000).toFixed(1)}K` : formatCurrency(value),
-                              `${isAboveAverage ? 'Above' : 'Below'} Average${isMobile ? '' : ` (${formatCurrency(avgSpending)})`}`
+                              formatCompactCurrency(value),
+                              `${isAboveAverage ? 'Above' : 'Below'} Avg${isMobile ? '' : ` (${formatCompactCurrency(avgSpending)})`}`
                             ];
                           }}
                           contentStyle={{
@@ -1010,9 +1010,7 @@ const EnhancedAnalytics = memo(() => {
                       {kpiData.topCategory ? kpiData.topCategory.name : 'N/A'}
                     </p>
                     <p className={`text-muted-foreground ${isMobile ? 'text-xs' : 'text-xs'}`}>
-                      {kpiData.topCategory ? 
-                        (isMobile ? `Rs ${Math.round(kpiData.topCategory.amount / 1000)}K` : formatCurrency(kpiData.topCategory.amount)) 
-                        : ''}
+                      {kpiData.topCategory ? formatCompactCurrency(kpiData.topCategory.amount) : ''}
                     </p>
                   </div>
                   <TrendingUp className={`text-orange-600 ${isMobile ? 'h-6 w-6' : 'h-8 w-8'}`} />
@@ -1105,28 +1103,28 @@ const EnhancedAnalytics = memo(() => {
                               />
                               <YAxis 
                                 tick={{ fontSize: isMobile ? 8 : 12 }}
-                                tickFormatter={(value) => isMobile ? `${(value / 1000).toFixed(0)}K` : `Rs ${(value / 1000).toFixed(0)}K`}
+                                tickFormatter={(value) => formatChartValue(value)}
                                 width={isMobile ? 35 : 60}
                               />
-                              <Tooltip 
+                              <Tooltip
                                 content={({ active, payload, label }) => {
                                   if (active && payload && payload.length) {
                                     const monthData = memoizedChartData.find(data => data.month === label);
                                     return (
-                                      <div className={`bg-popover border rounded shadow-lg text-popover-foreground ${isMobile ? 'p-2 max-w-[160px]' : 'p-4 max-w-sm'}`}>
-                                        <p className={`font-semibold mb-1 ${isMobile ? 'text-[10px]' : 'text-sm'}`}>{isMobile ? label.slice(0, 6) : `Month: ${label}`}</p>
-                                        <p className={`font-medium mb-1 text-green-600 ${isMobile ? 'text-[10px]' : 'text-sm'}`}>
-                                          {`${isMobile ? '' : 'Total: '}${isMobile ? `Rs ${(monthData?.total / 1000).toFixed(0)}K` : formatCurrency(monthData?.total || 0)}`}
+                                      <div className={`bg-popover border rounded shadow-lg text-popover-foreground ${isMobile ? 'p-2 max-w-[200px]' : 'p-4 max-w-sm'}`}>
+                                        <p className={`font-semibold mb-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>{label}</p>
+                                        <p className={`font-medium mb-1 text-green-600 ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                                          {formatCompactCurrency(monthData?.total || 0)}
                                         </p>
                                         <div className="space-y-0.5">
-                                          {payload.slice(0, isMobile ? 2 : payload.length).map((entry, index) => (
-                                            <p key={index} style={{ color: entry.color }} className={isMobile ? 'text-[9px]' : 'text-sm'}>
-                                              {`${entry.dataKey.slice(0, isMobile ? 8 : 20)}: ${isMobile ? `${(entry.value / 1000).toFixed(0)}K` : formatCurrency(entry.value)}`}
+                                          {payload.slice(0, isMobile ? 3 : payload.length).map((entry, index) => (
+                                            <p key={index} style={{ color: entry.color }} className={isMobile ? 'text-[10px]' : 'text-sm'}>
+                                              {`${entry.dataKey}: ${formatCompactCurrency(entry.value)}`}
                                             </p>
                                           ))}
-                                          {isMobile && payload.length > 2 && (
-                                            <p className="text-[8px] text-muted-foreground">
-                                              +{payload.length - 2} more
+                                          {isMobile && payload.length > 3 && (
+                                            <p className="text-[9px] text-muted-foreground">
+                                              +{payload.length - 3} more
                                             </p>
                                           )}
                                         </div>
@@ -1144,7 +1142,7 @@ const EnhancedAnalytics = memo(() => {
                                   dataKey={category}
                                   stackId="spending"
                                   fill={categoryColors[category] || `hsl(${(index * 137) % 360}, 70%, 50%)`}
-                                  name={isMobile ? category.slice(0, 8) + (category.length > 8 ? '...' : '') : category}
+                                  name={category}
                                 />
                               ))}
                             </LazyBarChart>
@@ -1179,7 +1177,7 @@ const EnhancedAnalytics = memo(() => {
                                     </Pie>
                                     <Tooltip 
                                       formatter={(value, name, props) => [
-                                        isMobile ? `Rs ${(value / 1000).toFixed(1)}K` : formatCurrency(value), 
+                                        formatCompactCurrency(value),
                                         props.payload.name
                                       ]}
                                       labelFormatter={() => ''}
@@ -1214,7 +1212,7 @@ const EnhancedAnalytics = memo(() => {
                                   {isMobile ? 'Total' : 'Total Expenses'}
                                 </div>
                                 <div className={`font-bold text-foreground ${isMobile ? 'text-sm' : 'text-2xl'} break-words`}>
-                                  {isMobile ? `Rs ${(kpiData.totalSpent / 1000).toFixed(0)}K` : formatCurrency(kpiData.totalSpent)}
+                                  {formatCompactCurrency(kpiData.totalSpent)}
                                 </div>
                                 {isMobile && kpiData.totalExpenses > 0 && (
                                   <div className="text-[9px] text-muted-foreground mt-1">
@@ -1242,8 +1240,8 @@ const EnhancedAnalytics = memo(() => {
                                           style={{ backgroundColor: category.color }}
                                         />
                                         <div className="min-w-0 flex-1">
-                                          <div className={`font-medium text-foreground truncate ${isMobile ? 'text-[10px] max-w-[60px]' : 'text-sm max-w-[120px]'}`}>
-                                            {isMobile ? category.name.slice(0, 8) : category.name}
+                                          <div className={`font-medium text-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                                            {category.name}
                                           </div>
                                           {!isMobile && (
                                             <div className="text-xs text-muted-foreground">
@@ -1252,11 +1250,11 @@ const EnhancedAnalytics = memo(() => {
                                           )}
                                         </div>
                                       </div>
-                                      <div className="text-right flex-shrink-0">
-                                        <div className={`font-semibold text-foreground ${isMobile ? 'text-[10px]' : 'text-sm'}`}>
-                                          {isMobile ? `${(category.value / 1000).toFixed(0)}K` : formatCurrency(category.value)}
+                                      <div className="text-right flex-shrink-0 ml-2">
+                                        <div className={`font-semibold text-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                                          {formatCompactCurrency(category.value)}
                                         </div>
-                                        <div className={`text-muted-foreground ${isMobile ? 'text-xs' : 'text-sm'}`}>
+                                        <div className={`text-muted-foreground ${isMobile ? 'text-[10px]' : 'text-sm'}`}>
                                           {percentage.toFixed(1)}%
                                         </div>
                                       </div>
