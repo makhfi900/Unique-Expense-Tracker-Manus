@@ -1047,13 +1047,8 @@ app.put('/api/expenses/:id', authenticateToken, async (req, res) => {
                    existingExpense.created_by === req.user.id;
                    
     if (!canEdit) {
-      return res.status(403).json({ 
-        error: 'You can only edit your own expenses', 
-        debug: {
-          userRole: req.user.role,
-          userId: req.user.id,
-          expenseCreator: existingExpense.created_by
-        }
+      return res.status(403).json({
+        error: 'You can only edit your own expenses'
       });
     }
 
@@ -1116,13 +1111,8 @@ app.delete('/api/expenses/:id', authenticateToken, async (req, res) => {
                      existingExpense.created_by === req.user.id;
                      
     if (!canDelete) {
-      return res.status(403).json({ 
-        error: 'You can only delete your own expenses',
-        debug: {
-          userRole: req.user.role,
-          userId: req.user.id,
-          expenseCreator: existingExpense.created_by
-        }
+      return res.status(403).json({
+        error: 'You can only delete your own expenses'
       });
     }
 
