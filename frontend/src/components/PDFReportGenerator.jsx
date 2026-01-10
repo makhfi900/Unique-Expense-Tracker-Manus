@@ -130,9 +130,23 @@ const PDFReportGenerator = ({
         expenses: expenseData
       };
 
-      // Generate and download PDF
-      const generator = new ExpenseReportGenerator(reportData);
-      generator.download('expense-analysis-report');
+      // Defer PDF generation to next frame to avoid blocking the main thread
+      // This prevents the "click handler took too long" violation
+      await new Promise((resolve, reject) => {
+        requestAnimationFrame(() => {
+          // Use setTimeout to yield to the browser and avoid forced reflow
+          setTimeout(() => {
+            try {
+              const generator = new ExpenseReportGenerator(reportData);
+              generator.download('expense-analysis-report');
+              resolve();
+            } catch (pdfError) {
+              console.error('PDF generation error:', pdfError);
+              reject(pdfError);
+            }
+          }, 0);
+        });
+      });
 
       setSuccess(true);
       setTimeout(() => {
