@@ -24,6 +24,7 @@ import ExpenseViewer from './ExpenseViewer';
 import ProductionErrorBoundary from './ProductionErrorBoundary';
 import ChartErrorBoundary from './ChartErrorBoundary';
 import PDFReportGenerator from './PDFReportGenerator';
+import MiscellaneousReclassifier from './MiscellaneousReclassifier';
 import { LoadingSpinner, ExpenseCardSkeleton, ChartSkeleton, EmptyState } from './ui/loading-states';
 import {
   LineChart,
@@ -761,11 +762,12 @@ const EnhancedAnalytics = memo(() => {
               />
             </div>
 
-            <div className="flex items-end gap-2">
+            <div className="flex items-end gap-2 flex-wrap">
               <Button onClick={refreshData} className="flex items-center gap-2">
                 <RefreshCw className="h-4 w-4" />
                 Refresh
               </Button>
+              <MiscellaneousReclassifier onReclassified={refreshData} />
               <PDFReportGenerator
                 kpiData={kpiData}
                 categoryBreakdown={categoryBreakdown}

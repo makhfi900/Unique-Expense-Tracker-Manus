@@ -1,18 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
 import { Textarea } from './ui/textarea';
 import { Alert, AlertDescription } from './ui/alert';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { Loader2, Save, X } from 'lucide-react';
+import { Loader2, Save, X, Sparkles, Check } from 'lucide-react';
+import { getCategorySuggestionEngine } from '../utils/categorySuggestion';
 
 const ExpenseForm = ({ expense = null, onSuccess, onCancel }) => {
   const { apiCall } = useAuth();
@@ -28,6 +29,46 @@ const ExpenseForm = ({ expense = null, onSuccess, onCancel }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(true);
+
+  // Initialize category suggestion engine
+  const suggestionEngine = useMemo(() => {
+    return getCategorySuggestionEngine(categories);
+  }, [categories]);
+
+  // Update suggestions when description or notes change
+  const updateSuggestions = useCallback((description, notes) => {
+    if (!suggestionEngine || categories.length === 0) return;
+
+    // Only suggest if no category is selected or if it's a new expense
+    if (formData.category_id && expense) {
+      setSuggestions([]);
+      return;
+    }
+
+    const newSuggestions = suggestionEngine.suggest(description, notes, 3);
+    setSuggestions(newSuggestions);
+  }, [suggestionEngine, categories, formData.category_id, expense]);
+
+  // Debounced suggestion update
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      updateSuggestions(formData.description, formData.notes);
+    }, 300);  // 300ms debounce
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.description, formData.notes, updateSuggestions]);
+
+  // Apply a suggestion
+  const applySuggestion = (suggestion) => {
+    setFormData(prev => ({
+      ...prev,
+      category_id: suggestion.categoryId
+    }));
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
 
   useEffect(() => {
     fetchCategories();
@@ -60,6 +101,17 @@ const ExpenseForm = ({ expense = null, onSuccess, onCancel }) => {
       ...prev,
       [field]: value
     }));
+
+    // Re-enable suggestions when description changes
+    if (field === 'description') {
+      setShowSuggestions(true);
+    }
+
+    // Clear suggestions when user manually selects a category
+    if (field === 'category_id') {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -178,6 +230,46 @@ const ExpenseForm = ({ expense = null, onSuccess, onCancel }) => {
           disabled={loading}
           className="h-12 sm:h-10 text-base sm:text-sm"
         />
+
+        {/* AI Category Suggestions */}
+        {showSuggestions && suggestions.length > 0 && !formData.category_id && (
+          <div className="mt-2 p-3 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg border border-purple-200 dark:border-purple-800">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="h-4 w-4 text-purple-500" />
+              <span className="text-xs font-medium text-purple-700 dark:text-purple-300">
+                AI Suggested Categories
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((suggestion, index) => (
+                <button
+                  key={suggestion.categoryId}
+                  type="button"
+                  onClick={() => applySuggestion(suggestion)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-full transition-all hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-1"
+                  style={{
+                    backgroundColor: `${suggestion.color}20`,
+                    borderColor: suggestion.color,
+                    borderWidth: '1px',
+                    color: suggestion.color
+                  }}
+                >
+                  <div
+                    className="w-2.5 h-2.5 rounded-full"
+                    style={{ backgroundColor: suggestion.color }}
+                  />
+                  <span className="font-medium">{suggestion.categoryName}</span>
+                  <span className="text-xs opacity-70">
+                    ({suggestion.confidenceLabel})
+                  </span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Click a suggestion to auto-fill category, or select manually below
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="space-y-2">
