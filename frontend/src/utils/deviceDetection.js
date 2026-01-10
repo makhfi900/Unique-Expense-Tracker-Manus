@@ -50,15 +50,12 @@ export const getDeviceInfo = () => {
         const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
         try {
-          const response = await fetch(url, {
+          return await fetch(url, {
             signal: controller.signal,
             headers: { 'Accept': 'application/json' }
           });
+        } finally {
           clearTimeout(timeoutId);
-          return response;
-        } catch (error) {
-          clearTimeout(timeoutId);
-          throw error;
         }
       };
 
@@ -116,49 +113,40 @@ export const getDeviceInfo = () => {
             if (parsed.ip && parsed.ip !== 'Unknown' && !parsed.ip.startsWith('127.')) {
               // For geolocation services, ensure we actually got location data
               if (service.providesLocation && parsed.country !== 'Unknown') {
-                console.log('Successfully got location from:', service.url, parsed);
+                // Log service name only, not PII data
+                console.log('Successfully got location from:', service.url);
                 return parsed;
               }
               // For IP-only service (last fallback), accept it even without location
               if (!service.providesLocation) {
-                console.log('Got IP from fallback service:', service.url, parsed);
+                console.log('Got IP from fallback service:', service.url);
                 return parsed;
               }
             }
           }
         } catch (error) {
-          console.warn(`Location service ${service.url} failed:`, error.message);
+          // Log error without exposing service URL details
+          console.warn('Location service failed, trying next...');
           continue;
         }
       }
-      
-      // Enhanced WebRTC-based real IP detection as fallback
+
+      // Try WebRTC-based IP detection as additional fallback
       const webrtcIP = await getRealIPViaWebRTC();
       if (webrtcIP) {
         return {
-          country: 'Unknown (WebRTC)',
-          region: 'Unknown (WebRTC)',
-          city: 'Unknown (WebRTC)',
-          ip: webrtcIP
+          ip: webrtcIP,
+          country: 'Unknown',
+          region: 'Unknown',
+          city: 'Unknown'
         };
       }
-      
-      // Final fallback
-      return {
-        country: 'Unknown',
-        region: 'Unknown', 
-        city: 'Unknown',
-        ip: '127.0.0.1'
-      };
-      
+
+      // Default fallback if all methods fail
+      return { ip: 'Unknown', country: 'Unknown', region: 'Unknown', city: 'Unknown' };
     } catch (error) {
-      console.warn('All geolocation methods failed:', error.message);
-      return {
-        country: 'Unknown',
-        region: 'Unknown',
-        city: 'Unknown',
-        ip: '127.0.0.1'
-      };
+      console.warn('Geolocation detection failed');
+      return { ip: 'Unknown', country: 'Unknown', region: 'Unknown', city: 'Unknown' };
     }
   };
 

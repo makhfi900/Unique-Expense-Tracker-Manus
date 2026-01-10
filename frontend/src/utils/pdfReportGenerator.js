@@ -323,7 +323,7 @@ export class ExpenseReportGenerator {
       ];
     });
 
-    autoTable(this.doc, {
+    const result = autoTable(this.doc, {
       startY: this.currentY,
       head: [['#', 'Category', 'Amount', '% of Total', 'Transactions']],
       body: tableData,
@@ -346,7 +346,7 @@ export class ExpenseReportGenerator {
       }
     });
 
-    this.currentY = (this.doc).lastAutoTable.finalY + 10;
+    this.currentY = result.finalY + 10;
   }
 
   /**
@@ -383,7 +383,7 @@ export class ExpenseReportGenerator {
       ];
     });
 
-    autoTable(this.doc, {
+    const result = autoTable(this.doc, {
       startY: this.currentY,
       head: [['#', 'Category', 'Description', 'Amount', 'Date']],
       body: tableData,
@@ -406,7 +406,7 @@ export class ExpenseReportGenerator {
       }
     });
 
-    this.currentY = (this.doc).lastAutoTable.finalY + 10;
+    this.currentY = result.finalY + 10;
   }
 
   /**
@@ -432,7 +432,7 @@ export class ExpenseReportGenerator {
       formatCurrency((month.total || month.amount || month.total_amount || 0) / (month.expenses || month.expense_count || 1))
     ]);
 
-    autoTable(this.doc, {
+    const result = autoTable(this.doc, {
       startY: this.currentY,
       head: [['Month', 'Total Spending', 'Transactions', 'Avg per Transaction']],
       body: tableData,
@@ -454,7 +454,7 @@ export class ExpenseReportGenerator {
       }
     });
 
-    this.currentY = (this.doc).lastAutoTable.finalY + 10;
+    this.currentY = result.finalY + 10;
   }
 
   /**
