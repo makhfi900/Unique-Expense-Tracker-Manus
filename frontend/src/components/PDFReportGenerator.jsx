@@ -371,19 +371,13 @@ const PDFReportGenerator = ({
                   </Select>
                 </div>
               </div>
-              {baseYear === compareYear && (
+              {baseYear === compareYear ? (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
                   ⚠️ Please select two different years for comparison
                 </p>
-              )}
-              {baseYear > compareYear && (
+              ) : (
                 <p className="text-xs text-muted-foreground">
-                  Comparing {compareYear} → {baseYear} (older to newer)
-                </p>
-              )}
-              {baseYear < compareYear && (
-                <p className="text-xs text-muted-foreground">
-                  Comparing {baseYear} → {compareYear} (older to newer)
+                  Comparing {Math.min(baseYear, compareYear)} → {Math.max(baseYear, compareYear)} (older to newer)
                 </p>
               )}
             </div>
