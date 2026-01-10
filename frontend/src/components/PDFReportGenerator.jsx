@@ -56,6 +56,21 @@ const PDFReportGenerator = ({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
 
+  // Year comparison configuration
+  // Default to comparing the two most recent COMPLETE years
+  const currentYear = new Date().getFullYear();
+  const [baseYear, setBaseYear] = useState(currentYear - 2); // e.g., 2024 if current is 2026
+  const [compareYear, setCompareYear] = useState(currentYear - 1); // e.g., 2025 if current is 2026
+
+  // Generate available years for selection (last 10 years)
+  const availableYears = useMemo(() => {
+    const years = [];
+    for (let year = currentYear; year >= currentYear - 10; year--) {
+      years.push(year);
+    }
+    return years;
+  }, [currentYear]);
+
   // Report configuration options
   const [reportConfig, setReportConfig] = useState({
     includeExecutiveSummary: true,
@@ -89,11 +104,12 @@ const PDFReportGenerator = ({
       }
 
       // Fetch year comparison if not provided and enabled
+      // Uses user-selected years (defaults to two most recent complete years)
       let yearComparisonData = yearComparison;
       if (reportConfig.includeYearComparison && !yearComparisonData) {
         try {
-          const currentYear = new Date().getFullYear();
-          const response = await apiCall(`/analytics/year-comparison?base_year=${currentYear - 1}&compare_year=${currentYear}`);
+          console.log(`Fetching year comparison: ${baseYear} vs ${compareYear}`);
+          const response = await apiCall(`/analytics/year-comparison?base_year=${baseYear}&compare_year=${compareYear}`);
           yearComparisonData = response;
         } catch (err) {
           console.warn('Could not fetch year comparison data:', err);
@@ -315,6 +331,63 @@ const PDFReportGenerator = ({
               </label>
             </div>
           </div>
+
+          {/* Year Selection Controls - only show when year comparison is enabled */}
+          {reportConfig.includeYearComparison && (
+            <div className="p-4 rounded-lg border bg-orange-50 dark:bg-orange-900/20 space-y-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-orange-700 dark:text-orange-300">
+                <Calendar className="h-4 w-4" />
+                Year Comparison Settings
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="baseYear" className="text-xs text-muted-foreground">Base Year</Label>
+                  <Select value={baseYear.toString()} onValueChange={(value) => setBaseYear(parseInt(value))}>
+                    <SelectTrigger id="baseYear" className="bg-white dark:bg-slate-800">
+                      <SelectValue placeholder="Select base year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableYears.map((year) => (
+                        <SelectItem key={`base-${year}`} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="compareYear" className="text-xs text-muted-foreground">Compare Year</Label>
+                  <Select value={compareYear.toString()} onValueChange={(value) => setCompareYear(parseInt(value))}>
+                    <SelectTrigger id="compareYear" className="bg-white dark:bg-slate-800">
+                      <SelectValue placeholder="Select compare year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableYears.map((year) => (
+                        <SelectItem key={`compare-${year}`} value={year.toString()}>
+                          {year}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              {baseYear === compareYear && (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  ⚠️ Please select two different years for comparison
+                </p>
+              )}
+              {baseYear > compareYear && (
+                <p className="text-xs text-muted-foreground">
+                  Comparing {compareYear} → {baseYear} (older to newer)
+                </p>
+              )}
+              {baseYear < compareYear && (
+                <p className="text-xs text-muted-foreground">
+                  Comparing {baseYear} → {compareYear} (older to newer)
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Report Period Info */}
