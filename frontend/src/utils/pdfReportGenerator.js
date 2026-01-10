@@ -30,7 +30,8 @@ export const generateInsights = (data) => {
   if (categoryBreakdown && categoryBreakdown.length > 0) {
     const topCategory = categoryBreakdown[0];
     const totalSpending = categoryBreakdown.reduce((sum, cat) => sum + cat.value, 0);
-    const topPercentage = ((topCategory.value / totalSpending) * 100).toFixed(1);
+    // Handle division by zero
+    const topPercentage = totalSpending > 0 ? ((topCategory.value / totalSpending) * 100).toFixed(1) : 0;
 
     if (topPercentage > 30) {
       insights.push({
@@ -50,7 +51,8 @@ export const generateInsights = (data) => {
 
     if (olderMonths.length > 0) {
       const avgOlder = olderMonths.reduce((sum, m) => sum + (m.total || m.amount || 0), 0) / olderMonths.length;
-      const changePercent = ((avgRecent - avgOlder) / avgOlder * 100).toFixed(1);
+      // Handle division by zero
+      const changePercent = avgOlder > 0 ? ((avgRecent - avgOlder) / avgOlder * 100).toFixed(1) : 0;
 
       if (changePercent > 15) {
         insights.push({
@@ -306,13 +308,20 @@ export class ExpenseReportGenerator {
 
     const totalSpending = categoryBreakdown.reduce((sum, cat) => sum + cat.value, 0);
 
-    const tableData = categoryBreakdown.map((cat, index) => [
-      (index + 1).toString(),
-      cat.name,
-      formatCurrency(cat.value),
-      `${((cat.value / totalSpending) * 100).toFixed(1)}%`,
-      (cat.count || 0).toString()
-    ]);
+    const tableData = categoryBreakdown.map((cat, index) => {
+      // Handle division by zero - if totalSpending is 0, percentage is 0%
+      const percentage = totalSpending > 0
+        ? ((cat.value / totalSpending) * 100).toFixed(1)
+        : '0.0';
+
+      return [
+        (index + 1).toString(),
+        cat.name,
+        formatCurrency(cat.value),
+        `${percentage}%`,
+        (cat.count || 0).toString()
+      ];
+    });
 
     this.doc.autoTable({
       startY: this.currentY,
@@ -356,13 +365,23 @@ export class ExpenseReportGenerator {
       return;
     }
 
-    const tableData = burningPoints.slice(0, 10).map((bp, index) => [
-      (index + 1).toString(),
-      bp.categoryName,
-      bp.description?.substring(0, 40) + (bp.description?.length > 40 ? '...' : '') || 'N/A',
-      formatCurrency(bp.amount),
-      bp.date || 'N/A'
-    ]);
+    const tableData = burningPoints.slice(0, 10).map((bp, index) => {
+      // Safely handle description truncation - check for null/undefined first
+      let description = 'N/A';
+      if (bp.description) {
+        description = bp.description.length > 40
+          ? bp.description.substring(0, 40) + '...'
+          : bp.description;
+      }
+
+      return [
+        (index + 1).toString(),
+        bp.categoryName,
+        description,
+        formatCurrency(bp.amount),
+        bp.date || 'N/A'
+      ];
+    });
 
     this.doc.autoTable({
       startY: this.currentY,
@@ -469,7 +488,17 @@ export class ExpenseReportGenerator {
         default: bgColor = [224, 242, 254]; break;        // Light blue
       }
 
-      const boxHeight = 30;
+      // Calculate text lines first to determine dynamic box height
+      const maxTextWidth = this.pageWidth - 2 * this.margin - 10;
+      const descLines = this.doc.splitTextToSize(insight.description, maxTextWidth);
+      const recLines = this.doc.splitTextToSize(`Recommendation: ${insight.recommendation}`, maxTextWidth);
+
+      // Calculate dynamic box height: title (10) + description lines (7 each) + recommendation lines (6 each) + padding
+      const titleHeight = 10;
+      const descHeight = descLines.length * 5;
+      const recHeight = recLines.length * 4;
+      const boxHeight = Math.max(35, titleHeight + descHeight + recHeight + 15);
+
       this.doc.setFillColor(...bgColor);
       this.doc.roundedRect(this.margin, this.currentY, this.pageWidth - 2 * this.margin, boxHeight, 2, 2, 'F');
 
@@ -479,18 +508,22 @@ export class ExpenseReportGenerator {
       this.doc.setTextColor(...COLORS.dark);
       this.doc.text(`${index + 1}. ${insight.title}`, this.margin + 3, this.currentY + 7);
 
-      // Description
+      // Description - render all lines
       this.doc.setFontSize(9);
       this.doc.setFont('helvetica', 'normal');
       this.doc.setTextColor(...COLORS.text);
-      const descLines = this.doc.splitTextToSize(insight.description, this.pageWidth - 2 * this.margin - 10);
-      this.doc.text(descLines[0], this.margin + 3, this.currentY + 14);
+      let yOffset = this.currentY + 14;
+      descLines.forEach((line, lineIndex) => {
+        this.doc.text(line, this.margin + 3, yOffset + (lineIndex * 5));
+      });
 
-      // Recommendation
+      // Recommendation - render all lines
       this.doc.setFontSize(8);
       this.doc.setTextColor(...COLORS.muted);
-      const recLines = this.doc.splitTextToSize(`Recommendation: ${insight.recommendation}`, this.pageWidth - 2 * this.margin - 10);
-      this.doc.text(recLines[0], this.margin + 3, this.currentY + 22);
+      const recStartY = yOffset + (descLines.length * 5) + 3;
+      recLines.forEach((line, lineIndex) => {
+        this.doc.text(line, this.margin + 3, recStartY + (lineIndex * 4));
+      });
 
       this.currentY += boxHeight + 5;
     });

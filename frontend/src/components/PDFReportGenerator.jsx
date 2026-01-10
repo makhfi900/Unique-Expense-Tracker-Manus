@@ -3,7 +3,7 @@
  * Admin-only feature for generating comprehensive expense analysis reports
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { useAuth } from '../context/SupabaseAuthContext';
 import { Button } from './ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
@@ -148,8 +148,8 @@ const PDFReportGenerator = ({
     }
   };
 
-  // Preview data summary
-  const getPreviewSummary = () => {
+  // Preview data summary - memoized to avoid recalculation on every render
+  const preview = useMemo(() => {
     const insights = generateInsights({
       categoryBreakdown,
       monthlyData,
@@ -164,9 +164,7 @@ const PDFReportGenerator = ({
       months: monthlyData?.length || 0,
       insights: insights.length
     };
-  };
-
-  const preview = getPreviewSummary();
+  }, [categoryBreakdown, monthlyData, kpiData, yearComparison]);
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
