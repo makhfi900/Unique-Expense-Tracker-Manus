@@ -141,13 +141,68 @@ const YearComparisonView = React.memo(() => {
     if (baseYearResponse.expenses || compareYearResponse.expenses) {
       const baseExpenses = baseYearResponse.expenses || [];
       const compareExpenses = compareYearResponse.expenses || [];
-      
-      const comparisonData = generateComparisonFallback(baseExpenses, compareExpenses);
+
+      const monthlyComparisonData = generateComparisonFallback(baseExpenses, compareExpenses);
+
+      // Calculate comprehensive summary data
+      const baseYearTotal = baseExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+      const compareYearTotal = compareExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+      const totalDifference = compareYearTotal - baseYearTotal;
+      const totalPercentageChange = baseYearTotal > 0 ? (totalDifference / baseYearTotal) * 100 : 0;
+
+      // Calculate monthly averages (only for months with data)
+      const baseMonthsWithData = monthlyComparisonData.filter(m => m.base_year_amount > 0).length;
+      const compareMonthsWithData = monthlyComparisonData.filter(m => m.compare_year_amount > 0).length;
+      const baseAvgMonthly = baseMonthsWithData > 0 ? baseYearTotal / baseMonthsWithData : 0;
+      const compareAvgMonthly = compareMonthsWithData > 0 ? compareYearTotal / compareMonthsWithData : 0;
+
+      // Find biggest increase and decrease
+      let biggestIncrease = { month: '', amount: 0 };
+      let biggestDecrease = { month: '', amount: 0 };
+      let monthsWithIncreases = 0;
+      let monthsWithDecreases = 0;
+
+      monthlyComparisonData.forEach(month => {
+        const diff = month.amount_difference;
+        if (diff > 0) {
+          monthsWithIncreases++;
+          if (diff > biggestIncrease.amount) {
+            biggestIncrease = { month: month.month_name, amount: diff };
+          }
+        } else if (diff < 0) {
+          monthsWithDecreases++;
+          if (diff < biggestDecrease.amount) {
+            biggestDecrease = { month: month.month_name, amount: diff };
+          }
+        }
+      });
+
+      // Determine trend pattern
+      let mostConsistentTrend = 'mixed';
+      if (monthsWithIncreases > monthsWithDecreases * 2) {
+        mostConsistentTrend = 'increasing';
+      } else if (monthsWithDecreases > monthsWithIncreases * 2) {
+        mostConsistentTrend = 'decreasing';
+      } else if (monthsWithIncreases === 0 && monthsWithDecreases === 0) {
+        mostConsistentTrend = 'unchanged';
+      }
+
       setComparisonData({
-        monthlyComparison: comparisonData,
+        monthlyComparison: monthlyComparisonData,
         summary: {
-          baseYearTotal: baseExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0),
-          compareYearTotal: compareExpenses.reduce((sum, e) => sum + parseFloat(e.amount), 0)
+          baseYearTotal,
+          compareYearTotal,
+          total_difference: totalDifference,
+          total_percentage_change: totalPercentageChange,
+          base_avg_monthly: baseAvgMonthly,
+          compare_avg_monthly: compareAvgMonthly,
+          months_with_increases: monthsWithIncreases,
+          months_with_decreases: monthsWithDecreases,
+          most_consistent_trend: mostConsistentTrend,
+          biggest_increase_month: biggestIncrease.month,
+          biggest_increase_amount: biggestIncrease.amount,
+          biggest_decrease_month: biggestDecrease.month,
+          biggest_decrease_amount: biggestDecrease.amount
         }
       });
       setError(''); // Clear error since fallback worked
@@ -495,23 +550,26 @@ const YearComparisonView = React.memo(() => {
                 <ComposedChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="month" />
-                <YAxis />
+                <YAxis yAxisId="left" orientation="left" />
+                <YAxis yAxisId="right" orientation="right" />
                 <Tooltip content={<ComparisonTooltip />} />
                 <Legend />
-                
-                <Bar 
-                  dataKey="baseYear" 
+
+                <Bar
+                  dataKey="baseYear"
                   name={`${baseYear} Spending`}
                   fill="#3B82F6"
                   opacity={0.7}
+                  yAxisId="left"
                 />
-                <Bar 
-                  dataKey="compareYear" 
+                <Bar
+                  dataKey="compareYear"
                   name={`${compareYear} Spending`}
                   fill="#10B981"
                   opacity={0.7}
+                  yAxisId="left"
                 />
-                
+
                 <Line
                   type="monotone"
                   dataKey="difference"

@@ -178,15 +178,37 @@ const MonthlyYearlyView = React.memo(({ selectedYear }) => {
   const calculateFallbackMetrics = (monthlyData) => {
     const totalAmount = monthlyData.reduce((sum, month) => sum + month.total_amount, 0);
     const totalExpenses = monthlyData.reduce((sum, month) => sum + month.expense_count, 0);
-    
+    const activeMonths = monthlyData.filter(month => month.total_amount > 0).length;
+
+    // Find highest and lowest spending months
+    const highestMonthData = monthlyData.length > 0
+      ? monthlyData.reduce((max, month) =>
+          month.total_amount > max.total_amount ? month : max, monthlyData[0])
+      : null;
+
+    const lowestMonthData = monthlyData.length > 0
+      ? monthlyData.reduce((min, month) =>
+          month.total_amount < min.total_amount ? month : min, monthlyData[0])
+      : null;
+
+    // Mark highest and lowest months in the data
+    if (highestMonthData) highestMonthData.is_highest_month = true;
+    if (lowestMonthData && lowestMonthData !== highestMonthData) lowestMonthData.is_lowest_month = true;
+
     return {
-      totalSpent: totalAmount,
+      // Property names that match what the UI expects
+      totalSpending: totalAmount,
       totalExpenses,
-      averageMonthly: totalAmount / 12,
-      highestMonth: monthlyData.reduce((max, month) => 
-        month.total_amount > max.total_amount ? month : max, monthlyData[0] || {}),
-      lowestMonth: monthlyData.reduce((min, month) => 
-        month.total_amount < min.total_amount ? month : min, monthlyData[0] || {})
+      avgMonthlySpending: activeMonths > 0 ? totalAmount / activeMonths : 0,
+      activeMonths,
+      highestMonth: highestMonthData ? {
+        month: highestMonthData.month_name,
+        amount: highestMonthData.total_amount
+      } : { month: 'N/A', amount: 0 },
+      lowestMonth: lowestMonthData ? {
+        month: lowestMonthData.month_name,
+        amount: lowestMonthData.total_amount
+      } : { month: 'N/A', amount: 0 }
     };
   };
 
@@ -345,21 +367,23 @@ const MonthlyYearlyView = React.memo(({ selectedYear }) => {
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="month" />
-                  <YAxis />
-                  <Tooltip 
+                  <YAxis yAxisId="left" orientation="left" />
+                  <YAxis yAxisId="right" orientation="right" />
+                  <Tooltip
                     formatter={(value, name) => [
-                      name === 'amount' ? formatCurrency(value) : value,
-                      name === 'amount' ? 'Spending' : 'Expenses'
+                      name === 'Monthly Spending' ? formatCurrency(value) : value,
+                      name
                     ]}
                   />
                   <Legend />
-                  
+
                   <Line
                     type="monotone"
                     dataKey="amount"
                     stroke="#3B82F6"
                     strokeWidth={3}
                     name="Monthly Spending"
+                    yAxisId="left"
                     dot={{ r: 6 }}
                   />
                   <Line

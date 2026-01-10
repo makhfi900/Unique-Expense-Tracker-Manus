@@ -23,6 +23,7 @@ import TimeRangeSlider from './TimeRangeSlider';
 import ExpenseViewer from './ExpenseViewer';
 import ProductionErrorBoundary from './ProductionErrorBoundary';
 import ChartErrorBoundary from './ChartErrorBoundary';
+import PDFReportGenerator from './PDFReportGenerator';
 import { LoadingSpinner, ExpenseCardSkeleton, ChartSkeleton, EmptyState } from './ui/loading-states';
 import {
   LineChart,
@@ -765,6 +766,12 @@ const EnhancedAnalytics = memo(() => {
                 <RefreshCw className="h-4 w-4" />
                 Refresh
               </Button>
+              <PDFReportGenerator
+                kpiData={kpiData}
+                categoryBreakdown={categoryBreakdown}
+                monthlyData={monthlyCategoryData}
+                dateRange={dateRange}
+              />
             </div>
           </div>
         </CardContent>
