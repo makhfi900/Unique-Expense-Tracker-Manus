@@ -44,92 +44,109 @@ export const getDeviceInfo = () => {
   // Enhanced location detection with multiple services and real IP detection
   const getLocationInfo = async () => {
     try {
+      // Helper function for fetch with timeout using AbortController
+      const fetchWithTimeout = async (url, timeoutMs = 5000) => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        try {
+          return await fetch(url, {
+            signal: controller.signal,
+            headers: { 'Accept': 'application/json' }
+          });
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      };
+
       // Multiple IP/location services for reliability
+      // IMPORTANT: Geolocation services FIRST, IP-only service LAST as fallback
       const services = [
         {
-          url: 'https://api.ipify.org?format=json',
-          parser: (data) => ({ ip: data.ip, country: 'Unknown', region: 'Unknown', city: 'Unknown' })
-        },
-        {
           url: 'https://ipapi.co/json/',
+          providesLocation: true,
           parser: (data) => ({
             ip: data.ip || 'Unknown',
             country: data.country_name || 'Unknown',
-            region: data.region || 'Unknown', 
-            city: data.city || 'Unknown'
-          })
-        },
-        {
-          url: 'https://api.ip.sb/geoip',
-          parser: (data) => ({
-            ip: data.ip || 'Unknown',
-            country: data.country || 'Unknown',
             region: data.region || 'Unknown',
             city: data.city || 'Unknown'
           })
         },
         {
           url: 'https://ipwho.is/',
+          providesLocation: true,
           parser: (data) => ({
             ip: data.ip || 'Unknown',
             country: data.country || 'Unknown',
             region: data.region || 'Unknown',
             city: data.city || 'Unknown'
           })
+        },
+        {
+          url: 'https://api.ip.sb/geoip',
+          providesLocation: true,
+          parser: (data) => ({
+            ip: data.ip || 'Unknown',
+            country: data.country || 'Unknown',
+            region: data.region || 'Unknown',
+            city: data.city || 'Unknown'
+          })
+        },
+        {
+          // IP-only fallback - last resort when geolocation services fail
+          url: 'https://api.ipify.org?format=json',
+          providesLocation: false,
+          parser: (data) => ({ ip: data.ip, country: 'Unknown', region: 'Unknown', city: 'Unknown' })
         }
       ];
-      
+
       // Try services in order
       for (const service of services) {
         try {
-          const response = await fetch(service.url, { 
-            timeout: 3000,
-            headers: { 'Accept': 'application/json' }
-          });
-          
+          const response = await fetchWithTimeout(service.url, 5000);
+
           if (response.ok) {
             const data = await response.json();
             const parsed = service.parser(data);
-            
-            // If we got a real IP (not localhost), return it
+
+            // If we got a real IP (not localhost), check if location is valid
             if (parsed.ip && parsed.ip !== 'Unknown' && !parsed.ip.startsWith('127.')) {
-              console.log('Successfully got location from:', service.url, parsed);
-              return parsed;
+              // For geolocation services, ensure we actually got location data
+              if (service.providesLocation && parsed.country !== 'Unknown') {
+                // Log service name only, not PII data
+                console.log('Successfully got location from:', service.url);
+                return parsed;
+              }
+              // For IP-only service (last fallback), accept it even without location
+              if (!service.providesLocation) {
+                console.log('Got IP from fallback service:', service.url);
+                return parsed;
+              }
             }
           }
         } catch (error) {
-          console.warn(`Location service ${service.url} failed:`, error.message);
+          // Log error without exposing service URL details
+          console.warn('Location service failed, trying next...');
           continue;
         }
       }
-      
-      // Enhanced WebRTC-based real IP detection as fallback
+
+      // Try WebRTC-based IP detection as additional fallback
       const webrtcIP = await getRealIPViaWebRTC();
       if (webrtcIP) {
         return {
-          country: 'Unknown (WebRTC)',
-          region: 'Unknown (WebRTC)',
-          city: 'Unknown (WebRTC)',
-          ip: webrtcIP
+          ip: webrtcIP,
+          country: 'Unknown',
+          region: 'Unknown',
+          city: 'Unknown'
         };
       }
-      
-      // Final fallback
-      return {
-        country: 'Unknown',
-        region: 'Unknown', 
-        city: 'Unknown',
-        ip: '127.0.0.1'
-      };
-      
+
+      // Default fallback if all methods fail
+      return { ip: 'Unknown', country: 'Unknown', region: 'Unknown', city: 'Unknown' };
     } catch (error) {
-      console.warn('All geolocation methods failed:', error.message);
-      return {
-        country: 'Unknown',
-        region: 'Unknown',
-        city: 'Unknown',
-        ip: '127.0.0.1'
-      };
+      console.warn('Geolocation detection failed');
+      return { ip: 'Unknown', country: 'Unknown', region: 'Unknown', city: 'Unknown' };
     }
   };
 
