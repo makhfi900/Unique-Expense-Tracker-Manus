@@ -89,8 +89,7 @@ const MiscellaneousReclassifier = ({ onReclassified }) => {
       // Initialize reclassifications with user-editable category
       const reclass = suggestions.map(item => ({
         ...item,
-        selectedCategoryId: item.topSuggestion?.categoryId || '',
-        isAccepted: item.topSuggestion?.confidence >= 0.5  // Auto-accept high confidence
+        selectedCategoryId: item.topSuggestion?.categoryId || ''
       }));
 
       setReclassifications(reclass);
@@ -148,7 +147,7 @@ const MiscellaneousReclassifier = ({ onReclassified }) => {
     }
   };
 
-  // Apply reclassifications
+  // Apply reclassifications - using Promise.allSettled for parallel execution
   const applyReclassifications = async () => {
     const itemsToUpdate = reclassifications.filter(
       r => selectedItems.has(r.expense.id) && r.selectedCategoryId
@@ -163,23 +162,30 @@ const MiscellaneousReclassifier = ({ onReclassified }) => {
     setError('');
     setSuccess('');
 
+    // Execute all API calls in parallel for better performance
+    const updatePromises = itemsToUpdate.map(item =>
+      apiCall(`/expenses/${item.expense.id}`, {
+        method: 'PUT',
+        body: {
+          category_id: item.selectedCategoryId
+        }
+      })
+    );
+
+    const results = await Promise.allSettled(updatePromises);
+
     let successCount = 0;
     let failCount = 0;
 
-    for (const item of itemsToUpdate) {
-      try {
-        await apiCall(`/expenses/${item.expense.id}`, {
-          method: 'PUT',
-          body: {
-            category_id: item.selectedCategoryId
-          }
-        });
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
         successCount++;
-      } catch (err) {
-        console.error(`Failed to update expense ${item.expense.id}:`, err);
+      } else {
+        const item = itemsToUpdate[index];
+        console.error(`Failed to update expense ${item.expense.id}:`, result.reason);
         failCount++;
       }
-    }
+    });
 
     setSaving(false);
 

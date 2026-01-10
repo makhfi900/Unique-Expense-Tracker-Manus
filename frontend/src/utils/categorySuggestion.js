@@ -423,17 +423,47 @@ class CategorySuggestionEngine {
 }
 
 /**
+ * LocalStorage key for persisting learned patterns
+ */
+const LEARNED_PATTERNS_KEY = 'expense_tracker_learned_patterns';
+
+/**
  * Create a singleton instance for app-wide use
+ * Loads learned patterns from localStorage on initialization
  */
 let engineInstance = null;
 
 export const getCategorySuggestionEngine = (categories = []) => {
   if (!engineInstance) {
     engineInstance = new CategorySuggestionEngine(categories);
+
+    // Load persisted learned patterns from localStorage
+    try {
+      const savedPatterns = localStorage.getItem(LEARNED_PATTERNS_KEY);
+      if (savedPatterns) {
+        engineInstance.importLearnedPatterns(savedPatterns);
+      }
+    } catch (e) {
+      console.warn('Failed to load learned patterns from localStorage:', e);
+    }
   } else if (categories.length > 0) {
     engineInstance.setCategories(categories);
   }
   return engineInstance;
+};
+
+/**
+ * Save learned patterns to localStorage
+ */
+export const persistLearnedPatterns = () => {
+  if (!engineInstance) return;
+
+  try {
+    const patterns = engineInstance.exportLearnedPatterns();
+    localStorage.setItem(LEARNED_PATTERNS_KEY, patterns);
+  } catch (e) {
+    console.warn('Failed to persist learned patterns to localStorage:', e);
+  }
 };
 
 /**
@@ -446,6 +476,7 @@ export const suggestCategory = (description, notes = '', categories = []) => {
 
 /**
  * Get reclassification suggestions for miscellaneous expenses
+ * Also persists learned patterns to localStorage
  */
 export const getReclassificationSuggestions = (expenses, categories = []) => {
   const engine = getCategorySuggestionEngine(categories);
@@ -453,6 +484,10 @@ export const getReclassificationSuggestions = (expenses, categories = []) => {
     const catName = e.category_name || e.categories?.name;
     return catName?.toLowerCase() !== 'miscellaneous';
   }));
+
+  // Persist learned patterns to localStorage for future sessions
+  persistLearnedPatterns();
+
   return engine.suggestReclassifications(expenses);
 };
 
