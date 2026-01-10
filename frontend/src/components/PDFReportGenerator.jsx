@@ -146,6 +146,9 @@ const PDFReportGenerator = ({
         expenses: expenseData
       };
 
+      // Load logo first, then generate PDF
+      const logoBase64 = await ExpenseReportGenerator.loadLogo('/new_logo_capital1.PNG');
+
       // Defer PDF generation to next frame to avoid blocking the main thread
       // This prevents the "click handler took too long" violation
       await new Promise((resolve, reject) => {
@@ -153,7 +156,7 @@ const PDFReportGenerator = ({
           // Use setTimeout to yield to the browser and avoid forced reflow
           setTimeout(() => {
             try {
-              const generator = new ExpenseReportGenerator(reportData);
+              const generator = new ExpenseReportGenerator(reportData, logoBase64);
               generator.download('expense-analysis-report');
               resolve();
             } catch (pdfError) {

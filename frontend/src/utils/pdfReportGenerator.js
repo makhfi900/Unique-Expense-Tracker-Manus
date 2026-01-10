@@ -1,22 +1,48 @@
 /**
  * PDF Report Generator for Expense Tracker
  * Generates comprehensive expense analysis reports for management
+ *
+ * Accessibility Features:
+ * - Large fonts for readability (optimized for 68+ year old users)
+ * - High contrast colors
+ * - Clear section separation
+ * - Generous spacing
  */
 
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { formatCurrency } from './currency';
 
-// Color palette for the report
+// Color palette for the report - HIGH CONTRAST for accessibility
 const COLORS = {
-  primary: [59, 130, 246],      // Blue
-  secondary: [16, 185, 129],    // Green
-  danger: [239, 68, 68],        // Red
-  warning: [245, 158, 11],      // Amber
-  dark: [30, 41, 59],           // Slate dark
-  light: [241, 245, 249],       // Slate light
-  text: [51, 65, 85],           // Slate text
-  muted: [100, 116, 139],       // Slate muted
+  primary: [0, 82, 155],          // Dark Blue - high contrast
+  secondary: [0, 128, 85],        // Dark Green - high contrast
+  danger: [180, 30, 30],          // Dark Red - high contrast
+  warning: [180, 95, 0],          // Dark Amber - high contrast
+  dark: [20, 30, 45],             // Very dark slate
+  light: [245, 247, 250],         // Light background
+  text: [30, 40, 55],             // Dark text for readability
+  muted: [80, 90, 105],           // Muted but still readable
+  white: [255, 255, 255],
+};
+
+// Font sizes optimized for older readers (68+ years)
+const FONTS = {
+  title: 24,           // Large title
+  subtitle: 16,        // Section headers
+  heading: 14,         // Sub-section headers
+  body: 12,            // Main body text
+  small: 11,           // Secondary text
+  tiny: 10,            // Footer/metadata
+  tableHeader: 12,     // Table headers
+  tableBody: 11,       // Table content
+};
+
+// Spacing for readability
+const SPACING = {
+  sectionGap: 20,      // Between major sections
+  paragraphGap: 10,    // Between paragraphs
+  lineHeight: 1.5,     // Line height multiplier
 };
 
 /**
@@ -158,140 +184,218 @@ export const findBurningPoints = (expenses, categories) => {
 
 /**
  * Main PDF Report Generator Class
+ * Optimized for accessibility - suitable for users aged 35-68+
  */
 export class ExpenseReportGenerator {
-  constructor(data) {
+  constructor(data, logoBase64 = null) {
     this.data = data;
+    this.logoBase64 = logoBase64;
     this.doc = new jsPDF('p', 'mm', 'a4');
     this.pageWidth = this.doc.internal.pageSize.width;
     this.pageHeight = this.doc.internal.pageSize.height;
-    this.margin = 15;
+    this.margin = 18; // Slightly larger margins for readability
     this.currentY = this.margin;
   }
 
   /**
-   * Add header to each page
+   * Load logo from URL and convert to base64
    */
-  addHeader(title = 'Expense Analysis Report') {
-    // Header background
-    this.doc.setFillColor(...COLORS.primary);
-    this.doc.rect(0, 0, this.pageWidth, 35, 'F');
-
-    // Company/App name
-    this.doc.setTextColor(255, 255, 255);
-    this.doc.setFontSize(20);
-    this.doc.setFont('helvetica', 'bold');
-    this.doc.text('Unique Expense Tracker', this.margin, 15);
-
-    // Report title
-    this.doc.setFontSize(12);
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.text(title, this.margin, 25);
-
-    // Date
-    this.doc.setFontSize(10);
-    this.doc.text(`Generated: ${new Date().toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })}`, this.pageWidth - this.margin - 60, 25);
-
-    this.currentY = 45;
+  static async loadLogo(logoUrl = '/new_logo_capital1.PNG') {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => {
+        console.warn('Could not load logo for PDF');
+        resolve(null);
+      };
+      img.src = logoUrl;
+    });
   }
 
   /**
-   * Add footer to each page
+   * Add header to each page with logo and large readable text
+   */
+  addHeader(title = 'Expense Analysis Report') {
+    // Header background - taller for better visibility
+    this.doc.setFillColor(...COLORS.primary);
+    this.doc.rect(0, 0, this.pageWidth, 45, 'F');
+
+    // Add logo if available
+    const logoX = this.margin;
+    const logoY = 5;
+    const logoSize = 35; // Logo size in mm
+
+    if (this.logoBase64) {
+      try {
+        this.doc.addImage(this.logoBase64, 'PNG', logoX, logoY, logoSize, logoSize);
+      } catch (e) {
+        console.warn('Could not add logo to PDF:', e);
+      }
+    }
+
+    // Text position - offset if logo present
+    const textX = this.logoBase64 ? logoX + logoSize + 8 : this.margin;
+
+    // Institution name - LARGE for visibility
+    this.doc.setTextColor(...COLORS.white);
+    this.doc.setFontSize(FONTS.title);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text('Unique Public Graduate College', textX, 18);
+
+    // Subtitle
+    this.doc.setFontSize(FONTS.subtitle);
+    this.doc.setFont('helvetica', 'normal');
+    this.doc.text('Chichawatni - Financial Management System', textX, 28);
+
+    // Report title - emphasized
+    this.doc.setFontSize(FONTS.heading);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.text(title, textX, 38);
+
+    // Date on the right - larger font
+    this.doc.setFontSize(FONTS.small);
+    this.doc.setFont('helvetica', 'normal');
+    const dateStr = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    this.doc.text(dateStr, this.pageWidth - this.margin, 38, { align: 'right' });
+
+    this.currentY = 55;
+  }
+
+  /**
+   * Add footer to each page - larger text for readability
    */
   addFooter(pageNum, totalPages) {
-    this.doc.setFontSize(8);
+    // Footer line
+    this.doc.setDrawColor(...COLORS.muted);
+    this.doc.setLineWidth(0.5);
+    this.doc.line(this.margin, this.pageHeight - 18, this.pageWidth - this.margin, this.pageHeight - 18);
+
+    this.doc.setFontSize(FONTS.tiny);
     this.doc.setTextColor(...COLORS.muted);
+
+    // Page number - centered and larger
+    this.doc.setFont('helvetica', 'bold');
     this.doc.text(
       `Page ${pageNum} of ${totalPages}`,
       this.pageWidth / 2,
       this.pageHeight - 10,
       { align: 'center' }
     );
+
+    // Confidential notice
+    this.doc.setFont('helvetica', 'normal');
     this.doc.text(
-      'Confidential - For Management Use Only',
+      'CONFIDENTIAL - For Management Use Only',
       this.margin,
       this.pageHeight - 10
+    );
+
+    // Institution name on the right
+    this.doc.text(
+      'Unique Public Graduate College',
+      this.pageWidth - this.margin,
+      this.pageHeight - 10,
+      { align: 'right' }
     );
   }
 
   /**
-   * Add section title
+   * Add section title - LARGE and clearly visible
    */
   addSectionTitle(title, icon = '') {
-    if (this.currentY > this.pageHeight - 50) {
+    if (this.currentY > this.pageHeight - 60) {
       this.doc.addPage();
       this.currentY = this.margin + 10;
     }
 
+    // Section background - taller for emphasis
     this.doc.setFillColor(...COLORS.light);
-    this.doc.rect(this.margin, this.currentY - 5, this.pageWidth - 2 * this.margin, 12, 'F');
+    this.doc.roundedRect(this.margin, this.currentY - 5, this.pageWidth - 2 * this.margin, 16, 2, 2, 'F');
 
+    // Left border accent
+    this.doc.setFillColor(...COLORS.primary);
+    this.doc.rect(this.margin, this.currentY - 5, 4, 16, 'F');
+
+    // Section title - LARGE font
     this.doc.setTextColor(...COLORS.dark);
-    this.doc.setFontSize(14);
+    this.doc.setFontSize(FONTS.subtitle);
     this.doc.setFont('helvetica', 'bold');
-    this.doc.text(`${icon} ${title}`, this.margin + 3, this.currentY + 3);
+    this.doc.text(`${icon} ${title}`.trim(), this.margin + 8, this.currentY + 5);
 
-    this.currentY += 15;
+    this.currentY += SPACING.sectionGap;
   }
 
   /**
-   * Add Executive Summary section
+   * Add Executive Summary section - LARGE readable KPIs
    */
   addExecutiveSummary() {
     this.addSectionTitle('Executive Summary');
 
     const { kpiData, dateRange } = this.data;
 
-    // Period info
-    this.doc.setFontSize(10);
-    this.doc.setFont('helvetica', 'normal');
-    this.doc.setTextColor(...COLORS.text);
+    // Period info - LARGER font
+    this.doc.setFontSize(FONTS.body);
+    this.doc.setFont('helvetica', 'bold');
+    this.doc.setTextColor(...COLORS.dark);
 
     const periodText = dateRange
       ? `Analysis Period: ${dateRange.startDate} to ${dateRange.endDate}`
       : `Analysis Period: Current Year`;
     this.doc.text(periodText, this.margin, this.currentY);
-    this.currentY += 8;
+    this.currentY += 12;
 
-    // KPI Cards
+    // KPI Cards - LARGER with better contrast
     const kpis = [
-      { label: 'Total Spending', value: formatCurrency(kpiData?.totalSpent || 0), color: COLORS.primary },
-      { label: 'Total Transactions', value: (kpiData?.totalExpenses || 0).toString(), color: COLORS.secondary },
-      { label: 'Average Expense', value: formatCurrency(kpiData?.averageExpense || 0), color: COLORS.warning },
-      { label: 'Categories Used', value: `${kpiData?.categoriesUsed || 0} of ${kpiData?.totalCategories || 0}`, color: COLORS.dark },
+      { label: 'TOTAL SPENDING', value: formatCurrency(kpiData?.totalSpent || 0), color: COLORS.primary },
+      { label: 'TRANSACTIONS', value: (kpiData?.totalExpenses || 0).toString(), color: COLORS.secondary },
+      { label: 'AVERAGE', value: formatCurrency(kpiData?.averageExpense || 0), color: COLORS.warning },
+      { label: 'CATEGORIES', value: `${kpiData?.categoriesUsed || 0} / ${kpiData?.totalCategories || 0}`, color: COLORS.dark },
     ];
 
-    const cardWidth = (this.pageWidth - 2 * this.margin - 15) / 4;
-    const cardHeight = 25;
+    // 2x2 grid for larger cards on A4
+    const cardWidth = (this.pageWidth - 2 * this.margin - 10) / 2;
+    const cardHeight = 32; // Taller cards
 
     kpis.forEach((kpi, index) => {
-      const x = this.margin + (cardWidth + 5) * index;
+      const row = Math.floor(index / 2);
+      const col = index % 2;
+      const x = this.margin + (cardWidth + 10) * col;
+      const y = this.currentY + (cardHeight + 8) * row;
 
-      // Card background
+      // Card background with rounded corners
       this.doc.setFillColor(...kpi.color);
-      this.doc.roundedRect(x, this.currentY, cardWidth, cardHeight, 2, 2, 'F');
+      this.doc.roundedRect(x, y, cardWidth, cardHeight, 3, 3, 'F');
 
-      // Card text
-      this.doc.setTextColor(255, 255, 255);
-      this.doc.setFontSize(8);
-      this.doc.text(kpi.label, x + 3, this.currentY + 8);
-      this.doc.setFontSize(11);
+      // Label - LARGER
+      this.doc.setTextColor(...COLORS.white);
+      this.doc.setFontSize(FONTS.small);
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.text(kpi.label, x + 6, y + 12);
+
+      // Value - VERY LARGE for readability
+      this.doc.setFontSize(FONTS.subtitle);
       this.doc.setFont('helvetica', 'bold');
-      this.doc.text(kpi.value, x + 3, this.currentY + 18);
+      this.doc.text(kpi.value, x + 6, y + 25);
       this.doc.setFont('helvetica', 'normal');
     });
 
-    this.currentY += cardHeight + 15;
+    this.currentY += (cardHeight + 8) * 2 + SPACING.sectionGap;
   }
 
   /**
-   * Add Category Breakdown section
+   * Add Category Breakdown section - LARGER readable tables
    */
   addCategoryBreakdown() {
     this.addSectionTitle('Category Breakdown');
@@ -300,16 +404,15 @@ export class ExpenseReportGenerator {
 
     if (!categoryBreakdown || categoryBreakdown.length === 0) {
       this.doc.setTextColor(...COLORS.muted);
-      this.doc.setFontSize(10);
+      this.doc.setFontSize(FONTS.body);
       this.doc.text('No category data available', this.margin, this.currentY);
-      this.currentY += 10;
+      this.currentY += 15;
       return;
     }
 
     const totalSpending = categoryBreakdown.reduce((sum, cat) => sum + cat.value, 0);
 
     const tableData = categoryBreakdown.map((cat, index) => {
-      // Handle division by zero - if totalSpending is 0, percentage is 0%
       const percentage = totalSpending > 0
         ? ((cat.value / totalSpending) * 100).toFixed(1)
         : '0.0';
@@ -325,53 +428,58 @@ export class ExpenseReportGenerator {
 
     autoTable(this.doc, {
       startY: this.currentY,
-      head: [['#', 'Category', 'Amount', '% of Total', 'Transactions']],
+      head: [['#', 'Category', 'Amount', '% of Total', 'Count']],
       body: tableData,
       theme: 'striped',
       headStyles: {
         fillColor: COLORS.primary,
         textColor: [255, 255, 255],
-        fontStyle: 'bold'
+        fontStyle: 'bold',
+        fontSize: FONTS.tableHeader,
+        cellPadding: 4
+      },
+      bodyStyles: {
+        fontSize: FONTS.tableBody,
+        cellPadding: 4,
+        textColor: COLORS.text
       },
       alternateRowStyles: {
         fillColor: COLORS.light
       },
       margin: { left: this.margin, right: this.margin },
       columnStyles: {
-        0: { cellWidth: 10, halign: 'center' },
-        1: { cellWidth: 50 },
-        2: { cellWidth: 35, halign: 'right' },
-        3: { cellWidth: 25, halign: 'center' },
-        4: { cellWidth: 30, halign: 'center' }
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 55 },
+        2: { cellWidth: 40, halign: 'right', fontStyle: 'bold' },
+        3: { cellWidth: 28, halign: 'center' },
+        4: { cellWidth: 25, halign: 'center' }
       }
     });
 
-    // Access finalY from doc.lastAutoTable (correct jspdf-autotable API)
-    this.currentY = (this.doc.lastAutoTable?.finalY || this.currentY) + 10;
+    this.currentY = (this.doc.lastAutoTable?.finalY || this.currentY) + SPACING.sectionGap;
   }
 
   /**
-   * Add Burning Points section (highest expense per category)
+   * Add Burning Points section (highest expense per category) - READABLE
    */
   addBurningPoints() {
-    this.addSectionTitle('Category Burning Points (Highest Expenses)');
+    this.addSectionTitle('Highest Expenses by Category');
 
     const { burningPoints } = this.data;
 
     if (!burningPoints || burningPoints.length === 0) {
       this.doc.setTextColor(...COLORS.muted);
-      this.doc.setFontSize(10);
-      this.doc.text('No burning point data available', this.margin, this.currentY);
-      this.currentY += 10;
+      this.doc.setFontSize(FONTS.body);
+      this.doc.text('No expense data available', this.margin, this.currentY);
+      this.currentY += 15;
       return;
     }
 
     const tableData = burningPoints.slice(0, 10).map((bp, index) => {
-      // Safely handle description truncation - check for null/undefined first
       let description = 'N/A';
       if (bp.description) {
-        description = bp.description.length > 40
-          ? bp.description.substring(0, 40) + '...'
+        description = bp.description.length > 35
+          ? bp.description.substring(0, 35) + '...'
           : bp.description;
       }
 
@@ -392,27 +500,33 @@ export class ExpenseReportGenerator {
       headStyles: {
         fillColor: COLORS.danger,
         textColor: [255, 255, 255],
-        fontStyle: 'bold'
+        fontStyle: 'bold',
+        fontSize: FONTS.tableHeader,
+        cellPadding: 4
+      },
+      bodyStyles: {
+        fontSize: FONTS.tableBody,
+        cellPadding: 4,
+        textColor: COLORS.text
       },
       alternateRowStyles: {
-        fillColor: [254, 242, 242] // Light red
+        fillColor: [255, 245, 245] // Very light red
       },
       margin: { left: this.margin, right: this.margin },
       columnStyles: {
-        0: { cellWidth: 10, halign: 'center' },
-        1: { cellWidth: 35 },
+        0: { cellWidth: 12, halign: 'center' },
+        1: { cellWidth: 38 },
         2: { cellWidth: 55 },
-        3: { cellWidth: 30, halign: 'right' },
-        4: { cellWidth: 25, halign: 'center' }
+        3: { cellWidth: 35, halign: 'right', fontStyle: 'bold' },
+        4: { cellWidth: 28, halign: 'center' }
       }
     });
 
-    // Access finalY from doc.lastAutoTable (correct jspdf-autotable API)
-    this.currentY = (this.doc.lastAutoTable?.finalY || this.currentY) + 10;
+    this.currentY = (this.doc.lastAutoTable?.finalY || this.currentY) + SPACING.sectionGap;
   }
 
   /**
-   * Add Monthly Trends section
+   * Add Monthly Trends section - LARGER readable tables
    */
   addMonthlyTrends() {
     this.addSectionTitle('Monthly Spending Trends');
@@ -421,9 +535,9 @@ export class ExpenseReportGenerator {
 
     if (!monthlyData || monthlyData.length === 0) {
       this.doc.setTextColor(...COLORS.muted);
-      this.doc.setFontSize(10);
+      this.doc.setFontSize(FONTS.body);
       this.doc.text('No monthly trend data available', this.margin, this.currentY);
-      this.currentY += 10;
+      this.currentY += 15;
       return;
     }
 
@@ -436,32 +550,38 @@ export class ExpenseReportGenerator {
 
     autoTable(this.doc, {
       startY: this.currentY,
-      head: [['Month', 'Total Spending', 'Transactions', 'Avg per Transaction']],
+      head: [['Month', 'Total Spending', 'Transactions', 'Average']],
       body: tableData,
       theme: 'striped',
       headStyles: {
         fillColor: COLORS.secondary,
         textColor: [255, 255, 255],
-        fontStyle: 'bold'
+        fontStyle: 'bold',
+        fontSize: FONTS.tableHeader,
+        cellPadding: 4
+      },
+      bodyStyles: {
+        fontSize: FONTS.tableBody,
+        cellPadding: 4,
+        textColor: COLORS.text
       },
       alternateRowStyles: {
         fillColor: COLORS.light
       },
       margin: { left: this.margin, right: this.margin },
       columnStyles: {
-        0: { cellWidth: 40 },
-        1: { cellWidth: 40, halign: 'right' },
+        0: { cellWidth: 45 },
+        1: { cellWidth: 45, halign: 'right', fontStyle: 'bold' },
         2: { cellWidth: 35, halign: 'center' },
-        3: { cellWidth: 45, halign: 'right' }
+        3: { cellWidth: 40, halign: 'right' }
       }
     });
 
-    // Access finalY from doc.lastAutoTable (correct jspdf-autotable API)
-    this.currentY = (this.doc.lastAutoTable?.finalY || this.currentY) + 10;
+    this.currentY = (this.doc.lastAutoTable?.finalY || this.currentY) + SPACING.sectionGap;
   }
 
   /**
-   * Add Key Insights and Recommendations section
+   * Add Key Insights and Recommendations section - LARGE readable text
    */
   addInsightsSection() {
     this.addSectionTitle('Key Insights & Recommendations');
@@ -470,72 +590,90 @@ export class ExpenseReportGenerator {
 
     if (insights.length === 0) {
       this.doc.setTextColor(...COLORS.muted);
-      this.doc.setFontSize(10);
+      this.doc.setFontSize(FONTS.body);
       this.doc.text('Insufficient data to generate insights', this.margin, this.currentY);
-      this.currentY += 10;
+      this.currentY += 15;
       return;
     }
 
     insights.forEach((insight, index) => {
-      if (this.currentY > this.pageHeight - 60) {
+      if (this.currentY > this.pageHeight - 70) {
         this.doc.addPage();
         this.currentY = this.margin + 10;
       }
 
-      // Insight type indicator
-      let bgColor;
+      // Insight type indicator - brighter colors for visibility
+      let bgColor, accentColor;
       switch (insight.type) {
-        case 'warning': bgColor = [254, 243, 199]; break; // Light amber
-        case 'alert': bgColor = [254, 226, 226]; break;   // Light red
-        case 'success': bgColor = [209, 250, 229]; break; // Light green
-        default: bgColor = [224, 242, 254]; break;        // Light blue
+        case 'warning':
+          bgColor = [255, 250, 235];
+          accentColor = COLORS.warning;
+          break;
+        case 'alert':
+          bgColor = [255, 240, 240];
+          accentColor = COLORS.danger;
+          break;
+        case 'success':
+          bgColor = [235, 255, 245];
+          accentColor = COLORS.secondary;
+          break;
+        default:
+          bgColor = [235, 245, 255];
+          accentColor = COLORS.primary;
+          break;
       }
 
-      // Calculate text lines first to determine dynamic box height
-      const maxTextWidth = this.pageWidth - 2 * this.margin - 10;
+      // Calculate text lines with LARGER font
+      const maxTextWidth = this.pageWidth - 2 * this.margin - 16;
       const descLines = this.doc.splitTextToSize(insight.description, maxTextWidth);
-      const recLines = this.doc.splitTextToSize(`Recommendation: ${insight.recommendation}`, maxTextWidth);
+      const recLines = this.doc.splitTextToSize(`ACTION: ${insight.recommendation}`, maxTextWidth);
 
-      // Calculate dynamic box height: title (10) + description lines (7 each) + recommendation lines (6 each) + padding
-      const titleHeight = 10;
-      const descHeight = descLines.length * 5;
-      const recHeight = recLines.length * 4;
-      const boxHeight = Math.max(35, titleHeight + descHeight + recHeight + 15);
+      // Dynamic box height with larger fonts
+      const titleHeight = 14;
+      const descHeight = descLines.length * 7;
+      const recHeight = recLines.length * 6;
+      const boxHeight = Math.max(45, titleHeight + descHeight + recHeight + 20);
 
+      // Box with accent border
       this.doc.setFillColor(...bgColor);
-      this.doc.roundedRect(this.margin, this.currentY, this.pageWidth - 2 * this.margin, boxHeight, 2, 2, 'F');
+      this.doc.roundedRect(this.margin, this.currentY, this.pageWidth - 2 * this.margin, boxHeight, 3, 3, 'F');
 
-      // Insight number
-      this.doc.setFontSize(10);
+      // Left accent bar
+      this.doc.setFillColor(...accentColor);
+      this.doc.rect(this.margin, this.currentY, 5, boxHeight, 'F');
+
+      // Insight title - LARGER
+      this.doc.setFontSize(FONTS.heading);
       this.doc.setFont('helvetica', 'bold');
       this.doc.setTextColor(...COLORS.dark);
-      this.doc.text(`${index + 1}. ${insight.title}`, this.margin + 3, this.currentY + 7);
+      this.doc.text(`${index + 1}. ${insight.title}`, this.margin + 10, this.currentY + 10);
 
-      // Description - render all lines
-      this.doc.setFontSize(9);
+      // Description - LARGER and readable
+      this.doc.setFontSize(FONTS.body);
       this.doc.setFont('helvetica', 'normal');
       this.doc.setTextColor(...COLORS.text);
-      let yOffset = this.currentY + 14;
+      let yOffset = this.currentY + 20;
       descLines.forEach((line, lineIndex) => {
-        this.doc.text(line, this.margin + 3, yOffset + (lineIndex * 5));
+        this.doc.text(line, this.margin + 10, yOffset + (lineIndex * 7));
       });
 
-      // Recommendation - render all lines
-      this.doc.setFontSize(8);
-      this.doc.setTextColor(...COLORS.muted);
-      const recStartY = yOffset + (descLines.length * 5) + 3;
+      // Recommendation - emphasized
+      this.doc.setFontSize(FONTS.small);
+      this.doc.setFont('helvetica', 'bold');
+      this.doc.setTextColor(...accentColor);
+      const recStartY = yOffset + (descLines.length * 7) + 5;
       recLines.forEach((line, lineIndex) => {
-        this.doc.text(line, this.margin + 3, recStartY + (lineIndex * 4));
+        this.doc.text(line, this.margin + 10, recStartY + (lineIndex * 6));
       });
 
-      this.currentY += boxHeight + 5;
+      this.currentY += boxHeight + 8;
     });
 
-    this.currentY += 5;
+    this.currentY += SPACING.paragraphGap;
   }
 
   /**
-   * Add Year Comparison section if available
+   * Add Year Comparison section if available - LARGE readable cards
    */
   addYearComparison() {
     const { yearComparison } = this.data;
@@ -546,46 +684,62 @@ export class ExpenseReportGenerator {
 
     const { summary, baseYear, compareYear } = yearComparison;
 
-    // Summary cards
+    // Summary cards - 2x2 grid for larger text
     const metrics = [
       {
-        label: `${baseYear} Total`,
-        value: formatCurrency(summary.baseYearTotal || 0)
+        label: `${baseYear || 'Base Year'} TOTAL`,
+        value: formatCurrency(summary.baseYearTotal || 0),
+        color: COLORS.primary
       },
       {
-        label: `${compareYear} Total`,
-        value: formatCurrency(summary.compareYearTotal || 0)
+        label: `${compareYear || 'Compare Year'} TOTAL`,
+        value: formatCurrency(summary.compareYearTotal || 0),
+        color: COLORS.secondary
       },
       {
-        label: 'Difference',
-        value: `${summary.total_difference >= 0 ? '+' : ''}${formatCurrency(summary.total_difference || 0)}`
+        label: 'DIFFERENCE',
+        value: `${summary.total_difference >= 0 ? '+' : ''}${formatCurrency(summary.total_difference || 0)}`,
+        color: summary.total_difference >= 0 ? COLORS.danger : COLORS.secondary
       },
       {
-        label: 'Change %',
-        value: `${summary.total_percentage_change >= 0 ? '+' : ''}${(summary.total_percentage_change || 0).toFixed(1)}%`
+        label: 'CHANGE',
+        value: `${summary.total_percentage_change >= 0 ? '+' : ''}${(summary.total_percentage_change || 0).toFixed(1)}%`,
+        color: summary.total_percentage_change >= 0 ? COLORS.danger : COLORS.secondary
       },
     ];
 
-    const cardWidth = (this.pageWidth - 2 * this.margin - 15) / 4;
+    const cardWidth = (this.pageWidth - 2 * this.margin - 10) / 2;
+    const cardHeight = 28;
 
     metrics.forEach((metric, index) => {
-      const x = this.margin + (cardWidth + 5) * index;
+      const row = Math.floor(index / 2);
+      const col = index % 2;
+      const x = this.margin + (cardWidth + 10) * col;
+      const y = this.currentY + (cardHeight + 6) * row;
 
+      // Card with color accent
       this.doc.setFillColor(...COLORS.light);
-      this.doc.roundedRect(x, this.currentY, cardWidth, 20, 2, 2, 'F');
+      this.doc.roundedRect(x, y, cardWidth, cardHeight, 3, 3, 'F');
 
+      // Top accent bar
+      this.doc.setFillColor(...metric.color);
+      this.doc.rect(x, y, cardWidth, 4, 'F');
+
+      // Label - LARGER
       this.doc.setTextColor(...COLORS.muted);
-      this.doc.setFontSize(8);
-      this.doc.text(metric.label, x + 3, this.currentY + 7);
+      this.doc.setFontSize(FONTS.small);
+      this.doc.setFont('helvetica', 'normal');
+      this.doc.text(metric.label, x + 6, y + 14);
 
+      // Value - LARGE and bold
       this.doc.setTextColor(...COLORS.dark);
-      this.doc.setFontSize(10);
+      this.doc.setFontSize(FONTS.subtitle);
       this.doc.setFont('helvetica', 'bold');
-      this.doc.text(metric.value, x + 3, this.currentY + 15);
+      this.doc.text(metric.value, x + 6, y + 24);
       this.doc.setFont('helvetica', 'normal');
     });
 
-    this.currentY += 30;
+    this.currentY += (cardHeight + 6) * 2 + SPACING.sectionGap;
   }
 
   /**
